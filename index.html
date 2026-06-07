@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scopey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="nav container">
+    <div class="brand">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="24" height="24" rx="6" fill="#10B981" />
+        <path d="M6 12h12M6 16h8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <strong class="brand-name">Scopey</strong>
+    </div>
+    <nav class="actions" aria-label="Primary actions">
+      <button class="btn btn-ghost" onclick="login()" aria-label="Login">Login</button>
+      <button class="btn btn-ghost" onclick="logout()" aria-label="Logout">Logout</button>
+      <button onclick="upgrade('pro_plus')" class="btn btn-primary" aria-label="Start a free trial">Start free trial</button>
+    </nav>
+  </div>
+  <div class="accessibility-tools" aria-label="Accessibility options">
+    <button class="btn btn-ghost" id="decrease-text" aria-label="Decrease text size">A-</button>
+    <button class="btn btn-ghost" id="increase-text" aria-label="Increase text size">A+</button>
+    <button class="btn btn-ghost" id="toggle-contrast" aria-pressed="false">High contrast</button>
+  </div>
+</header>
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<main id="main-content" class="container">
+  <section class="hero">
+    <h1>Less confusion. Better commissions.</h1>
+    <p class="lead">Simple commission tracking and client management for creative teams.</p>
+  </section>
+
+  <div id="banner" class="banner" style="display:none" aria-live="polite"></div>
+
+  <section class="dashboard-grid">
+    <div class="card small">
+      <div class="card-title">Plan</div>
+      <div class="card-value"><span id="plan"></span></div>
+    </div>
+    <div class="card small">
+      <div class="card-title">Total</div>
+      <div class="card-value"><span id="total"></span></div>
+    </div>
+  </section>
+
+  <section class="composer">
+    <form id="form" class="compose-form">
+      <label class="visually-hidden" for="title">Commission title</label>
+      <input id="title" placeholder="Title" required>
+      <label class="visually-hidden" for="client">Client name</label>
+      <input id="client" placeholder="Client" required>
+      <label class="visually-hidden" for="limit">Revision limit</label>
+      <input id="limit" type="number" placeholder="Revision limit">
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section id="list" class="list"></section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">Made with ♥ — Scopey</div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
