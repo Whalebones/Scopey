@@ -62,6 +62,7 @@ body.theme-high-contrast .topbar{background:#000;border-color:#fff;}
 .btn-ghost{background:rgba(255,255,255,0.72);color:var(--text);border:1px solid rgba(15,23,42,0.08);backdrop-filter:blur(10px)}
 .btn-primary{background:linear-gradient(90deg,var(--accent),var(--accent-600));color:#fff;box-shadow:0 18px 32px rgba(16,185,129,0.18)}
 .btn-secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-link{background:transparent;color:var(--accent);border:none;padding:0;font-weight:700;cursor:pointer;text-decoration:underline;}
 .btn[disabled]{opacity:.64;cursor:not-allowed;transform:none;}
 body.theme-dark .btn-ghost,
 body.theme-high-contrast .btn-ghost{background:rgba(255,255,255,0.08);color:var(--text);border:1px solid rgba(255,255,255,0.12)}
@@ -143,6 +144,7 @@ body.theme-high-contrast .btn-ghost{background:rgba(255,255,255,0.08);color:var(
 .modal-panel input[type="email"]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);margin:8px 0 14px}
 .modal-actions{display:flex;gap:10px;flex-wrap:wrap}
 .modal-actions-right{justify-content:flex-end}
+.auth-modal-footer{margin-top:14px;display:flex;justify-content:flex-start}
 .modal-close{position:absolute;right:12px;top:10px;border:0;background:transparent;font-size:20px;cursor:pointer}
 .text-size-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
 .reset-btn{padding:10px 16px;font-size:0.95rem}

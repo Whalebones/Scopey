@@ -227,9 +227,29 @@ const authForm = document.getElementById("auth-form");
 const authEmail = document.getElementById("auth-email");
 const authClose = document.getElementById("auth-close");
 const authCancel = document.getElementById("auth-cancel");
+const authSubmitButton = document.getElementById("auth-submit");
+const authModeText = document.getElementById("auth-mode-text");
+const passwordResetButton = document.getElementById("password-reset-button");
+let isResetMode = false;
+
+function setAuthMode(resetMode = false) {
+  isResetMode = resetMode;
+  if (authModeText) {
+    authModeText.textContent = resetMode
+      ? "Enter your email to receive a password reset link."
+      : "Enter your email to receive a sign-in link or reset your password.";
+  }
+  if (authSubmitButton) {
+    authSubmitButton.textContent = resetMode ? "Send reset link" : "Send magic link";
+  }
+  if (passwordResetButton) {
+    passwordResetButton.textContent = resetMode ? "Back to sign in" : "Forgot password?";
+  }
+}
 
 function showAuthModal() {
   if (!authModal) return;
+  setAuthMode(false);
   authModal.style.display = "block";
   authModal.setAttribute("aria-hidden", "false");
   setTimeout(() => authEmail.focus(), 40);
@@ -244,6 +264,10 @@ function hideAuthModal() {
 authClose?.addEventListener("click", hideAuthModal);
 authCancel?.addEventListener("click", hideAuthModal);
 loginButton?.addEventListener("click", showAuthModal);
+passwordResetButton?.addEventListener("click", () => {
+  setAuthMode(!isResetMode);
+  authEmail.focus();
+});
 
 authForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -253,10 +277,26 @@ authForm?.addEventListener("submit", async (e) => {
     return;
   }
 
+  const redirectTo = window.location.origin;
+
+  if (isResetMode) {
+    const { error } = await db.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+    if (error) {
+      showBanner(`Unable to send reset link: ${error.message}`, "error");
+      return;
+    }
+
+    showBanner("Password reset link sent. Check your inbox.", "success");
+    setAuthMode(false);
+    return;
+  }
+
   const { error } = await db.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}`,
+      emailRedirectTo: redirectTo,
     },
   });
   if (error) {
@@ -655,7 +695,7 @@ async function handleAuthFromUrl() {
     await refreshView();
   }
 
-  const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+  const cleanUrl = window.location.origin;
   window.history.replaceState({}, document.title, cleanUrl);
 }
 

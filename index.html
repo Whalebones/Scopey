@@ -227,12 +227,16 @@
     <button class="modal-close" id="auth-close" aria-label="Close">×</button>
     <h3 id="auth-modal-title">Sign in / Sign up</h3>
     <p class="muted">Enter your email and we'll send a magic link to sign you in.</p>
+    <p id="auth-mode-text" class="muted">Enter your email to receive a sign-in link or reset your password.</p>
     <form id="auth-form">
       <label for="auth-email" class="visually-hidden">Email</label>
       <input id="auth-email" name="email" type="email" placeholder="you@example.com" required>
       <div class="modal-actions">
-        <button type="submit" class="btn btn-primary">Send magic link</button>
+        <button type="submit" class="btn btn-primary" id="auth-submit">Send magic link</button>
         <button type="button" class="btn btn-secondary" id="auth-cancel">Cancel</button>
+      </div>
+      <div class="auth-modal-footer">
+        <button type="button" class="btn btn-link" id="password-reset-button">Forgot password?</button>
       </div>
     </form>
   </div>
