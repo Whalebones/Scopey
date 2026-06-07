@@ -1,6 +1,6 @@
 # Scopey SaaS
 
-Scopey is a simple commission tracker and client manager built for creative teams. It includes Supabase authentication, commission tracking, and Stripe plan upgrades.
+Scopey is a simple commission tracker and client manager built for freelancers and independent creators. It includes Supabase authentication, commission tracking, and Stripe plan upgrades.
 
 ## Setup
 
