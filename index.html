@@ -30,7 +30,7 @@
     <div class="actions" aria-label="Primary actions">
       <span id="status-message" class="status-text">Track every client, revision, and plan in one dashboard.</span>
       <button id="accessibility-button" class="btn btn-ghost" onclick="showAccessibilityModal()" aria-label="Accessibility settings">Accessibility</button>
-      <button id="login-button" class="btn btn-ghost" onclick="showAuthModal()" aria-label="Login">Login</button>
+      <button id="login-button" class="btn btn-ghost" onclick="showAuthModal()" aria-label="Sign in">Sign in</button>
       <button id="logout-button" class="btn btn-ghost" onclick="logout()" aria-label="Logout">Logout</button>
       <button id="trial-button" class="btn btn-primary" onclick="upgrade('pro_plus')" aria-label="Start free trial">Start free trial</button>
     </div>
@@ -228,9 +228,12 @@
 <div id="auth-modal" class="modal" aria-hidden="true" tabindex="-1">
   <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
     <button class="modal-close" id="auth-close" aria-label="Close">×</button>
-    <h3 id="auth-modal-title">Sign in / Sign up</h3>
-    <p class="muted">Enter your email and we'll send a magic link to sign you in.</p>
-    <p id="auth-mode-text" class="muted">Enter your email to receive a sign-in link or reset your password.</p>
+    <h3 id="auth-modal-title">Sign in or create an account</h3>
+    <p class="muted">Enter your email and we'll send a secure magic link. No password is required.</p>
+    <p id="auth-mode-text" class="muted">Enter your email to receive a sign-in link. We'll create your account automatically if you don't have one.</p>
+    <div class="auth-feature-list">
+      <div>One email. One click. Start tracking commissions instantly.</div>
+    </div>
     <form id="auth-form">
       <label for="auth-email" class="visually-hidden">Email</label>
       <input id="auth-email" name="email" type="email" placeholder="you@example.com" required>
@@ -239,7 +242,7 @@
         <button type="button" class="btn btn-secondary" id="auth-cancel">Cancel</button>
       </div>
       <div class="auth-modal-footer">
-        <button type="button" class="btn btn-link" id="password-reset-button">Forgot password?</button>
+        <button type="button" class="btn btn-link" id="password-reset-button">Reset password</button>
       </div>
     </form>
   </div>

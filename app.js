@@ -290,25 +290,69 @@ const authSubmitButton = document.getElementById("auth-submit");
 const authModeText = document.getElementById("auth-mode-text");
 const passwordResetButton = document.getElementById("password-reset-button");
 let isResetMode = false;
+let authRequestInProgress = false;
+let authCooldownSeconds = 0;
+let authCooldownTimer = null;
+
+function updateAuthSubmitState() {
+  if (!authSubmitButton) return;
+  authSubmitButton.disabled = authRequestInProgress || authCooldownSeconds > 0;
+
+  if (authRequestInProgress) {
+    authSubmitButton.textContent = "Sending…";
+    return;
+  }
+
+  if (authCooldownSeconds > 0) {
+    authSubmitButton.textContent = `Wait ${authCooldownSeconds}s`;
+    return;
+  }
+
+  authSubmitButton.textContent = isResetMode ? "Send reset link" : "Send magic link";
+}
+
+function startAuthCooldown(seconds) {
+  clearInterval(authCooldownTimer);
+  authCooldownSeconds = seconds;
+  updateAuthSubmitState();
+  authCooldownTimer = setInterval(() => {
+    authCooldownSeconds -= 1;
+    if (authCooldownSeconds <= 0) {
+      clearInterval(authCooldownTimer);
+      authCooldownTimer = null;
+      authCooldownSeconds = 0;
+    }
+    updateAuthSubmitState();
+  }, 1000);
+}
+
+function stopAuthCooldown() {
+  clearInterval(authCooldownTimer);
+  authCooldownTimer = null;
+  authCooldownSeconds = 0;
+  updateAuthSubmitState();
+}
 
 function setAuthMode(resetMode = false) {
   isResetMode = resetMode;
   if (authModeText) {
     authModeText.textContent = resetMode
       ? "Enter your email to receive a password reset link."
-      : "Enter your email to receive a sign-in link or reset your password.";
+      : "Enter your email to receive a sign-in link. We'll create your account automatically if needed.";
   }
   if (authSubmitButton) {
     authSubmitButton.textContent = resetMode ? "Send reset link" : "Send magic link";
   }
   if (passwordResetButton) {
-    passwordResetButton.textContent = resetMode ? "Back to sign in" : "Forgot password?";
+    passwordResetButton.textContent = resetMode ? "Back to sign in" : "Reset password";
   }
+  updateAuthSubmitState();
 }
 
 function showAuthModal() {
   if (!authModal) return;
   setAuthMode(false);
+  updateAuthSubmitState();
   authModal.style.display = "block";
   authModal.setAttribute("aria-hidden", "false");
   setTimeout(() => authEmail.focus(), 40);
@@ -359,11 +403,24 @@ authForm?.addEventListener("submit", async (e) => {
     },
   });
   if (error) {
+    authRequestInProgress = false;
+    updateAuthSubmitState();
+
+    const lowerMessage = error.message?.toLowerCase() || "";
+    if (lowerMessage.includes("rate limit") || lowerMessage.includes("rate_limit") || lowerMessage.includes("too many")) {
+      showBanner("Please wait a moment before requesting another link. This helps prevent duplicate emails.", "warning");
+      startAuthCooldown(60);
+      return;
+    }
+
     showBanner(`Unable to send login link: ${error.message}`, "error");
     return;
   }
 
+  authRequestInProgress = false;
+  updateAuthSubmitState();
   showBanner("Magic link sent. Check your inbox to finish signing in.", "success");
+  startAuthCooldown(60);
   hideAuthModal();
 });
 
