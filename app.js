@@ -5,6 +5,8 @@ const STRIPE_KEY = "pk_test_51Tfdr9HbHMKHnVYfDDun9mhREMp6UCVAKYu2ZD2lNuBnPbjYTvm
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const stripe = Stripe(STRIPE_KEY);
 const API_BASE_URL = window.SCOPEY_API_URL || (window.location.origin.includes("localhost") || window.location.origin === "null" ? "http://localhost:3000" : window.location.origin);
+const AUTH_REDIRECT_PATH = "/auth/callback";
+const AUTH_REDIRECT_URL = `${window.location.origin}${AUTH_REDIRECT_PATH}`;
 
 const form = document.getElementById("form");
 const title = document.getElementById("title");
@@ -277,7 +279,7 @@ authForm?.addEventListener("submit", async (e) => {
     return;
   }
 
-  const redirectTo = window.location.origin;
+  const redirectTo = AUTH_REDIRECT_URL;
 
   if (isResetMode) {
     const { error } = await db.auth.resetPasswordForEmail(email, {
