@@ -1,35 +1,53 @@
-# Scopey SaaS (Complete Version)
+# Scopey SaaS
+
+Scopey is a simple commission tracker and client manager built for creative teams. It includes Supabase authentication, commission tracking, and Stripe plan upgrades.
 
 ## Setup
 
 ### 1. Install dependencies
-npm install express stripe cors @supabase/supabase-js
+npm install
 
-### 2. Set environment variables
+### 2. Configure environment variables
+Copy `.env.example` to `.env` and update the values with your keys.
 
-STRIPE_SECRET=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+Required values:
+- `STRIPE_SECRET`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_ID_PRO`
+- `STRIPE_PRICE_ID_PRO_PLUS`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY`
+- `FRONTEND_URL`
 
-STRIPE_PRICE_ID_PRO=price_1TfeAZHbHMKHnVYfBiuehzUG
-STRIPE_PRICE_ID_PRO_PLUS=price_1TfeCTHbHMKHnVYfuRt8LhVZ
+### 3. Start the backend
+npm start
 
-SUPABASE_URL=https://nxqwrlbwnaqntuvcspln.supabase.co
-SUPABASE_SERVICE_KEY=your_service_key_here
+### 4. Run the frontend
+Serve the frontend from a local static server for best results:
 
-### 3. Run backend
-node server.js
+- `npx serve .`
+- or use Live Server in VS Code
 
-### 4. Start Stripe webhook
+Then open the frontend URL and sign in using your Supabase email flow.
+
+### 5. Start Stripe webhook listener (development)
 stripe listen --forward-to localhost:3000/webhook
 
-### 5. Run frontend
-Open `index.html` locally, or deploy the frontend to your domain and set `FRONTEND_URL` to `http://scopey.co.uk`.
+## Notes
 
-> For production, use HTTPS if possible: `https://scopey.co.uk`.
+- The frontend uses Supabase email login and a public publishable key.
+- The backend handles checkout session creation and Stripe webhooks.
+- `node_modules` should remain local and should not be committed.
+
+## Production tips
+
+- Deploy the frontend on HTTPS.
+- Set `FRONTEND_URL` to your production domain.
+- Keep `SUPABASE_SERVICE_KEY` and Stripe secrets out of source control.
 
 ## Features
-- Auth (Supabase)
+- Auth with Supabase
 - Commission tracking
-- Free vs Pro vs Pro+
-- Stripe payments + 30-day trial
-- Webhooks (auto upgrade / downgrade)
+- Free and paid plans with upgrade flow
+- Stripe checkout with trial support
+- Webhook-driven plan updates

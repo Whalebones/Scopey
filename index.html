@@ -13,6 +13,7 @@
 </head>
 <body>
 
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <header class="topbar">
   <div class="nav container">
     <div class="brand">
@@ -20,13 +21,17 @@
         <rect width="24" height="24" rx="6" fill="#10B981" />
         <path d="M6 12h12M6 16h8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <strong class="brand-name">Scopey</strong>
+      <div>
+        <strong class="brand-name">Scopey</strong>
+        <p class="brand-tagline">Commission tracking for creative teams.</p>
+      </div>
     </div>
-    <nav class="actions" aria-label="Primary actions">
-      <button class="btn btn-ghost" onclick="login()" aria-label="Login">Login</button>
-      <button class="btn btn-ghost" onclick="logout()" aria-label="Logout">Logout</button>
-      <button onclick="upgrade('pro_plus')" class="btn btn-primary" aria-label="Start a free trial">Start free trial</button>
-    </nav>
+    <div class="actions" aria-label="Primary actions">
+      <span id="status-message" class="status-text">Track every client, revision, and plan in one dashboard.</span>
+      <button id="login-button" class="btn btn-ghost" onclick="login()" aria-label="Login">Login</button>
+      <button id="logout-button" class="btn btn-ghost" onclick="logout()" aria-label="Logout">Logout</button>
+      <button id="trial-button" class="btn btn-primary" onclick="upgrade('pro_plus')" aria-label="Start free trial">Start free trial</button>
+    </div>
   </div>
   <div class="accessibility-tools" aria-label="Accessibility options">
     <button class="btn btn-ghost" id="decrease-text" aria-label="Decrease text size">A-</button>
@@ -35,41 +40,146 @@
   </div>
 </header>
 
-<a class="skip-link" href="#main-content">Skip to main content</a>
-
 <main id="main-content" class="container">
   <section class="hero">
-    <h1>Less confusion. Better commissions.</h1>
-    <p class="lead">Simple commission tracking and client management for creative teams.</p>
+    <div class="hero-copy">
+      <span class="eyebrow">Creative work, organized</span>
+      <h1>Less confusion. Better commission results.</h1>
+      <p class="lead">Simple commission tracking, clear client management, and a polished upgrade flow for growing creative teams.</p>
+      <div class="hero-actions">
+        <button class="btn btn-primary" onclick="login()">Start for free</button>
+        <a class="btn btn-secondary" href="#features">See features</a>
+      </div>
+    </div>
+    <aside class="hero-panel" aria-label="Current workspace overview">
+      <div class="panel-label">Workspace snapshot</div>
+      <div class="panel-card">
+        <div class="panel-row">
+          <span>Plan</span>
+          <strong id="plan">free</strong>
+        </div>
+        <div class="panel-row">
+          <span>Active commissions</span>
+          <strong id="total">0</strong>
+        </div>
+        <p class="panel-note">Sign in to track work, limit revisions, and upgrade to Pro plans.</p>
+      </div>
+    </aside>
   </section>
 
-  <div id="banner" class="banner" style="display:none" aria-live="polite"></div>
+  <div id="banner" class="banner" role="status" aria-live="polite"></div>
 
   <section class="dashboard-grid">
-    <div class="card small">
-      <div class="card-title">Plan</div>
-      <div class="card-value"><span id="plan"></span></div>
-    </div>
-    <div class="card small">
-      <div class="card-title">Total</div>
-      <div class="card-value"><span id="total"></span></div>
-    </div>
+    <article class="card feature-card">
+      <div class="card-title">Add a commission</div>
+      <form id="form" class="compose-form">
+        <label class="visually-hidden" for="title">Commission title</label>
+        <input id="title" placeholder="Commission title" required>
+        <label class="visually-hidden" for="client">Client name</label>
+        <input id="client" placeholder="Client name" required>
+        <label class="visually-hidden" for="limit">Revision limit</label>
+        <input id="limit" type="number" min="0" step="1" placeholder="Revisions">
+        <button class="btn btn-primary" type="submit">Add commission</button>
+      </form>
+    </article>
+    <article class="card small">
+      <div class="card-title">How Scopey helps</div>
+      <p class="card-copy">Use Scopey to keep commission work visible, manage clients, and stay under control on every project.</p>
+    </article>
+    <article class="card small">
+      <div class="card-title">Plan guidance</div>
+      <p class="card-copy">Free users can add up to 3 commissions. Upgrade for unlimited tracking and priority support.</p>
+    </article>
   </section>
 
-  <section class="composer">
-    <form id="form" class="compose-form">
-      <label class="visually-hidden" for="title">Commission title</label>
-      <input id="title" placeholder="Title" required>
-      <label class="visually-hidden" for="client">Client name</label>
-      <input id="client" placeholder="Client" required>
-      <label class="visually-hidden" for="limit">Revision limit</label>
-      <input id="limit" type="number" placeholder="Revision limit">
-      <button class="btn btn-primary" type="submit">Add</button>
-    </form>
+  <section id="onboarding" class="onboarding">
+    <div class="section-heading">
+      <span class="eyebrow">Easy onboarding</span>
+      <h2>Start tracking commissions in minutes</h2>
+      <p>Scopey makes onboarding fast so your team can stay focused on delivering creative work instead of managing spreadsheets.</p>
+    </div>
+    <div class="onboarding-grid">
+      <article class="step-card">
+        <div class="step-number">1</div>
+        <h3>Create an account</h3>
+        <p>Sign in with your email and get access to your own commission workspace instantly.</p>
+      </article>
+      <article class="step-card">
+        <div class="step-number">2</div>
+        <h3>Add your first commission</h3>
+        <p>Enter the title, client name, and revision limit to keep the scope clear from the start.</p>
+      </article>
+      <article class="step-card">
+        <div class="step-number">3</div>
+        <h3>Track progress</h3>
+        <p>See active commissions and revision counts in one place so nothing slips through.</p>
+      </article>
+      <article class="step-card">
+        <div class="step-number">4</div>
+        <h3>Upgrade when ready</h3>
+        <p>Move from free to Pro plans for unlimited projects and better team support.</p>
+      </article>
+    </div>
   </section>
 
   <section id="list" class="list"></section>
 
+  <section id="pricing" class="pricing-grid">
+    <article class="pricing-card">
+      <div class="pricing-header">
+        <span>Free</span>
+        <strong class="price-value">$0</strong>
+      </div>
+      <p class="price-description">Perfect for solo creators trying Scopey with basic commission tracking.</p>
+      <ul class="price-list">
+        <li>Up to 3 active commissions</li>
+        <li>Client tracking</li>
+        <li>Email sign-in</li>
+      </ul>
+      <button class="btn btn-secondary" disabled>Included</button>
+    </article>
+    <article class="pricing-card featured">
+      <div class="pricing-header">
+        <span>Pro</span>
+        <strong class="price-value">$12/mo</strong>
+      </div>
+      <p class="price-description">Scale with unlimited commissions and a more polished workflow.</p>
+      <ul class="price-list">
+        <li>Unlimited commissions</li>
+        <li>Revision tracking</li>
+        <li>Priority support</li>
+      </ul>
+      <button class="btn btn-primary" onclick="upgrade('pro')">Upgrade</button>
+    </article>
+    <article class="pricing-card">
+      <div class="pricing-header">
+        <span>Pro+</span>
+        <strong class="price-value">$24/mo</strong>
+      </div>
+      <p class="price-description">Best for teams with multiple clients and premium support needs.</p>
+      <ul class="price-list">
+        <li>Everything in Pro</li>
+        <li>Team-ready workflow</li>
+        <li>Priority onboarding</li>
+      </ul>
+      <button class="btn btn-primary" onclick="upgrade('pro_plus')">Upgrade</button>
+    </article>
+  </section>
+
+  <section id="features" class="feature-grid">
+    <div class="feature-card">
+      <h2>Manage commissions</h2>
+      <p>Create commission records, assign clients, and track revisions in one simple interface.</p>
+    </div>
+    <div class="feature-card">
+      <h2>Stay on track</h2>
+      <p>See progress at a glance, avoid scope creep, and keep every client on the same page.</p>
+    </div>
+    <div class="feature-card">
+      <h2>Stripe plans</h2>
+      <p>Built for smooth upgrades with Stripe checkout, billing management, and trial periods.</p>
+    </div>
+  </section>
 </main>
 
 <footer class="site-footer">
