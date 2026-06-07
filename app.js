@@ -30,6 +30,8 @@ const loginButton = document.getElementById("login-button");
 const logoutButton = document.getElementById("logout-button");
 const trialButton = document.getElementById("trial-button");
 const statusMessage = document.getElementById("status-message");
+const heroLeft = document.getElementById("hero-left");
+const heroRight = document.getElementById("hero-right");
 const analyticsCopy = document.getElementById("analytics-copy");
 const insightCount = document.getElementById("insight-count");
 const insightRevisions = document.getElementById("insight-revisions");
@@ -75,6 +77,41 @@ function increaseTextSize() {
 function decreaseTextSize() {
   const nextIndex = Math.max(textSizeSteps.indexOf(currentTextSize) - 1, 0);
   setTextSize(textSizeSteps[nextIndex]);
+}
+
+function rotateHeroPhrases() {
+  if (!heroLeft || !heroRight) return;
+
+  const leftOptions = [
+    "Less confusion",
+    "Fewer mix-ups",
+    "Clear client scope",
+    "Less chaos in approvals",
+  ];
+  const rightOptions = [
+    "Better commission results",
+    "Sharper creative delivery",
+    "More polished client work",
+    "Faster project handoffs",
+  ];
+
+  let index = 0;
+  const cycle = () => {
+    const nextIndex = (index + 1) % leftOptions.length;
+
+    heroLeft.classList.add("fade-out");
+    heroRight.classList.add("fade-out");
+
+    setTimeout(() => {
+      heroLeft.textContent = leftOptions[nextIndex];
+      heroRight.textContent = rightOptions[nextIndex];
+      heroLeft.classList.remove("fade-out");
+      heroRight.classList.remove("fade-out");
+      index = nextIndex;
+    }, 280);
+  };
+
+  setInterval(cycle, 4500);
 }
 
 
@@ -733,6 +770,7 @@ async function handleAuthFromUrl() {
 async function initializeApp() {
   loadAccessibilityPreferences();
   applySavedTheme();
+  rotateHeroPhrases();
   await handleAuthFromUrl();
   await refreshView();
 }

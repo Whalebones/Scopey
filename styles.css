@@ -72,6 +72,8 @@ body.theme-high-contrast .btn-ghost{background:rgba(255,255,255,0.08);color:var(
 .hero h1{margin:0;font-size:3rem;line-height:1.02;max-width:10ch}
 .lead{color:var(--muted);margin:18px 0 0;max-width:560px;font-size:1.05rem;line-height:1.8}
 .hero-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.hero h1 span{display:inline-block;transition:transform .28s ease,opacity .28s ease;color:var(--accent)}
+.hero h1 span.fade-out{opacity:0;transform:translateY(-8px)}
 .hero-panel{border-radius:28px;background:rgba(255,255,255,0.9);border:1px solid rgba(15,23,42,0.06);box-shadow:0 20px 40px rgba(15,23,42,0.08);padding:28px}
 .panel-label{display:inline-block;margin-bottom:18px;color:var(--accent-600);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.14em}
 .panel-card{background:var(--surface);border-radius:22px;border:1px solid var(--border);padding:22px}
