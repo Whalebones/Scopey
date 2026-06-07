@@ -101,16 +101,16 @@ function rotateHeroPhrases() {
   if (!heroLeft || !heroRight) return;
 
   const leftOptions = [
-    "Less confusion",
-    "Fewer mix-ups",
-    "Clear client scope",
-    "Less chaos in approvals",
+    "Less confusion.",
+    "Fewer mix-ups.",
+    "Clear client scope.",
+    "Less chaos in approvals.",
   ];
   const rightOptions = [
-    "Better commission results",
-    "Sharper creative delivery",
-    "More polished client work",
-    "Faster project handoffs",
+    "Better commission results.",
+    "Sharper creative delivery.",
+    "More polished client work.",
+    "Faster project handoffs.",
   ];
 
   rotateHeroText(heroLeft, leftOptions, 3000);
