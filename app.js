@@ -238,9 +238,14 @@ authForm?.addEventListener("submit", async (e) => {
     return;
   }
 
-  const { error } = await db.auth.signInWithOtp({ email });
+  const { error } = await db.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+    },
+  });
   if (error) {
-    showBanner("Unable to send login link. Check your email and try again.", "error");
+    showBanner(`Unable to send login link: ${error.message}`, "error");
     return;
   }
 
@@ -529,10 +534,32 @@ async function upgrade(planName) {
   stripe.redirectToCheckout({ sessionId: data.id });
 }
 
-loadAccessibilityPreferences();
-applySavedTheme();
+async function handleAuthFromUrl() {
+  if (!window.location.hash || !window.location.hash.includes("access_token")) {
+    return;
+  }
 
-refreshView();
+  const { data, error } = await db.auth.getSessionFromUrl();
+  if (error) {
+    console.warn("Failed to parse auth session from URL:", error.message);
+    return;
+  }
+
+  if (data?.session) {
+    showBanner("You have been signed in successfully.", "success");
+    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+}
+
+async function initializeApp() {
+  loadAccessibilityPreferences();
+  applySavedTheme();
+  await handleAuthFromUrl();
+  await refreshView();
+}
+
+initializeApp();
 
 db.auth.onAuthStateChange((event, session) => {
   if (session?.user) {
