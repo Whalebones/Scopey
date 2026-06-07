@@ -15,6 +15,8 @@ const limit = document.getElementById("limit");
 const plan = document.getElementById("plan");
 const total = document.getElementById("total");
 const banner = document.getElementById("banner");
+const authCallbackPanel = document.getElementById("auth-callback-panel");
+const authCallbackMessage = document.getElementById("auth-callback-message");
 const list = document.getElementById("list");
 const dashboardSection = document.getElementById("dashboard");
 const subscriptionStatusText = document.getElementById("subscription-status");
@@ -125,6 +127,21 @@ function hideBanner() {
 
 function setStatus(message) {
   statusMessage.textContent = message;
+}
+
+function showAuthCallbackMessage(message) {
+  if (!authCallbackPanel || !authCallbackMessage) return;
+  authCallbackMessage.textContent = message;
+  authCallbackPanel.classList.remove("hidden");
+}
+
+function hideAuthCallbackMessage() {
+  if (!authCallbackPanel) return;
+  authCallbackPanel.classList.add("hidden");
+}
+
+function isAuthCallbackPage() {
+  return window.location.pathname === "/auth/callback";
 }
 
 function updateAuthState(isAuthenticated) {
@@ -683,6 +700,10 @@ async function upgrade(planName) {
 }
 
 async function handleAuthFromUrl() {
+  if (isAuthCallbackPage()) {
+    showAuthCallbackMessage("Processing sign-in...");
+  }
+
   if (!window.location.hash || !window.location.hash.includes("access_token")) {
     return;
   }
@@ -690,15 +711,23 @@ async function handleAuthFromUrl() {
   const { data, error } = await db.auth.getSessionFromUrl({ storeSession: true });
   if (error) {
     console.warn("Failed to parse auth session from URL:", error.message);
+    if (isAuthCallbackPage()) {
+      showAuthCallbackMessage("Authentication failed. Please try again.");
+    }
+    return;
   }
 
   if (data?.session) {
     showBanner("You have been signed in successfully.", "success");
     await refreshView();
+    if (isAuthCallbackPage()) {
+      showAuthCallbackMessage("Signed in successfully. Redirecting to your dashboard...");
+    }
   }
 
   const cleanUrl = window.location.origin;
   window.history.replaceState({}, document.title, cleanUrl);
+  hideAuthCallbackMessage();
 }
 
 async function initializeApp() {
