@@ -241,7 +241,7 @@ authForm?.addEventListener("submit", async (e) => {
   const { error } = await db.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+      emailRedirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}`,
     },
   });
   if (error) {
@@ -539,17 +539,18 @@ async function handleAuthFromUrl() {
     return;
   }
 
-  const { data, error } = await db.auth.getSessionFromUrl();
+  const { data, error } = await db.auth.getSessionFromUrl({ storeSession: true });
   if (error) {
     console.warn("Failed to parse auth session from URL:", error.message);
-    return;
   }
 
   if (data?.session) {
     showBanner("You have been signed in successfully.", "success");
-    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
-    window.history.replaceState({}, document.title, cleanUrl);
+    await refreshView();
   }
+
+  const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+  window.history.replaceState({}, document.title, cleanUrl);
 }
 
 async function initializeApp() {
