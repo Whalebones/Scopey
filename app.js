@@ -26,6 +26,12 @@ const loginButton = document.getElementById("login-button");
 const logoutButton = document.getElementById("logout-button");
 const trialButton = document.getElementById("trial-button");
 const statusMessage = document.getElementById("status-message");
+const analyticsCopy = document.getElementById("analytics-copy");
+const insightCount = document.getElementById("insight-count");
+const insightRevisions = document.getElementById("insight-revisions");
+const insightRemaining = document.getElementById("insight-remaining");
+const remindersCopy = document.getElementById("reminders-copy");
+const exportButton = document.getElementById("export-button");
 const pricingCards = Array.from(document.querySelectorAll(".pricing-card"));
 
 const textSizeSteps = [90, 100, 110, 120];
@@ -137,6 +143,15 @@ function updateAuthState(isAuthenticated) {
     }
     if (subscriptionExpirationText) {
       subscriptionExpirationText.textContent = "";
+    }
+    if (analyticsCopy) {
+      analyticsCopy.textContent = "Upgrade to Pro+ for enhanced reports and export-ready data.";
+    }
+    if (remindersCopy) {
+      remindersCopy.textContent = "Add simple follow-ups and stay on top of each delivery.";
+    }
+    if (exportButton) {
+      exportButton.hidden = true;
     }
   }
 }
@@ -294,6 +309,19 @@ themeLightButton?.addEventListener("click", () => setTheme("light"));
 themeDarkButton?.addEventListener("click", () => setTheme("dark"));
 themeHighContrastButton?.addEventListener("click", () => setTheme("high-contrast"));
 resetTextButton?.addEventListener("click", resetTextSize);
+exportButton?.addEventListener("click", async () => {
+  const user = await getCurrentUser();
+  if (!user) {
+    showBanner("Please log in to export commissions.", "warning");
+    return;
+  }
+  const { data: commissions, error } = await db.from("commissions").select("*").eq("user_id", user.id);
+  if (error) {
+    showBanner("Unable to load commissions for export.", "error");
+    return;
+  }
+  exportCommissionsToCsv(commissions || []);
+});
 
 function isAnyModalOpen() {
   return (authModal?.style.display === "block") || (accessibilityModal?.style.display === "flex");
@@ -391,6 +419,13 @@ async function renderCommissionList(commissions) {
 
   list.innerHTML = "";
   commissions.forEach((commission) => {
+    const status = commission.revision_limit > 0 && commission.revisions_used >= commission.revision_limit
+      ? "Needs review"
+      : "Active";
+    const revisionsText = commission.revision_limit > 0
+      ? `${commission.revisions_used}/${commission.revision_limit} revisions`
+      : `${commission.revisions_used} revisions`;
+
     const item = document.createElement("div");
     item.className = "card list-item";
     item.innerHTML = `
@@ -398,7 +433,7 @@ async function renderCommissionList(commissions) {
         <div class="item-title">${commission.title}</div>
         <div class="item-client">${commission.client_name}</div>
       </div>
-      <div class="item-meta">${commission.revisions_used}/${commission.revision_limit} revisions</div>
+      <div class="item-meta">${revisionsText} • ${status}</div>
     `;
     list.appendChild(item);
   });
@@ -475,6 +510,7 @@ async function refreshView() {
     total.innerText = "0";
     updatePricingCardState("free");
     renderCommissionList([]);
+    updateCommissionInsights([], "free");
     return;
   }
 
@@ -505,6 +541,76 @@ async function refreshView() {
   }
 
   renderCommissionList(commissions);
+  updateCommissionInsights(commissions, activePlan);
+}
+
+function exportCommissionsToCsv(commissions) {
+  if (!commissions || !commissions.length) {
+    showBanner("No commissions available to export.", "warning");
+    return;
+  }
+
+  const csvRows = [
+    ["Title","Client","Revisions Used","Revision Limit","Status"],
+    ...commissions.map((commission) => {
+      const status = commission.revision_limit > 0 && commission.revisions_used >= commission.revision_limit
+        ? "Needs review"
+        : "Active";
+      return [
+        commission.title,
+        commission.client_name,
+        commission.revisions_used,
+        commission.revision_limit,
+        status,
+      ].map((value) => `"${String(value).replace(/"/g, '""')}"`);
+    }),
+  ].map((row) => row.join(","));
+
+  const csvContent = csvRows.join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "scopey-commissions.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function updateCommissionInsights(commissions, plan) {
+  const totalCommissions = commissions.length;
+  const revisionsUsed = commissions.reduce((sum, commission) => sum + (commission.revisions_used || 0), 0);
+  const revisionLimitSum = commissions.reduce((sum, commission) => sum + (commission.revision_limit || 0), 0);
+  const revisionsLeft = revisionLimitSum > 0 ? Math.max(revisionLimitSum - revisionsUsed, 0) : "∞";
+
+  if (insightCount) {
+    insightCount.textContent = totalCommissions;
+  }
+  if (insightRevisions) {
+    insightRevisions.textContent = revisionsUsed;
+  }
+  if (insightRemaining) {
+    insightRemaining.textContent = revisionLimitSum > 0 ? revisionsLeft : "∞";
+  }
+
+  if (!analyticsCopy || !remindersCopy || !exportButton) {
+    return;
+  }
+
+  if (plan === "free") {
+    analyticsCopy.textContent = "Build your first commissions and upgrade to Pro+ for reports and exports.";
+    remindersCopy.textContent = "Upgrade to Pro for automated client reminders and milestone summaries.";
+    exportButton.hidden = true;
+  } else if (plan === "pro") {
+    analyticsCopy.textContent = "Pro gives you unlimited work tracking, revision history, and client reminders.";
+    remindersCopy.textContent = "Use the Pro workflow to keep client deliveries on schedule.";
+    exportButton.hidden = true;
+  } else {
+    analyticsCopy.textContent = "Pro+ unlocks advanced insights and export-ready commission reports.";
+    remindersCopy.textContent = "Pro+ gives you premium support, onboarding, and quick report exports.";
+    exportButton.hidden = false;
+  }
 }
 
 async function upgrade(planName) {

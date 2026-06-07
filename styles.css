@@ -90,6 +90,11 @@ body.theme-high-contrast .btn-ghost{background:rgba(255,255,255,0.08);color:var(
 .card-title{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
 .card-value{font-size:2rem;font-weight:700;line-height:1}
 .card-copy{color:var(--muted);font-size:0.95rem;line-height:1.75;margin-top:12px}
+.insights-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.insights-grid div{background:rgba(16,185,129,0.07);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:4px;min-height:84px;justify-content:center}
+.insights-grid strong{font-size:1.45rem;display:block}
+.reminders-card .btn{margin-top:16px;width:100%;text-align:center}
+.hide-when-free{display:none}
 .compose-form{display:grid;grid-template-columns:1fr 1fr 120px auto;gap:12px;align-items:center;min-width:0}
 .compose-form input{padding:14px 16px;border-radius:16px;border:1px solid var(--border);background:#fbfdff;color:var(--text);font-size:1rem;min-width:0;width:100%}
 .compose-form input:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
