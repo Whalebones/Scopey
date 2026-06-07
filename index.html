@@ -48,6 +48,11 @@
         <a class="btn btn-secondary" href="#features">See features</a>
       </div>
     </div>
+  </section>
+
+  <div id="banner" class="banner" role="status" aria-live="polite"></div>
+
+  <section id="dashboard" class="dashboard-section" hidden aria-label="User dashboard">
     <aside class="hero-panel" aria-label="Current workspace overview">
       <div class="panel-label">Workspace snapshot</div>
       <div class="panel-card">
@@ -62,37 +67,37 @@
         <p class="panel-note">Sign in to track work, limit revisions, and upgrade to Pro plans.</p>
       </div>
     </aside>
-  </section>
 
-  <div id="banner" class="banner" role="status" aria-live="polite"></div>
+    <section class="dashboard-grid">
+      <article class="card feature-card">
+        <div class="card-title">Add a commission</div>
+        <form id="form" class="compose-form">
+          <label class="visually-hidden" for="title">Commission title</label>
+          <input id="title" placeholder="Commission title" required>
+          <label class="visually-hidden" for="client">Client name</label>
+          <input id="client" placeholder="Client name" required>
+          <label class="visually-hidden" for="limit">Revision limit</label>
+          <input id="limit" type="number" min="0" step="1" placeholder="Revisions">
+          <button class="btn btn-primary" type="submit">Add commission</button>
+        </form>
+      </article>
+      <article class="card subscription-card">
+        <div class="card-title">Subscription status</div>
+        <p id="subscription-status" class="card-copy">Sign in to view billing details.</p>
+        <p id="subscription-next-bill" class="card-copy muted"></p>
+        <p id="subscription-expiration" class="card-copy muted"></p>
+      </article>
+      <article class="card small">
+        <div class="card-title">How Scopey helps</div>
+        <p class="card-copy">Use Scopey to keep commission work visible, manage clients, and stay under control on every project.</p>
+      </article>
+      <article class="card small">
+        <div class="card-title">Plan guidance</div>
+        <p class="card-copy">Free users can add up to 3 commissions. Upgrade for unlimited tracking and priority support.</p>
+      </article>
+    </section>
 
-  <section class="dashboard-grid">
-    <article class="card feature-card">
-      <div class="card-title">Add a commission</div>
-      <form id="form" class="compose-form">
-        <label class="visually-hidden" for="title">Commission title</label>
-        <input id="title" placeholder="Commission title" required>
-        <label class="visually-hidden" for="client">Client name</label>
-        <input id="client" placeholder="Client name" required>
-        <label class="visually-hidden" for="limit">Revision limit</label>
-        <input id="limit" type="number" min="0" step="1" placeholder="Revisions">
-        <button class="btn btn-primary" type="submit">Add commission</button>
-      </form>
-    </article>
-    <article class="card subscription-card">
-      <div class="card-title">Subscription status</div>
-      <p id="subscription-status" class="card-copy">Sign in to view billing details.</p>
-      <p id="subscription-next-bill" class="card-copy muted"></p>
-      <p id="subscription-expiration" class="card-copy muted"></p>
-    </article>
-    <article class="card small">
-      <div class="card-title">How Scopey helps</div>
-      <p class="card-copy">Use Scopey to keep commission work visible, manage clients, and stay under control on every project.</p>
-    </article>
-    <article class="card small">
-      <div class="card-title">Plan guidance</div>
-      <p class="card-copy">Free users can add up to 3 commissions. Upgrade for unlimited tracking and priority support.</p>
-    </article>
+    <section id="list" class="list"></section>
   </section>
 
   <section id="onboarding" class="onboarding">

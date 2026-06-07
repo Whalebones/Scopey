@@ -14,6 +14,7 @@ const plan = document.getElementById("plan");
 const total = document.getElementById("total");
 const banner = document.getElementById("banner");
 const list = document.getElementById("list");
+const dashboardSection = document.getElementById("dashboard");
 const subscriptionStatusText = document.getElementById("subscription-status");
 const subscriptionNextBillText = document.getElementById("subscription-next-bill");
 const subscriptionExpirationText = document.getElementById("subscription-expiration");
@@ -122,6 +123,10 @@ function updateAuthState(isAuthenticated) {
   loginButton.hidden = isAuthenticated;
   logoutButton.hidden = !isAuthenticated;
   trialButton.disabled = !isAuthenticated;
+  if (dashboardSection) {
+    dashboardSection.hidden = !isAuthenticated;
+  }
+
   if (!isAuthenticated) {
     setStatus("Sign in to manage commissions and plans.");
     if (subscriptionStatusText) {
