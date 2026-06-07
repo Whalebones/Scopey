@@ -4,7 +4,7 @@ const STRIPE_KEY = "pk_test_51Tfdr9HbHMKHnVYfDDun9mhREMp6UCVAKYu2ZD2lNuBnPbjYTvm
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const stripe = Stripe(STRIPE_KEY);
-const API_BASE_URL = window.location.origin.includes("localhost") || window.location.origin === "null" ? "http://localhost:3000" : window.location.origin;
+const API_BASE_URL = window.SCOPEY_API_URL || (window.location.origin.includes("localhost") || window.location.origin === "null" ? "http://localhost:3000" : window.location.origin);
 
 const form = document.getElementById("form");
 const title = document.getElementById("title");
@@ -160,6 +160,9 @@ async function loadSubscriptionStatus(email) {
     if (data.status === "free") {
       subscriptionStatusText.textContent = "Free plan active";
       subscriptionNextBillText.textContent = "Upgrade for billing and next invoice details.";
+      if (subscriptionExpirationText) {
+        subscriptionExpirationText.textContent = "";
+      }
       updatePricingCardState("free");
       return;
     }
@@ -182,6 +185,9 @@ async function loadSubscriptionStatus(email) {
   } catch (error) {
     subscriptionStatusText.textContent = "Unable to load subscription details.";
     subscriptionNextBillText.textContent = "Please try again later.";
+    if (subscriptionExpirationText) {
+      subscriptionExpirationText.textContent = "";
+    }
     console.warn(error);
   }
 }

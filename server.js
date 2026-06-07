@@ -114,8 +114,17 @@ app.post("/webhook", async (req, res) => {
     const subscription = await stripe.subscriptions.retrieve(session.subscription);
     const priceId = subscription.items.data[0].price.id;
     const plan = priceId === process.env.STRIPE_PRICE_ID_PRO_PLUS ? "pro_plus" : "pro";
+    const customerId = session.customer;
+    const customerEmail = session.customer_details?.email || session.customer_email;
 
-    await supabase.from("profiles").update({ plan }).eq("email", session.customer_details.email);
+    await supabase.from("profiles").update({ plan, stripe_customer_id: customerId }).eq("email", customerEmail);
+  }
+
+  if (event.type === "customer.subscription.updated") {
+    const subscription = event.data.object;
+    const priceId = subscription.items.data[0].price.id;
+    const plan = priceId === process.env.STRIPE_PRICE_ID_PRO_PLUS ? "pro_plus" : "pro";
+    await supabase.from("profiles").update({ plan }).eq("stripe_customer_id", subscription.customer);
   }
 
   if (event.type === "customer.subscription.deleted") {
