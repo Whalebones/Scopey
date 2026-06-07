@@ -28,7 +28,7 @@
     </div>
     <div class="actions" aria-label="Primary actions">
       <span id="status-message" class="status-text">Track every client, revision, and plan in one dashboard.</span>
-      <button id="login-button" class="btn btn-ghost" onclick="login()" aria-label="Login">Login</button>
+      <button id="login-button" class="btn btn-ghost" onclick="showAuthModal()" aria-label="Login">Login</button>
       <button id="logout-button" class="btn btn-ghost" onclick="logout()" aria-label="Logout">Logout</button>
       <button id="trial-button" class="btn btn-primary" onclick="upgrade('pro_plus')" aria-label="Start free trial">Start free trial</button>
     </div>
@@ -47,7 +47,7 @@
       <h1>Less confusion. Better commission results.</h1>
       <p class="lead">Simple commission tracking, clear client management, and a polished upgrade flow for growing creative teams.</p>
       <div class="hero-actions">
-        <button class="btn btn-primary" onclick="login()">Start for free</button>
+        <button class="btn btn-primary" onclick="showAuthModal()">Start for free</button>
         <a class="btn btn-secondary" href="#features">See features</a>
       </div>
     </div>
@@ -185,6 +185,23 @@
 <footer class="site-footer">
   <div class="container">Made with ♥ — Scopey</div>
 </footer>
+
+<!-- Auth modal -->
+<div id="auth-modal" class="modal" aria-hidden="true">
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+    <button class="modal-close" id="auth-close" aria-label="Close">×</button>
+    <h3 id="auth-modal-title">Sign in / Sign up</h3>
+    <p class="muted">Enter your email and we'll send a magic link to sign you in.</p>
+    <form id="auth-form">
+      <label for="auth-email" class="visually-hidden">Email</label>
+      <input id="auth-email" name="email" type="email" placeholder="you@example.com" required>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Send magic link</button>
+        <button type="button" class="btn btn-secondary" id="auth-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

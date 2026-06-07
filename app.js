@@ -95,10 +95,35 @@ async function getCurrentUser() {
   return data.user;
 }
 
-async function login() {
-  const email = prompt("Enter your email to receive a magic link:");
+// Inline auth modal handlers (replaces prompt-based login)
+const authModal = document.getElementById("auth-modal");
+const authForm = document.getElementById("auth-form");
+const authEmail = document.getElementById("auth-email");
+const authClose = document.getElementById("auth-close");
+const authCancel = document.getElementById("auth-cancel");
+
+function showAuthModal() {
+  if (!authModal) return;
+  authModal.style.display = "block";
+  authModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => authEmail.focus(), 40);
+}
+
+function hideAuthModal() {
+  if (!authModal) return;
+  authModal.style.display = "none";
+  authModal.setAttribute("aria-hidden", "true");
+}
+
+authClose?.addEventListener("click", hideAuthModal);
+authCancel?.addEventListener("click", hideAuthModal);
+loginButton?.addEventListener("click", showAuthModal);
+
+authForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = authEmail.value?.trim();
   if (!email) {
-    showBanner("Login canceled. Enter an email to continue.", "warning");
+    showBanner("Please enter a valid email.", "warning");
     return;
   }
 
@@ -109,7 +134,13 @@ async function login() {
   }
 
   showBanner("Magic link sent. Check your inbox to finish signing in.", "success");
-}
+  hideAuthModal();
+});
+
+// close modal on Escape
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideAuthModal();
+});
 
 async function logout() {
   await db.auth.signOut();

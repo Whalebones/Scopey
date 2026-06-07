@@ -94,6 +94,15 @@ body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica
 .item-client{color:var(--muted);font-size:0.95rem;margin-top:6px}
 .item-meta{color:var(--muted);font-size:0.95rem;white-space:nowrap}
 .site-footer{padding:42px 0 28px;color:var(--muted);text-align:center}
+/* Auth modal */
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(12,18,31,0.45);z-index:9999;padding:24px}
+.modal-panel{background:var(--surface);border-radius:12px;padding:22px;max-width:420px;width:100%;box-shadow:0 30px 60px rgba(12,18,31,0.2);position:relative}
+.modal-panel h3{margin:0 0 8px}
+.modal-panel .muted{color:var(--muted);margin-bottom:14px}
+.modal-panel input[type="email"]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);margin:8px 0 14px}
+.modal-actions{display:flex;gap:10px}
+.modal-close{position:absolute;right:12px;top:10px;border:0;background:transparent;font-size:20px;cursor:pointer}
+.modal[aria-hidden="false"]{display:flex}
 .high-contrast{background:#000;color:#fff}
 .high-contrast .card{background:#111;color:#fff;box-shadow:0 6px 18px rgba(255,255,255,0.12)}
 .high-contrast .btn-ghost{color:#fff;border:1px solid #fff}
