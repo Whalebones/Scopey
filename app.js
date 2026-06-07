@@ -79,6 +79,24 @@ function decreaseTextSize() {
   setTextSize(textSizeSteps[nextIndex]);
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function rotateHeroText(element, options, interval) {
+  if (!element) return;
+  let index = 0;
+
+  while (true) {
+    await wait(interval);
+    element.classList.add("fade-out");
+    await wait(220);
+    index = (index + 1) % options.length;
+    element.textContent = options[index];
+    element.classList.remove("fade-out");
+  }
+}
+
 function rotateHeroPhrases() {
   if (!heroLeft || !heroRight) return;
 
@@ -95,23 +113,8 @@ function rotateHeroPhrases() {
     "Faster project handoffs",
   ];
 
-  let index = 0;
-  const cycle = () => {
-    const nextIndex = (index + 1) % leftOptions.length;
-
-    heroLeft.classList.add("fade-out");
-    heroRight.classList.add("fade-out");
-
-    setTimeout(() => {
-      heroLeft.textContent = leftOptions[nextIndex];
-      heroRight.textContent = rightOptions[nextIndex];
-      heroLeft.classList.remove("fade-out");
-      heroRight.classList.remove("fade-out");
-      index = nextIndex;
-    }, 280);
-  };
-
-  setInterval(cycle, 4500);
+  rotateHeroText(heroLeft, leftOptions, 3000);
+  rotateHeroText(heroRight, rightOptions, 3900);
 }
 
 
