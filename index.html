@@ -28,15 +28,11 @@
     </div>
     <div class="actions" aria-label="Primary actions">
       <span id="status-message" class="status-text">Track every client, revision, and plan in one dashboard.</span>
+      <button id="accessibility-button" class="btn btn-ghost" onclick="showAccessibilityModal()" aria-label="Accessibility settings">Accessibility</button>
       <button id="login-button" class="btn btn-ghost" onclick="showAuthModal()" aria-label="Login">Login</button>
       <button id="logout-button" class="btn btn-ghost" onclick="logout()" aria-label="Logout">Logout</button>
       <button id="trial-button" class="btn btn-primary" onclick="upgrade('pro_plus')" aria-label="Start free trial">Start free trial</button>
     </div>
-  </div>
-  <div class="accessibility-tools" aria-label="Accessibility options">
-    <button class="btn btn-ghost" id="decrease-text" aria-label="Decrease text size">A-</button>
-    <button class="btn btn-ghost" id="increase-text" aria-label="Increase text size">A+</button>
-    <button class="btn btn-ghost" id="toggle-contrast" aria-pressed="false">High contrast</button>
   </div>
 </header>
 
@@ -82,6 +78,12 @@
         <button class="btn btn-primary" type="submit">Add commission</button>
       </form>
     </article>
+    <article class="card subscription-card">
+      <div class="card-title">Subscription status</div>
+      <p id="subscription-status" class="card-copy">Sign in to view billing details.</p>
+      <p id="subscription-next-bill" class="card-copy muted"></p>
+      <p id="subscription-expiration" class="card-copy muted"></p>
+    </article>
     <article class="card small">
       <div class="card-title">How Scopey helps</div>
       <p class="card-copy">Use Scopey to keep commission work visible, manage clients, and stay under control on every project.</p>
@@ -125,7 +127,7 @@
   <section id="list" class="list"></section>
 
   <section id="pricing" class="pricing-grid">
-    <article class="pricing-card">
+    <article class="pricing-card" data-plan="free">
       <div class="pricing-header">
         <span>Free</span>
         <strong class="price-value">$0</strong>
@@ -138,7 +140,7 @@
       </ul>
       <button class="btn btn-secondary" disabled>Included</button>
     </article>
-    <article class="pricing-card featured">
+    <article class="pricing-card featured" data-plan="pro">
       <div class="pricing-header">
         <span>Pro</span>
         <strong class="price-value">$12/mo</strong>
@@ -151,7 +153,7 @@
       </ul>
       <button class="btn btn-primary" onclick="upgrade('pro')">Upgrade</button>
     </article>
-    <article class="pricing-card">
+    <article class="pricing-card" data-plan="pro_plus">
       <div class="pricing-header">
         <span>Pro+</span>
         <strong class="price-value">$24/mo</strong>
@@ -187,7 +189,7 @@
 </footer>
 
 <!-- Auth modal -->
-<div id="auth-modal" class="modal" aria-hidden="true">
+<div id="auth-modal" class="modal" aria-hidden="true" tabindex="-1">
   <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
     <button class="modal-close" id="auth-close" aria-label="Close">×</button>
     <h3 id="auth-modal-title">Sign in / Sign up</h3>
@@ -200,6 +202,37 @@
         <button type="button" class="btn btn-secondary" id="auth-cancel">Cancel</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Accessibility modal -->
+<div id="accessibility-modal" class="modal" aria-hidden="true" tabindex="-1">
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="accessibility-modal-title">
+    <button class="modal-close" id="accessibility-close" aria-label="Close">×</button>
+    <h3 id="accessibility-modal-title">Accessibility settings</h3>
+    <p class="muted">Adjust text size, contrast, and theme preferences for better readability.</p>
+    <div class="accessibility-section">
+      <h4>Text size</h4>
+      <div class="text-size-row">
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="decrease-text">A-</button>
+          <button type="button" class="btn btn-ghost" id="increase-text">A+</button>
+        </div>
+        <button type="button" class="btn btn-secondary reset-btn" id="reset-text">Reset</button>
+      </div>
+      <p id="text-size-label" class="muted text-size-label">Current size: Normal</p>
+    </div>
+    <div class="accessibility-section">
+      <h4>Theme</h4>
+      <div class="theme-buttons">
+        <button type="button" class="btn btn-secondary" id="theme-light" aria-pressed="false">Light</button>
+        <button type="button" class="btn btn-secondary" id="theme-dark" aria-pressed="false">Dark</button>
+        <button type="button" class="btn btn-secondary" id="theme-high-contrast" aria-pressed="false">High contrast</button>
+      </div>
+    </div>
+    <div class="modal-actions modal-actions-right">
+      <button type="button" class="btn btn-secondary" id="accessibility-cancel">Close</button>
+    </div>
   </div>
 </div>
 

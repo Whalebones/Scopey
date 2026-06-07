@@ -39,6 +39,41 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/subscription-status", async (req, res) => {
+  const email = req.query.email;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required." });
+  }
+
+  try {
+    const customers = await stripe.customers.list({ email, limit: 1 });
+    const customer = customers.data[0];
+    if (!customer) {
+      return res.json({ status: "free", message: "No active subscription found." });
+    }
+
+    const subscriptions = await stripe.subscriptions.list({ customer: customer.id, status: "all", limit: 10 });
+    const subscription = subscriptions.data.find((sub) => ["active", "trialing", "past_due", "unpaid", "incomplete"].includes(sub.status));
+
+    if (!subscription) {
+      return res.json({ status: "free", message: "No active subscription found." });
+    }
+
+    const priceId = subscription.items.data[0]?.price?.id;
+    const plan = priceId === process.env.STRIPE_PRICE_ID_PRO_PLUS ? "pro_plus" : "pro";
+    return res.json({
+      status: subscription.status,
+      plan,
+      current_period_end: subscription.current_period_end,
+      trial_end: subscription.trial_end,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+    });
+  } catch (error) {
+    console.error("Failed to fetch subscription status", error.message);
+    return res.status(500).json({ error: "Unable to fetch subscription status." });
+  }
+});
+
 app.post("/create-checkout-session", async (req, res) => {
   const { email, plan } = req.body;
   const priceId = plan === "pro_plus" ? process.env.STRIPE_PRICE_ID_PRO_PLUS : process.env.STRIPE_PRICE_ID_PRO;

@@ -14,35 +14,46 @@ const plan = document.getElementById("plan");
 const total = document.getElementById("total");
 const banner = document.getElementById("banner");
 const list = document.getElementById("list");
+const subscriptionStatusText = document.getElementById("subscription-status");
+const subscriptionNextBillText = document.getElementById("subscription-next-bill");
+const subscriptionExpirationText = document.getElementById("subscription-expiration");
 const increaseTextButton = document.getElementById("increase-text");
 const decreaseTextButton = document.getElementById("decrease-text");
-const contrastToggleButton = document.getElementById("toggle-contrast");
+const resetTextButton = document.getElementById("reset-text");
+const textSizeLabel = document.getElementById("text-size-label");
 const loginButton = document.getElementById("login-button");
 const logoutButton = document.getElementById("logout-button");
 const trialButton = document.getElementById("trial-button");
 const statusMessage = document.getElementById("status-message");
+const pricingCards = Array.from(document.querySelectorAll(".pricing-card"));
 
 const textSizeSteps = [90, 100, 110, 120];
 let currentTextSize = 100;
 
 function loadAccessibilityPreferences() {
   const savedSize = Number(localStorage.getItem("scopeyTextSize"));
-  const savedContrast = localStorage.getItem("scopeyHighContrast") === "true";
   if (textSizeSteps.includes(savedSize)) {
     currentTextSize = savedSize;
   }
   document.documentElement.style.fontSize = `${currentTextSize}%`;
-
-  if (savedContrast) {
-    document.body.classList.add("high-contrast");
-    contrastToggleButton.setAttribute("aria-pressed", "true");
-  }
+  updateTextSizeLabel();
 }
 
 function setTextSize(size) {
   currentTextSize = size;
   document.documentElement.style.fontSize = `${size}%`;
   localStorage.setItem("scopeyTextSize", String(size));
+  updateTextSizeLabel();
+}
+
+function updateTextSizeLabel() {
+  if (!textSizeLabel) return;
+  const label = currentTextSize === 100 ? "Normal" : `${currentTextSize}%`;
+  textSizeLabel.textContent = `Current size: ${label}`;
+}
+
+function resetTextSize() {
+  setTextSize(100);
 }
 
 function increaseTextSize() {
@@ -55,10 +66,40 @@ function decreaseTextSize() {
   setTextSize(textSizeSteps[nextIndex]);
 }
 
-function toggleHighContrast() {
-  const enabled = document.body.classList.toggle("high-contrast");
-  contrastToggleButton.setAttribute("aria-pressed", String(enabled));
-  localStorage.setItem("scopeyHighContrast", String(enabled));
+
+function setTheme(theme) {
+  document.body.classList.remove("theme-light", "theme-dark", "theme-high-contrast");
+  if (theme && theme !== "light") {
+    document.body.classList.add(`theme-${theme}`);
+  }
+  localStorage.setItem("scopeyTheme", theme);
+  updateThemeButtons();
+}
+
+function updateThemeButtons() {
+  const activeTheme = localStorage.getItem("scopeyTheme") || "light";
+  const buttons = [
+    { button: themeLightButton, value: "light" },
+    { button: themeDarkButton, value: "dark" },
+    { button: themeHighContrastButton, value: "high-contrast" },
+  ];
+
+  buttons.forEach(({ button, value }) => {
+    if (!button) return;
+    const isActive = value === activeTheme;
+    button.setAttribute("aria-pressed", String(isActive));
+    button.classList.toggle("active", isActive);
+  });
+}
+
+function applySavedTheme() {
+  const savedTheme = localStorage.getItem("scopeyTheme") || "light";
+  if (savedTheme === "light") {
+    document.body.classList.remove("theme-dark", "theme-high-contrast");
+  } else {
+    document.body.classList.add(`theme-${savedTheme}`);
+  }
+  updateThemeButtons();
 }
 
 function showBanner(message, variant = "info") {
@@ -83,6 +124,65 @@ function updateAuthState(isAuthenticated) {
   trialButton.disabled = !isAuthenticated;
   if (!isAuthenticated) {
     setStatus("Sign in to manage commissions and plans.");
+    if (subscriptionStatusText) {
+      subscriptionStatusText.textContent = "Sign in to view billing details.";
+    }
+    if (subscriptionNextBillText) {
+      subscriptionNextBillText.textContent = "";
+    }
+    if (subscriptionExpirationText) {
+      subscriptionExpirationText.textContent = "";
+    }
+  }
+}
+
+function formatBillingDate(timestamp) {
+  if (!timestamp) return "Unknown";
+  return new Date(timestamp * 1000).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+async function loadSubscriptionStatus(email) {
+  if (!subscriptionStatusText) return;
+  subscriptionStatusText.textContent = "Loading subscription details...";
+  subscriptionNextBillText.textContent = "";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/subscription-status?email=${encodeURIComponent(email)}`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch subscription status.");
+    }
+
+    const data = await response.json();
+    if (data.status === "free") {
+      subscriptionStatusText.textContent = "Free plan active";
+      subscriptionNextBillText.textContent = "Upgrade for billing and next invoice details.";
+      updatePricingCardState("free");
+      return;
+    }
+
+    const planLabel = data.plan === "pro_plus" ? "Pro+" : "Pro";
+    const nextBill = formatBillingDate(data.current_period_end);
+    const trialEnd = formatBillingDate(data.trial_end);
+    const expirationText = data.status === "trialing"
+      ? `Trial ends: ${trialEnd}`
+      : data.cancel_at_period_end
+        ? `Subscription expires: ${nextBill}`
+        : `Next billing date: ${nextBill}`;
+
+    subscriptionStatusText.textContent = `${planLabel} subscription active (${data.status})`;
+    subscriptionNextBillText.textContent = `Billing: ${nextBill}`;
+    if (subscriptionExpirationText) {
+      subscriptionExpirationText.textContent = expirationText;
+    }
+    updatePricingCardState(data.plan || "free");
+  } catch (error) {
+    subscriptionStatusText.textContent = "Unable to load subscription details.";
+    subscriptionNextBillText.textContent = "Please try again later.";
+    console.warn(error);
   }
 }
 
@@ -137,9 +237,117 @@ authForm?.addEventListener("submit", async (e) => {
   hideAuthModal();
 });
 
-// close modal on Escape
+// Accessibility modal handlers
+const accessibilityModal = document.getElementById("accessibility-modal");
+const accessibilityButton = document.getElementById("accessibility-button");
+const accessibilityClose = document.getElementById("accessibility-close");
+const accessibilityCancel = document.getElementById("accessibility-cancel");
+const themeLightButton = document.getElementById("theme-light");
+const themeDarkButton = document.getElementById("theme-dark");
+const themeHighContrastButton = document.getElementById("theme-high-contrast");
+
+function showAccessibilityModal() {
+  if (!accessibilityModal) return;
+  accessibilityModal.style.display = "flex";
+  accessibilityModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => themeLightButton?.focus(), 40);
+}
+
+function hideAccessibilityModal() {
+  if (!accessibilityModal) return;
+  accessibilityModal.style.display = "none";
+  accessibilityModal.setAttribute("aria-hidden", "true");
+}
+
+accessibilityButton?.addEventListener("click", showAccessibilityModal);
+accessibilityClose?.addEventListener("click", hideAccessibilityModal);
+accessibilityCancel?.addEventListener("click", hideAccessibilityModal);
+accessibilityModal?.addEventListener("click", (event) => {
+  if (event.target === accessibilityModal) {
+    hideAccessibilityModal();
+  }
+});
+
+authModal?.addEventListener("click", (event) => {
+  if (event.target === authModal) {
+    hideAuthModal();
+  }
+});
+
+themeLightButton?.addEventListener("click", () => setTheme("light"));
+themeDarkButton?.addEventListener("click", () => setTheme("dark"));
+themeHighContrastButton?.addEventListener("click", () => setTheme("high-contrast"));
+resetTextButton?.addEventListener("click", resetTextSize);
+
+function isAnyModalOpen() {
+  return (authModal?.style.display === "block") || (accessibilityModal?.style.display === "flex");
+}
+
+function trapFocus(modal, event) {
+  const selectors = "button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+  const focusable = Array.from(modal.querySelectorAll(selectors)).filter((node) => node.offsetParent !== null);
+  if (!focusable.length) {
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (event.shiftKey) {
+    if (document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+}
+
+function updatePricingCardState(activePlan = "free") {
+  pricingCards.forEach((card) => {
+    const cardPlan = card.dataset.plan;
+    const button = card.querySelector("button");
+    if (!button) return;
+
+    if (cardPlan === activePlan) {
+      card.classList.add("pricing-card-active");
+      button.disabled = true;
+      button.textContent = cardPlan === "free" ? "Included" : "Current plan";
+      button.classList.remove("btn-primary");
+      button.classList.add("btn-secondary");
+    } else {
+      card.classList.remove("pricing-card-active");
+      if (cardPlan === "free") {
+        button.disabled = true;
+        button.textContent = "Included";
+        button.classList.remove("btn-primary");
+        button.classList.add("btn-secondary");
+      } else {
+        button.disabled = false;
+        button.textContent = "Upgrade";
+        button.classList.remove("btn-secondary");
+        button.classList.add("btn-primary");
+      }
+    }
+  });
+}
+
+// close modal on Escape and trap focus inside a modal
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") hideAuthModal();
+  if (e.key === "Escape") {
+    hideAuthModal();
+    hideAccessibilityModal();
+  }
+
+  if (e.key === "Tab" && isAnyModalOpen()) {
+    const activeModal = authModal?.style.display === "block" ? authModal : accessibilityModal;
+    if (activeModal) {
+      trapFocus(activeModal, e);
+    }
+  }
 });
 
 async function logout() {
@@ -239,7 +447,6 @@ form.addEventListener("submit", async (event) => {
 
 increaseTextButton.addEventListener("click", increaseTextSize);
 decreaseTextButton.addEventListener("click", decreaseTextSize);
-contrastToggleButton.addEventListener("click", toggleHighContrast);
 
 async function refreshView() {
   hideBanner();
@@ -250,9 +457,12 @@ async function refreshView() {
   if (!user) {
     plan.innerText = "free";
     total.innerText = "0";
+    updatePricingCardState("free");
     renderCommissionList([]);
     return;
   }
+
+  loadSubscriptionStatus(user.email);
 
   const { data: profile, error: profileError } = await db.from("profiles").select("plan").eq("id", user.id).single();
   if (profileError) {
@@ -266,14 +476,16 @@ async function refreshView() {
     return;
   }
 
-  plan.innerText = profile?.plan || "free";
+  const activePlan = profile?.plan || "free";
+  plan.innerText = activePlan;
   total.innerText = commissions?.length || 0;
-  setStatus(`Signed in as ${user.email}`);
+  setStatus(`Signed in as ${user.email} • ${activePlan.toUpperCase()} plan`);
+  updatePricingCardState(activePlan);
 
-  if (profile?.plan === "free") {
+  if (activePlan === "free") {
     showBanner("Free plan active: max 3 commissions. Upgrade anytime for unlimited tracking.", "warning");
   } else {
-    showBanner(`You are on the ${profile?.plan} plan.`, "success");
+    showBanner(`You are on the ${activePlan} plan.`, "success");
   }
 
   renderCommissionList(commissions);
@@ -307,6 +519,7 @@ async function upgrade(planName) {
 }
 
 loadAccessibilityPreferences();
+applySavedTheme();
 
 refreshView();
 
