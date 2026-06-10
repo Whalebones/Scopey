@@ -1,284 +1,514 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scopey</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
-<script>window.SCOPEY_API_URL = "https://scopey-api.onrender.com";</script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://js.stripe.com/v3/"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scopey</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
 
-<a class="skip-link" href="#main-content">Skip to main content</a>
-<header class="topbar">
-  <div class="nav container">
-    <div class="brand">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect width="24" height="24" rx="6" fill="#10B981" />
-        <path d="M6 12h12M6 16h8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <div>
-        <strong class="brand-name">Scopey</strong>
-        <p class="brand-tagline">Commission tracking for freelancers and independent creators.</p>
+  <header class="topbar">
+    <div class="nav container">
+      <div class="brand">
+        <a href="/" aria-label="Scopey home" class="brand-logo-wrap">
+          <img
+            src="scopey-logo.svg"
+            alt="Scopey"
+            height="40"
+            class="brand-logo brand-logo-light"
+            onerror="this.style.display='none';document.getElementById('brand-fallback').style.display='block';"
+          />
+          <img
+            src="scopey-logo-dark.svg"
+            alt="Scopey"
+            height="40"
+            class="brand-logo brand-logo-dark"
+            onerror="this.style.display='none';document.getElementById('brand-fallback').style.display='block';"
+          />
+        </a>
+        <div>
+          <strong id="brand-fallback" class="brand-name" style="display:none;">Scopey</strong>
+          <p class="brand-tagline">Clear scope. Paid changes.</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="accessibility-button" class="btn btn-ghost" type="button">Accessibility</button>
+        <button id="header-dashboard-btn" class="btn btn-ghost hidden" type="button">Dashboard</button>
+        <button id="header-sign-in-btn" class="btn btn-ghost" type="button">Sign in</button>
+        <button id="header-sign-out-btn" class="btn btn-ghost hidden" type="button">Sign out</button>
       </div>
     </div>
-    <div class="actions" aria-label="Primary actions">
-      <span id="status-message" class="status-text">Track every client, revision, and plan in one dashboard.</span>
-      <button id="accessibility-button" class="btn btn-ghost" onclick="showAccessibilityModal()" aria-label="Accessibility settings">Accessibility</button>
-      <button id="login-button" class="btn btn-ghost" onclick="showAuthModal()" aria-label="Sign in">Sign in</button>
-      <button id="logout-button" class="btn btn-ghost" onclick="logout()" aria-label="Logout">Logout</button>
-      <button id="trial-button" class="btn btn-primary" onclick="upgrade('pro_plus')" aria-label="Start free trial">Start free trial</button>
-    </div>
-  </div>
-</header>
+  </header>
 
-<main id="main-content" class="container">
-  <section class="hero">
-    <div class="hero-copy">
-      <span class="eyebrow">Creative work, organized</span>
-      <h1><span id="hero-left">Less confusion.</span> <span id="hero-right">Better commission results.</span></h1>
-      <p class="lead">Simple commission tracking, clear client management, and a polished upgrade flow for freelancers and independent creators.</p>
-      <div class="hero-actions">
-        <button class="btn btn-primary" onclick="showAuthModal()">Start for free</button>
-        <a class="btn btn-secondary" href="#features">See features</a>
-      </div>
-    </div>
-  </section>
+  <main id="main-content" class="container">
+    <div id="banner" class="banner info hidden" role="status" aria-live="polite"></div>
 
-  <div id="banner" class="banner" role="status" aria-live="polite"></div>
-  <section id="auth-callback-panel" class="auth-callback-panel hidden" aria-live="polite">
-    <p id="auth-callback-message" class="auth-callback-message"></p>
-  </section>
+    <!-- LANDING VIEW -->
+    <section id="landing-view">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">Freelancers &amp; Agencies</span>
 
-  <section id="dashboard" class="dashboard-section" hidden aria-label="User dashboard">
-    <aside class="hero-panel" aria-label="Current workspace overview">
-      <div class="panel-label">Workspace snapshot</div>
-      <div class="panel-card">
-        <div class="panel-row">
-          <span>Plan</span>
-          <strong id="plan">free</strong>
-        </div>
-        <div class="panel-row">
-          <span>Active commissions</span>
-          <strong id="total">0</strong>
-        </div>
-        <p class="panel-note">Sign in to track work, limit revisions, and upgrade to Pro plans.</p>
-      </div>
-    </aside>
+          <h1>
+            <span id="hero-top-text">Less scope creep.</span>
+            <span id="hero-bottom-text" class="secondary-line">More paid approvals.</span>
+          </h1>
 
-    <section class="dashboard-grid">
-      <article class="card feature-card">
-        <div class="card-title">Add a commission</div>
-        <form id="form" class="compose-form">
-          <label class="visually-hidden" for="title">Commission title</label>
-          <input id="title" placeholder="Commission title" required>
-          <label class="visually-hidden" for="client">Client name</label>
-          <input id="client" placeholder="Client name" required>
-          <label class="visually-hidden" for="limit">Revision limit</label>
-          <input id="limit" type="number" min="0" step="1" placeholder="Revisions">
-          <button class="btn btn-primary" type="submit">Add commission</button>
-        </form>
-      </article>
-      <article class="card subscription-card">
-        <div class="card-title">Subscription status</div>
-        <p id="subscription-status" class="card-copy">Sign in to view billing details.</p>
-        <p id="subscription-next-bill" class="card-copy muted"></p>
-        <p id="subscription-expiration" class="card-copy muted"></p>
-      </article>
-      <article class="card analytics-card">
-        <div class="card-title">Commission insights</div>
-        <div class="insights-grid">
-          <div>
-            <strong id="insight-count">0</strong>
-            <span>Total commissions</span>
-          </div>
-          <div>
-            <strong id="insight-revisions">0</strong>
-            <span>Revisions used</span>
-          </div>
-          <div>
-            <strong id="insight-remaining">0</strong>
-            <span>Revisions left</span>
+          <p class="lead">
+            Track scope, price extra requests, and get paid before approval.
+          </p>
+
+          <div class="hero-actions">
+            <button id="hero-start-btn" class="btn btn-primary" type="button">Start for free</button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth' })"
+            >
+              How it works
+            </button>
           </div>
         </div>
-        <p id="analytics-copy" class="card-copy muted">Upgrade to Pro+ for enhanced reports and export-ready data.</p>
-      </article>
-      <article class="card reminders-card">
-        <div class="card-title">Client reminders</div>
-        <p id="reminders-copy" class="card-copy">Add simple follow-ups and stay on top of each delivery.</p>
-        <button id="export-button" class="btn btn-secondary" type="button">Export commissions</button>
-      </article>
-      <article class="card small">
-        <div class="card-title">How Scopey helps</div>
-        <p class="card-copy">Use Scopey to keep commission work visible, manage clients, and stay under control on every project.</p>
-      </article>
-      <article class="card small">
-        <div class="card-title">Plan guidance</div>
-        <p class="card-copy">Free users can add up to 3 commissions. Upgrade for unlimited tracking and creator-friendly support.</p>
-      </article>
+
+        <div class="hero-panel">
+          <span class="panel-label">Example workflow</span>
+          <div class="panel-card">
+            <div class="panel-row">
+              <span>Project</span>
+              <strong>Website redesign</strong>
+            </div>
+            <div class="panel-row">
+              <span>Change request</span>
+              <strong>+ £200 animation add-on</strong>
+            </div>
+            <div class="panel-note">
+              Share the project with a client, let the client review pending changes, and only approve work after payment.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" class="onboarding">
+        <div class="section-heading">
+          <span class="eyebrow">How it works</span>
+          <h2>Turn vague requests into paid approvals</h2>
+          <p>
+            Scopey makes it easier to define included work, separate extras clearly, and let clients approve change requests by paying for them.
+          </p>
+        </div>
+
+        <div class="onboarding-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <h3>Create a project</h3>
+            <p>Add the client and define what the original scope includes.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <h3>Add change requests</h3>
+            <p>When the client asks for more, price it as a separate change.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <h3>Share with client</h3>
+            <p>Send a review link so the client can see the scope and pending changes.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">4</div>
+            <h3>Get paid to approve</h3>
+            <p>Clients pay before work is approved and recorded as confirmed.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="pricing-grid">
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <span>Starter</span>
+            <div class="price-value">Free</div>
+          </div>
+          <p class="price-description">
+            For early freelancers validating their workflow.
+          </p>
+          <ul class="price-list">
+            <li>1 active project</li>
+            <li>Scope + changes tracking</li>
+            <li>Client share page</li>
+          </ul>
+          <div class="price-cta">
+            <button class="btn btn-secondary" type="button">Current plan</button>
+          </div>
+        </div>
+
+        <div class="pricing-card featured">
+          <div class="pricing-header">
+            <span>Pro</span>
+            <div class="price-value">Coming soon</div>
+          </div>
+          <p class="price-description">
+            For freelancers who want history, custom agreements, exports and more.
+          </p>
+          <ul class="price-list">
+            <li>Unlimited projects</li>
+            <li>Custom agreements</li>
+            <li>Receipts and exports</li>
+          </ul>
+          <div class="price-cta">
+            <button class="btn btn-primary" type="button">Join waitlist</button>
+          </div>
+        </div>
+      </section>
     </section>
 
-    <section id="list" class="list"></section>
-  </section>
+    <!-- OWNER VIEW -->
+    <section id="owner-view" class="hidden">
+      <div class="dashboard-shell">
+        <aside class="dashboard-sidebar">
+          <section class="card">
+            <div class="section-row">
+              <div class="card-title">Projects</div>
+              <button id="toggle-project-create-btn" class="btn btn-secondary btn-small" type="button">
+                New project
+              </button>
+            </div>
 
-  <section id="onboarding" class="onboarding">
-    <div class="section-heading">
-      <span class="eyebrow">Easy onboarding</span>
-      <h2>Start tracking commissions in minutes</h2>
-      <p>Scopey makes onboarding fast so you can stay focused on delivering creative work instead of managing spreadsheets.</p>
-    </div>
-    <div class="onboarding-grid">
-      <article class="step-card">
-        <div class="step-number">1</div>
-        <h3>Create an account</h3>
-        <p>Sign in with your email and get access to your own commission workspace instantly.</p>
-      </article>
-      <article class="step-card">
-        <div class="step-number">2</div>
-        <h3>Add your first commission</h3>
-        <p>Enter the title, client name, and revision limit to keep the scope clear from the start.</p>
-      </article>
-      <article class="step-card">
-        <div class="step-number">3</div>
-        <h3>Track progress</h3>
-        <p>See active commissions and revision counts in one place so nothing slips through.</p>
-      </article>
-      <article class="step-card">
-        <div class="step-number">4</div>
-        <h3>Upgrade when ready</h3>
-        <p>Move from free to Pro plans for unlimited projects and creator-friendly support.</p>
-      </article>
-    </div>
-  </section>
+            <div id="project-list" class="project-list"></div>
+          </section>
 
-  <section id="list" class="list"></section>
+          <section id="project-create-card" class="card">
+            <div class="card-title">Create project</div>
+            <p class="card-copy card-copy-small">
+              Start a new client project to track scope and paid changes.
+            </p>
 
-  <section id="pricing" class="pricing-grid">
-    <article class="pricing-card" data-plan="free">
-      <div class="pricing-header">
-        <span>Free</span>
-        <strong class="price-value">$0</strong>
-      </div>
-      <p class="price-description">Perfect for solo creators trying Scopey with basic commission tracking.</p>
-      <ul class="price-list">
-        <li>Up to 3 active commissions</li>
-        <li>Client tracking</li>
-        <li>Email sign-in</li>
-      </ul>
-      <button class="btn btn-secondary" disabled>Included</button>
-    </article>
-    <article class="pricing-card featured" data-plan="pro">
-      <div class="pricing-header">
-        <span>Pro</span>
-        <strong class="price-value">$12/mo</strong>
-      </div>
-      <p class="price-description">Unlimited commissions, better client tracking, and faster delivery for serious freelancers.</p>
-      <ul class="price-list">
-        <li>Unlimited commissions</li>
-        <li>Revision tracking & milestone deadlines</li>
-        <li>Client reminders and status updates</li>
-      </ul>
-      <button class="btn btn-primary" onclick="upgrade('pro')">Upgrade</button>
-    </article>
-    <article class="pricing-card" data-plan="pro_plus">
-      <div class="pricing-header">
-        <span>Pro+</span>
-        <strong class="price-value">$24/mo</strong>
-      </div>
-      <p class="price-description">Premium workflow tools for independent creators with multiple clients and a polished delivery process.</p>
-      <ul class="price-list">
-        <li>Everything in Pro</li>
-        <li>Advanced client insights & export-ready reports</li>
-        <li>Priority onboarding and premium support</li>
-      </ul>
-      <button class="btn btn-primary" onclick="upgrade('pro_plus')">Upgrade</button>
-    </article>
-  </section>
+            <div class="stack-sm">
+              <label class="field-label" for="new-project-title">Project name</label>
+              <input id="new-project-title" placeholder="Website redesign" />
 
-  <section id="features" class="feature-grid">
-    <div class="feature-card">
-      <h2>Manage commissions</h2>
-      <p>Create commission records, assign clients, and track revisions in one simple interface.</p>
-    </div>
-    <div class="feature-card">
-      <h2>Stay on track</h2>
-      <p>See progress at a glance, avoid scope creep, and keep every client on the same page.</p>
-    </div>
-    <div class="feature-card">
-      <h2>Stripe plans</h2>
-      <p>Built for smooth upgrades with Stripe checkout, billing management, and trial periods.</p>
-    </div>
-    <div class="feature-card">
-      <h2>Export reports</h2>
-      <p>Pro+ users can export commission details and use data-ready reports for client billing.</p>
-    </div>
-  </section>
-</main>
+              <label class="field-label" for="new-project-client">Client name</label>
+              <input id="new-project-client" placeholder="Acme Co" />
 
-<footer class="site-footer">
-  <div class="container">Made with ♥ — Scopey</div>
-</footer>
+              <button id="create-project-btn" class="btn btn-primary btn-block" type="button">
+                Create project
+              </button>
+            </div>
+          </section>
+        </aside>
 
-<!-- Auth modal -->
-<div id="auth-modal" class="modal" aria-hidden="true" tabindex="-1">
-  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
-    <button class="modal-close" id="auth-close" aria-label="Close">×</button>
-    <h3 id="auth-modal-title">Sign in or create an account</h3>
-    <p class="muted">Enter your email and we'll send a secure magic link. No password is required.</p>
-    <p id="auth-mode-text" class="muted">Enter your email to receive a sign-in link. We'll create your account automatically if you don't have one.</p>
-    <div class="auth-feature-list">
-      <div>One email. One click. Start tracking commissions instantly.</div>
-    </div>
-    <form id="auth-form">
-      <label for="auth-email" class="visually-hidden">Email</label>
-      <input id="auth-email" name="email" type="email" placeholder="you@example.com" required>
-      <div class="modal-actions">
-        <button type="submit" class="btn btn-primary" id="auth-submit">Send magic link</button>
-        <button type="button" class="btn btn-secondary" id="auth-cancel">Cancel</button>
-      </div>
-      <div class="auth-modal-footer">
-        <button type="button" class="btn btn-link" id="password-reset-button">Reset password</button>
-      </div>
-    </form>
-  </div>
-</div>
+        <div class="dashboard-main">
+          <section id="owner-empty-state" class="card empty-state-panel">
+            <div class="card-title">Project workspace</div>
+            <h2 class="empty-state-heading">Create your first project</h2>
+            <p class="card-copy">
+              Use the left pane to create a project. Once a project is selected, you’ll see its scope,
+              change requests, values and client review tools here.
+            </p>
+          </section>
 
-<!-- Accessibility modal -->
-<div id="accessibility-modal" class="modal" aria-hidden="true" tabindex="-1">
-  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="accessibility-modal-title">
-    <button class="modal-close" id="accessibility-close" aria-label="Close">×</button>
-    <h3 id="accessibility-modal-title">Accessibility settings</h3>
-    <p class="muted">Adjust text size, contrast, and theme preferences for better readability.</p>
-    <div class="accessibility-section">
-      <h4>Text size</h4>
-      <div class="text-size-row">
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="decrease-text">A-</button>
-          <button type="button" class="btn btn-ghost" id="increase-text">A+</button>
+          <section id="project-workspace" class="hidden workspace-stack">
+            <section class="card">
+              <div class="project-header-row">
+                <div>
+                  <div class="card-title">Project</div>
+                  <strong id="project-title" class="card-value card-value-project">Select a project</strong>
+                  <p id="project-subtitle" class="card-copy card-copy-small">
+                    Choose a project from the left.
+                  </p>
+                </div>
+
+                <div class="project-actions">
+                  <div id="owner-status-chip" class="status-chip hidden">Owner view</div>
+                  <button id="copy-link-btn" class="btn btn-secondary" type="button">Copy share link</button>
+                </div>
+              </div>
+            </section>
+
+            <div class="dashboard-grid metrics-grid">
+              <section class="card small">
+                <div class="card-title">Scope items</div>
+                <div id="metric-scope-count" class="card-value">0</div>
+              </section>
+              <section class="card small">
+                <div class="card-title">Pending changes</div>
+                <div id="metric-pending-count" class="card-value">0</div>
+              </section>
+              <section class="card small">
+                <div class="card-title">Pending value</div>
+                <div id="metric-pending-total" class="card-value">£0</div>
+              </section>
+              <section class="card small">
+                <div class="card-title">Approved value</div>
+                <div id="metric-approved-total" class="card-value">£0</div>
+              </section>
+            </div>
+
+            <section class="card">
+              <div class="card-title">Project workspace</div>
+              <div class="project-tabs" role="tablist" aria-label="Project sections">
+                <button class="project-tab active" type="button" data-project-tab="overview">Overview</button>
+                <button class="project-tab" type="button" data-project-tab="scope">Scope</button>
+                <button class="project-tab" type="button" data-project-tab="changes">Changes</button>
+                <button class="project-tab" type="button" data-project-tab="client">Client review</button>
+              </div>
+
+              <div id="project-tab-overview" class="project-tab-panel">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Summary</div>
+                    <p id="overview-summary-copy" class="card-copy">
+                      Choose a project to see its current scope, pending approvals and approved value.
+                    </p>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Next best action</div>
+                    <p id="overview-next-action" class="card-copy">
+                      Add a project on the left to get started.
+                    </p>
+                  </section>
+                </div>
+              </div>
+
+              <div id="project-tab-scope" class="project-tab-panel hidden">
+                <div class="card nested-card">
+                  <div class="section-row">
+                    <div>
+                      <div class="card-title">Scope</div>
+                      <p class="card-copy card-copy-small">
+                        Define what is included in the original agreement.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="compose-form compose-form-compact">
+                    <div>
+                      <label class="field-label" for="scope-title">Scope item</label>
+                      <input id="scope-title" placeholder="Homepage design" />
+                    </div>
+                    <div>
+                      <label class="field-label" for="scope-price">Price</label>
+                      <input id="scope-price" type="number" min="0" step="1" placeholder="0" />
+                    </div>
+                    <div class="field-action">
+                      <button id="add-scope-btn" class="btn btn-secondary btn-block" type="button">
+                        Add
+                      </button>
+                    </div>
+                  </div>
+
+                  <div id="scope-list" class="list"></div>
+                </div>
+              </div>
+
+              <div id="project-tab-changes" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Add change</div>
+                    <p class="card-copy card-copy-small">
+                      Create a priced request when the client asks for extra work.
+                    </p>
+
+                    <div class="compose-form compose-form-compact">
+                      <div>
+                        <label class="field-label" for="change-input">Change description</label>
+                        <input id="change-input" placeholder="Add homepage animation" />
+                      </div>
+                      <div>
+                        <label class="field-label" for="change-price">Price</label>
+                        <input id="change-price" type="number" min="0" step="1" placeholder="200" />
+                      </div>
+                      <div class="field-action">
+                        <button id="add-change-btn" class="btn btn-primary btn-block" type="button">
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="section-row">
+                      <div class="card-title">Pending changes</div>
+                      <div class="muted-caption">Awaiting client payment</div>
+                    </div>
+                    <div id="pending-list" class="list"></div>
+                  </section>
+                </div>
+
+                <section class="card nested-card margin-top-md">
+                  <div class="section-row">
+                    <div class="card-title">Approved changes</div>
+                    <div class="muted-caption">Paid and approved</div>
+                  </div>
+                  <div id="approved-list" class="list"></div>
+                </section>
+              </div>
+
+              <div id="project-tab-client" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Client share</div>
+                    <p class="card-copy card-copy-small">
+                      Send the share link so the client can review scope and pending changes.
+                    </p>
+                    <button id="copy-link-btn-secondary" class="btn btn-primary" type="button">
+                      Copy share link
+                    </button>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Client preview</div>
+                    <p class="card-copy card-copy-small">
+                      This mirrors the client view sections below.
+                    </p>
+                  </section>
+                </div>
+
+                <div class="dashboard-grid two-up-grid margin-top-md">
+                  <section class="card nested-card">
+                    <div class="card-title">Included scope</div>
+                    <div id="owner-client-scope-list" class="list"></div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Pending changes</div>
+                    <div id="owner-client-pending-list" class="list"></div>
+                  </section>
+                </div>
+
+                <section class="card nested-card margin-top-md">
+                  <div class="card-title">Approved changes</div>
+                  <div id="owner-client-approved-list" class="list"></div>
+                </section>
+              </div>
+            </section>
+          </section>
         </div>
-        <button type="button" class="btn btn-secondary reset-btn" id="reset-text">Reset</button>
       </div>
-      <p id="text-size-label" class="muted text-size-label">Current size: Normal</p>
-    </div>
-    <div class="accessibility-section">
-      <h4>Theme</h4>
-      <div class="theme-buttons">
-        <button type="button" class="btn btn-secondary" id="theme-light" aria-pressed="false">Light</button>
-        <button type="button" class="btn btn-secondary" id="theme-dark" aria-pressed="false">Dark</button>
-        <button type="button" class="btn btn-secondary" id="theme-high-contrast" aria-pressed="false">High contrast</button>
+    </section>
+
+    <!-- CLIENT VIEW -->
+    <section id="client-view" class="hidden client-shell">
+      <section class="card">
+        <div class="card-title">Client review</div>
+        <strong id="client-project-title" class="card-value card-value-project">Project review</strong>
+        <p id="client-project-subtitle" class="card-copy">
+          Review the scope and pay to approve pending changes.
+        </p>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Included scope</div>
+        <div id="client-scope-list" class="list"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Pending changes</div>
+        <p class="card-copy card-copy-small">
+          Payment is required before a pending change becomes approved.
+        </p>
+        <div id="client-pending-list" class="list"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Approved changes</div>
+        <div id="client-approved-list" class="list"></div>
+      </section>
+    </section>
+  </main>
+
+  <!-- AUTH MODAL -->
+  <div id="auth-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel">
+      <button
+        id="close-auth-btn"
+        class="modal-close"
+        aria-label="Close sign in modal"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <h3 id="auth-title">Sign in to Scopey</h3>
+      <p class="muted" id="auth-subtitle">
+        Use your email and password to access your dashboard.
+      </p>
+
+      <div class="theme-buttons" id="auth-mode-buttons" style="margin-bottom:16px;">
+        <button class="btn btn-secondary active" type="button" data-auth-mode="signin">
+          Existing account
+        </button>
+        <button class="btn btn-secondary" type="button" data-auth-mode="signup">
+          Create account
+        </button>
       </div>
-    </div>
-    <div class="modal-actions modal-actions-right">
-      <button type="button" class="btn btn-secondary" id="accessibility-cancel">Close</button>
+
+      <label class="field-label" for="auth-email">Email</label>
+      <input id="auth-email" type="email" placeholder="you@example.com" />
+
+      <label class="field-label" for="auth-password">Password</label>
+      <input id="auth-password" type="password" placeholder="Enter your password" />
+
+      <div class="modal-actions">
+        <button id="auth-submit-btn" class="btn btn-primary" type="button">
+          Continue
+        </button>
+        <button id="auth-magic-link-btn" class="btn btn-secondary" type="button">
+          Use magic link instead
+        </button>
+      </div>
     </div>
   </div>
-</div>
 
-<script src="app.js"></script>
+  <!-- ACCESSIBILITY MODAL -->
+  <div id="accessibility-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel">
+      <button
+        id="close-accessibility-btn"
+        class="modal-close"
+        aria-label="Close accessibility settings"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <h3>Accessibility settings</h3>
+      <p class="muted">
+        Adjust text size and choose a display mode that feels comfortable.
+      </p>
+
+      <div class="accessibility-section">
+        <h4>Text size</h4>
+        <div class="theme-buttons" id="text-size-buttons">
+          <button class="btn btn-secondary" type="button" data-text-size-option="small">Small</button>
+          <button class="btn btn-secondary" type="button" data-text-size-option="medium">Medium</button>
+          <button class="btn btn-secondary" type="button" data-text-size-option="large">Large</button>
+        </div>
+      </div>
+
+      <div class="accessibility-section">
+        <h4>Display mode</h4>
+        <div class="theme-buttons" id="theme-buttons">
+          <button class="btn btn-secondary" type="button" data-theme-option="light">Light</button>
+          <button class="btn btn-secondary" type="button" data-theme-option="dark">Dark</button>
+          <button class="btn btn-secondary" type="button" data-theme-option="high-contrast">
+            High contrast
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-actions modal-actions-right margin-top-md">
+        <button id="reset-accessibility-btn" class="btn btn-secondary" type="button">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
