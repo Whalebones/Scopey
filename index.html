@@ -59,7 +59,7 @@
           </h1>
 
           <p class="lead">
-            Track scope, price extra requests, and get paid before approval.
+            Manage commission scope, client ideas, progress updates and paid approvals in one shared workspace.
           </p>
 
           <div class="hero-actions">
@@ -72,21 +72,60 @@
               How it works
             </button>
           </div>
+
+          <div class="hero-proof-strip" aria-label="What Scopey keeps clear">
+            <div>
+              <span>Original scope</span>
+              <strong>Locked before work starts</strong>
+              <p>Keep the agreed deliverables visible so extra requests do not quietly become included work.</p>
+            </div>
+            <div>
+              <span>Client ideas</span>
+              <strong>Reviewed, revised or declined</strong>
+              <p>Clients can send suggestions and references, while freelancers stay in control of what changes.</p>
+            </div>
+            <div>
+              <span>Paid extras</span>
+              <strong>Tracked beside approval history</strong>
+              <p>Accepted changes become priced approvals, with decisions recorded alongside the commission.</p>
+            </div>
+          </div>
         </div>
 
         <div class="hero-panel">
           <span class="panel-label">Example workflow</span>
           <div class="panel-card">
-            <div class="panel-row">
-              <span>Project</span>
-              <strong>Website redesign</strong>
+            <div class="workflow-heading">
+              <span>Website redesign</span>
+              <strong>Commission workspace</strong>
             </div>
-            <div class="panel-row">
-              <span>Change request</span>
-              <strong>+ £200 animation add-on</strong>
+
+            <div class="workflow-step">
+              <span class="workflow-number">1</span>
+              <div>
+                <strong>Lock the original scope</strong>
+                <p>5 pages, responsive build and launch handover are agreed up front.</p>
+              </div>
             </div>
-            <div class="panel-note">
-              Share the project with a client, let the client review pending changes, and only approve work after payment.
+
+            <div class="workflow-step">
+              <span class="workflow-number">2</span>
+              <div>
+                <strong>Review client ideas</strong>
+                <p>The client sends an animation reference and asks to add it to the project.</p>
+              </div>
+            </div>
+
+            <div class="workflow-step">
+              <span class="workflow-number">3</span>
+              <div>
+                <strong>Respond with a clear value</strong>
+                <p>Accept at +£200, revise the request, or decline it before work begins.</p>
+              </div>
+            </div>
+
+            <div class="workflow-outcome">
+              Paid extras stay separate from the original scope and every decision is recorded.
             </div>
           </div>
         </div>
@@ -95,9 +134,9 @@
       <section id="how-it-works" class="onboarding">
         <div class="section-heading">
           <span class="eyebrow">How it works</span>
-          <h2>Turn vague requests into paid approvals</h2>
+          <h2>Keep commissions clear from idea to approval</h2>
           <p>
-            Scopey makes it easier to define included work, separate extras clearly, and let clients approve change requests by paying for them.
+            Scopey gives freelancers and clients one place to define the original scope, discuss suggestions, share images, agree values and record approved extras.
           </p>
         </div>
 
@@ -105,25 +144,25 @@
           <div class="step-card">
             <div class="step-number">1</div>
             <h3>Create a project</h3>
-            <p>Add the client and define what the original scope includes.</p>
+            <p>Add the client, commission details and the work included in the original agreement.</p>
           </div>
 
           <div class="step-card">
             <div class="step-number">2</div>
-            <h3>Add change requests</h3>
-            <p>When the client asks for more, price it as a separate change.</p>
+            <h3>Collect suggestions</h3>
+            <p>Let clients send ideas, references or requested changes without losing the original scope.</p>
           </div>
 
           <div class="step-card">
             <div class="step-number">3</div>
-            <h3>Share with client</h3>
-            <p>Send a review link so the client can see the scope and pending changes.</p>
+            <h3>Review the value</h3>
+            <p>Accept, decline or revise each suggestion with a clear scope decision and price.</p>
           </div>
 
           <div class="step-card">
             <div class="step-number">4</div>
-            <h3>Get paid to approve</h3>
-            <p>Clients pay before work is approved and recorded as confirmed.</p>
+            <h3>Track approval</h3>
+            <p>Share progress updates and keep paid extras recorded beside the commission history.</p>
           </div>
         </div>
       </section>
@@ -135,12 +174,12 @@
             <div class="price-value">Free</div>
           </div>
           <p class="price-description">
-            For early freelancers validating their workflow.
+            For freelancers who want a simple way to control scope and client approvals.
           </p>
           <ul class="price-list">
             <li>1 active project</li>
-            <li>Scope + changes tracking</li>
-            <li>Client share page</li>
+            <li>Scope, suggestions and updates</li>
+            <li>Client review page</li>
           </ul>
           <div class="price-cta">
             <button class="btn btn-secondary" type="button">Current plan</button>
@@ -153,12 +192,12 @@
             <div class="price-value">Coming soon</div>
           </div>
           <p class="price-description">
-            For freelancers who want history, custom agreements, exports and more.
+            For growing studios who need deeper records, exports and custom agreements.
           </p>
           <ul class="price-list">
             <li>Unlimited projects</li>
             <li>Custom agreements</li>
-            <li>Receipts and exports</li>
+            <li>Receipts, exports and history</li>
           </ul>
           <div class="price-cta">
             <button class="btn btn-primary" type="button">Join waitlist</button>
@@ -171,6 +210,47 @@
     <section id="owner-view" class="hidden">
       <div class="dashboard-shell">
         <aside class="dashboard-sidebar">
+          <section class="card">
+            <div class="section-row">
+              <div class="card-title">Business profile</div>
+              <button id="customise-profile-btn" class="btn btn-secondary btn-small" type="button">
+                Customise
+              </button>
+            </div>
+            <div class="profile-preview">
+              <div class="profile-avatar" aria-hidden="true">
+                <img id="profile-preview-image" class="hidden" alt="" />
+                <span id="profile-preview-initial">F</span>
+              </div>
+              <div>
+                <strong id="profile-preview-name" class="profile-name">Freelancer</strong>
+                <p id="profile-preview-bio" class="profile-bio">
+                  Your business details will appear on client review pages.
+                </p>
+              </div>
+            </div>
+
+            <div id="business-profile-form" class="stack-sm hidden">
+              <label class="field-label" for="profile-brand-name">Brand name</label>
+              <input id="profile-brand-name" placeholder="Studio name or trading name" />
+
+              <label class="field-label" for="profile-bio">Short intro</label>
+              <textarea id="profile-bio" rows="3" placeholder="A short line clients will see on shared project pages."></textarea>
+
+              <label class="field-label" for="profile-image">Profile image</label>
+              <input id="profile-image" type="file" accept="image/*" />
+
+              <div class="modal-actions">
+                <button id="save-profile-btn" class="btn btn-primary" type="button">
+                  Save profile
+                </button>
+                <button id="cancel-profile-btn" class="btn btn-secondary" type="button">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </section>
+
           <section class="card">
             <div class="section-row">
               <div class="card-title">Projects</div>
@@ -194,6 +274,25 @@
 
               <label class="field-label" for="new-project-client">Client name</label>
               <input id="new-project-client" placeholder="Acme Co" />
+
+              <label class="field-label" for="new-project-client-email">Client email</label>
+              <input id="new-project-client-email" type="email" placeholder="client@example.com" />
+
+              <label class="field-label" for="new-project-currency">Project currency</label>
+              <select id="new-project-currency">
+                <option value="GBP">GBP - British pound</option>
+                <option value="USD">USD - US dollar</option>
+                <option value="EUR">EUR - Euro</option>
+                <option value="AUD">AUD - Australian dollar</option>
+                <option value="CAD">CAD - Canadian dollar</option>
+                <option value="NZD">NZD - New Zealand dollar</option>
+                <option value="SGD">SGD - Singapore dollar</option>
+                <option value="CHF">CHF - Swiss franc</option>
+                <option value="SEK">SEK - Swedish krona</option>
+                <option value="NOK">NOK - Norwegian krone</option>
+                <option value="DKK">DKK - Danish krone</option>
+                <option value="PLN">PLN - Polish zloty</option>
+              </select>
 
               <button id="create-project-btn" class="btn btn-primary btn-block" type="button">
                 Create project
@@ -226,6 +325,7 @@
                 <div class="project-actions">
                   <div id="owner-status-chip" class="status-chip hidden">Owner view</div>
                   <button id="copy-link-btn" class="btn btn-secondary" type="button">Copy share link</button>
+                  <button id="email-client-btn" class="btn btn-primary" type="button">Email client</button>
                 </div>
               </div>
             </section>
@@ -234,6 +334,10 @@
               <section class="card small">
                 <div class="card-title">Scope items</div>
                 <div id="metric-scope-count" class="card-value">0</div>
+              </section>
+              <section class="card small">
+                <div class="card-title">Project status</div>
+                <div id="metric-project-status" class="card-value card-value-compact">Draft</div>
               </section>
               <section class="card small">
                 <div class="card-title">Pending changes</div>
@@ -247,14 +351,23 @@
                 <div class="card-title">Approved value</div>
                 <div id="metric-approved-total" class="card-value">£0</div>
               </section>
+              <section class="card small">
+                <div class="card-title">Outstanding payments</div>
+                <div id="metric-outstanding-total" class="card-value">£0</div>
+              </section>
             </div>
 
             <section class="card">
               <div class="card-title">Project workspace</div>
               <div class="project-tabs" role="tablist" aria-label="Project sections">
                 <button class="project-tab active" type="button" data-project-tab="overview">Overview</button>
+                <button class="project-tab" type="button" data-project-tab="agreement">Agreement</button>
                 <button class="project-tab" type="button" data-project-tab="scope">Scope</button>
                 <button class="project-tab" type="button" data-project-tab="changes">Changes</button>
+                <button class="project-tab" type="button" data-project-tab="payments">Payments</button>
+                <button class="project-tab" type="button" data-project-tab="suggestions">Suggestions</button>
+                <button class="project-tab" type="button" data-project-tab="updates">Updates</button>
+                <button class="project-tab" type="button" data-project-tab="completion">Completion</button>
                 <button class="project-tab" type="button" data-project-tab="client">Client review</button>
               </div>
 
@@ -272,6 +385,76 @@
                     <p id="overview-next-action" class="card-copy">
                       Add a project on the left to get started.
                     </p>
+                  </section>
+                </div>
+
+                <section class="card nested-card margin-top-md">
+                  <div class="card-title">Needs attention</div>
+                  <div id="overview-attention-list" class="list list-compact"></div>
+                </section>
+              </div>
+
+              <div id="project-tab-agreement" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Project agreement</div>
+                    <p class="card-copy card-copy-small">
+                      Write the terms the client accepts before work moves forward.
+                    </p>
+
+                    <label class="field-label" for="project-currency">Project currency</label>
+                    <select id="project-currency">
+                      <option value="GBP">GBP - British pound</option>
+                      <option value="USD">USD - US dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="AUD">AUD - Australian dollar</option>
+                      <option value="CAD">CAD - Canadian dollar</option>
+                      <option value="NZD">NZD - New Zealand dollar</option>
+                      <option value="SGD">SGD - Singapore dollar</option>
+                      <option value="CHF">CHF - Swiss franc</option>
+                      <option value="SEK">SEK - Swedish krona</option>
+                      <option value="NOK">NOK - Norwegian krone</option>
+                      <option value="DKK">DKK - Danish krone</option>
+                      <option value="PLN">PLN - Polish zloty</option>
+                    </select>
+
+                    <label class="field-label" for="agreement-summary">Project summary</label>
+                    <textarea id="agreement-summary" rows="3" placeholder="What is being commissioned and what outcome is expected."></textarea>
+
+                    <label class="field-label" for="agreement-scope">Included scope</label>
+                    <textarea id="agreement-scope" rows="4" placeholder="List the work included in the original price."></textarea>
+
+                    <label class="field-label" for="agreement-exclusions">Exclusions</label>
+                    <textarea id="agreement-exclusions" rows="3" placeholder="What is not included unless separately approved."></textarea>
+
+                    <label class="field-label" for="agreement-timeline">Timeline</label>
+                    <textarea id="agreement-timeline" rows="3" placeholder="Expected dates, milestones, or delivery notes."></textarea>
+
+                    <label class="field-label" for="agreement-payment-terms">Payment terms</label>
+                    <textarea id="agreement-payment-terms" rows="3" placeholder="Deposit, milestone, final payment, or invoice terms."></textarea>
+
+                    <label class="field-label" for="agreement-revision-terms">Revision and change policy</label>
+                    <textarea id="agreement-revision-terms" rows="3" placeholder="How revisions work and when extra changes become chargeable."></textarea>
+
+                    <label class="field-label" for="agreement-cancellation-terms">Cancellation terms</label>
+                    <textarea id="agreement-cancellation-terms" rows="3" placeholder="What happens if either side cancels the commission."></textarea>
+
+                    <div class="modal-actions margin-top-md">
+                      <button id="save-agreement-btn" class="btn btn-primary" type="button">
+                        Save agreement
+                      </button>
+                      <button id="send-agreement-btn" class="btn btn-secondary" type="button">
+                        Send for acceptance
+                      </button>
+                    </div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Acceptance</div>
+                    <p id="agreement-status-copy" class="card-copy">
+                      Save the agreement, then send the client share link for acceptance.
+                    </p>
+                    <div id="agreement-accepted-copy" class="agreement-snapshot"></div>
                   </section>
                 </div>
               </div>
@@ -350,6 +533,138 @@
                 </section>
               </div>
 
+              <div id="project-tab-payments" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Add payment</div>
+                    <p class="card-copy card-copy-small">
+                      Track deposits, milestones, final balances or manual payments against the project.
+                    </p>
+
+                    <div class="compose-form compose-form-compact">
+                      <div>
+                        <label class="field-label" for="payment-label">Payment label</label>
+                        <input id="payment-label" placeholder="Deposit" />
+                      </div>
+                      <div>
+                        <label class="field-label" for="payment-amount">Amount</label>
+                        <input id="payment-amount" type="number" min="0" step="1" placeholder="250" />
+                      </div>
+                      <div>
+                        <label class="field-label" for="payment-type">Type</label>
+                        <select id="payment-type">
+                          <option value="deposit">Deposit</option>
+                          <option value="milestone">Milestone</option>
+                          <option value="final">Final</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <label class="field-label" for="payment-status">Status</label>
+                    <select id="payment-status">
+                      <option value="pending">Pending client payment</option>
+                      <option value="paid">Already paid manually</option>
+                    </select>
+
+                    <div class="modal-actions margin-top-md">
+                      <button id="add-payment-btn" class="btn btn-primary" type="button">
+                        Add payment
+                      </button>
+                    </div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Project payments</div>
+                    <div id="project-payment-list" class="list"></div>
+                  </section>
+                </div>
+              </div>
+
+              <div id="project-tab-suggestions" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Client suggestions</div>
+                    <p class="card-copy card-copy-small">
+                      Review client ideas, adjust the value, decline them, or turn them into paid change requests.
+                    </p>
+                    <div id="owner-suggestion-list" class="list"></div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Review response</div>
+                    <p class="card-copy card-copy-small">
+                      Use these fields before accepting, declining or revising a suggestion.
+                    </p>
+
+                    <label class="field-label" for="suggestion-response-note">Response note</label>
+                    <textarea id="suggestion-response-note" rows="4" placeholder="Explain what changes, what is included, or why this is declined."></textarea>
+
+                    <label class="field-label" for="suggestion-response-price">Adjusted value</label>
+                    <input id="suggestion-response-price" type="number" min="0" step="1" placeholder="Optional" />
+                  </section>
+                </div>
+              </div>
+
+              <div id="project-tab-updates" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Add progress update</div>
+                    <p class="card-copy card-copy-small">
+                      Share progress, context, screenshots or images that help the client understand the commission.
+                    </p>
+
+                    <label class="field-label" for="owner-update-message">Update note</label>
+                    <textarea id="owner-update-message" rows="4" placeholder="Progress made, decision needed, or next step..."></textarea>
+
+                    <label class="field-label" for="owner-update-image">Image</label>
+                    <input id="owner-update-image" type="file" accept="image/*" />
+
+                    <div class="modal-actions margin-top-md">
+                      <button id="owner-add-update-btn" class="btn btn-primary" type="button">
+                        Add update
+                      </button>
+                    </div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Shared updates</div>
+                    <div id="owner-update-list" class="list"></div>
+                  </section>
+                </div>
+              </div>
+
+              <div id="project-tab-completion" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Completion</div>
+                    <p id="completion-status-copy" class="card-copy">
+                      Request final approval when the agreed work is ready for the client to sign off.
+                    </p>
+
+                    <div class="modal-actions margin-top-md">
+                      <button id="start-work-btn" class="btn btn-secondary" type="button">
+                        Mark in progress
+                      </button>
+                      <button id="request-final-btn" class="btn btn-primary" type="button">
+                        Request final approval
+                      </button>
+                      <button id="complete-project-btn" class="btn btn-secondary" type="button">
+                        Mark complete
+                      </button>
+                      <button id="cancel-project-btn" class="btn btn-secondary" type="button">
+                        Cancel project
+                      </button>
+                    </div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Project timeline</div>
+                    <div id="project-timeline-list" class="list list-compact"></div>
+                  </section>
+                </div>
+              </div>
+
               <div id="project-tab-client" class="project-tab-panel hidden">
                 <div class="dashboard-grid two-up-grid">
                   <section class="card nested-card">
@@ -360,13 +675,28 @@
                     <button id="copy-link-btn-secondary" class="btn btn-primary" type="button">
                       Copy share link
                     </button>
+                    <button id="email-client-btn-secondary" class="btn btn-secondary" type="button">
+                      Email client
+                    </button>
                   </section>
 
                   <section class="card nested-card">
                     <div class="card-title">Client preview</div>
                     <p class="card-copy card-copy-small">
-                      This mirrors the client view sections below.
+                      This mirrors the client view, including agreement status, payments, suggestions and updates.
                     </p>
+                  </section>
+                </div>
+
+                <div class="dashboard-grid two-up-grid margin-top-md">
+                  <section class="card nested-card">
+                    <div class="card-title">Agreement</div>
+                    <div id="owner-client-agreement-preview" class="agreement-snapshot"></div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Payments</div>
+                    <div id="owner-client-payment-list" class="list"></div>
                   </section>
                 </div>
 
@@ -379,6 +709,18 @@
                   <section class="card nested-card">
                     <div class="card-title">Pending changes</div>
                     <div id="owner-client-pending-list" class="list"></div>
+                  </section>
+                </div>
+
+                <div class="dashboard-grid two-up-grid margin-top-md">
+                  <section class="card nested-card">
+                    <div class="card-title">Client suggestions</div>
+                    <div id="owner-client-suggestion-list" class="list"></div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Shared updates</div>
+                    <div id="owner-client-update-list" class="list"></div>
                   </section>
                 </div>
 
@@ -395,20 +737,59 @@
 
     <!-- CLIENT VIEW -->
     <section id="client-view" class="hidden client-shell">
-      <section class="card">
-        <div class="card-title">Client review</div>
-        <strong id="client-project-title" class="card-value card-value-project">Project review</strong>
-        <p id="client-project-subtitle" class="card-copy">
-          Review the scope and pay to approve pending changes.
-        </p>
+      <section class="card client-hero-card">
+        <div id="client-profile-card" class="client-profile">
+          <div class="profile-avatar profile-avatar-large" aria-hidden="true">
+            <img id="client-profile-image" class="hidden" alt="" />
+            <span id="client-profile-initial">F</span>
+          </div>
+          <div>
+            <div class="card-title">Client review</div>
+            <strong id="client-profile-name" class="profile-name">Freelancer</strong>
+            <p id="client-profile-bio" class="profile-bio">Shared commission workspace</p>
+          </div>
+        </div>
+
+        <div class="client-project-heading">
+          <strong id="client-project-title" class="card-value card-value-project">Project review</strong>
+          <p id="client-project-subtitle" class="card-copy">
+            Review the scope and pay to approve pending changes.
+          </p>
+        </div>
       </section>
 
-      <section class="card">
+      <section class="card" data-client-section="agreement">
+        <div class="card-title">Project agreement</div>
+        <div id="client-agreement-preview" class="agreement-snapshot"></div>
+        <div id="client-acceptance-panel" class="acceptance-panel">
+          <p class="card-copy card-copy-small">
+            Accept the agreement when the scope, value and terms are correct.
+          </p>
+          <div class="compose-form compose-form-compact">
+            <div>
+              <label class="field-label" for="client-accept-name">Your name</label>
+              <input id="client-accept-name" placeholder="Client name" />
+            </div>
+            <div>
+              <label class="field-label" for="client-accept-email">Email</label>
+              <input id="client-accept-email" type="email" placeholder="Optional" />
+            </div>
+            <div class="field-action">
+              <button id="client-accept-agreement-btn" class="btn btn-primary btn-block" type="button">
+                Accept agreement
+              </button>
+            </div>
+          </div>
+        </div>
+        <p id="client-acceptance-status" class="card-copy card-copy-small"></p>
+      </section>
+
+      <section class="card" data-client-section="scope">
         <div class="card-title">Included scope</div>
         <div id="client-scope-list" class="list"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-client-section="changes">
         <div class="card-title">Pending changes</div>
         <p class="card-copy card-copy-small">
           Payment is required before a pending change becomes approved.
@@ -416,7 +797,91 @@
         <div id="client-pending-list" class="list"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-client-section="payments">
+        <div class="card-title">Project payments</div>
+        <p class="card-copy card-copy-small">
+          Pay deposits, milestones or final balances requested for this project.
+        </p>
+        <div id="client-payment-list" class="list"></div>
+      </section>
+
+      <section class="card" data-client-section="suggestions">
+        <div class="card-title">Suggest a change</div>
+        <p class="card-copy card-copy-small">
+          Send an idea, inspiration image or requested alteration for review.
+        </p>
+
+        <div class="compose-form compose-form-compact">
+          <div>
+            <label class="field-label" for="client-suggestion-title">Suggestion</label>
+            <input id="client-suggestion-title" placeholder="Add a second homepage concept" />
+          </div>
+          <div>
+            <label class="field-label" for="client-suggestion-price">Suggested value</label>
+            <input id="client-suggestion-price" type="number" min="0" step="1" placeholder="Optional" />
+          </div>
+          <div class="field-action">
+            <button id="client-add-suggestion-btn" class="btn btn-primary btn-block" type="button">
+              Send
+            </button>
+          </div>
+        </div>
+
+        <label class="field-label" for="client-suggestion-details">Details</label>
+        <textarea id="client-suggestion-details" rows="4" placeholder="Describe what you would like changed or added."></textarea>
+
+        <label class="field-label" for="client-suggestion-image">Inspiration image</label>
+        <input id="client-suggestion-image" type="file" accept="image/*" />
+
+        <div id="client-suggestion-list" class="list"></div>
+      </section>
+
+      <section class="card" data-client-section="updates">
+        <div class="card-title">Shared updates</div>
+        <p class="card-copy card-copy-small">
+          Review progress or add inspiration and context for the commission.
+        </p>
+
+        <label class="field-label" for="client-update-message">Client note</label>
+        <textarea id="client-update-message" rows="4" placeholder="Add context, reference notes, or feedback."></textarea>
+
+        <label class="field-label" for="client-update-image">Image</label>
+        <input id="client-update-image" type="file" accept="image/*" />
+
+        <div class="modal-actions margin-top-md">
+          <button id="client-add-update-btn" class="btn btn-secondary" type="button">
+            Add note
+          </button>
+        </div>
+
+        <div id="client-update-list" class="list"></div>
+      </section>
+
+      <section class="card" data-client-section="completion">
+        <div class="card-title">Final approval</div>
+        <p id="client-completion-copy" class="card-copy">
+          Final approval will appear here when the project is ready for sign-off.
+        </p>
+        <div id="client-completion-panel" class="acceptance-panel hidden">
+          <div class="compose-form compose-form-compact">
+            <div>
+              <label class="field-label" for="client-complete-name">Your name</label>
+              <input id="client-complete-name" placeholder="Client name" />
+            </div>
+            <div>
+              <label class="field-label" for="client-complete-email">Email</label>
+              <input id="client-complete-email" type="email" placeholder="Optional" />
+            </div>
+            <div class="field-action">
+              <button id="client-approve-completion-btn" class="btn btn-primary btn-block" type="button">
+                Approve completion
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" data-client-section="changes">
         <div class="card-title">Approved changes</div>
         <div id="client-approved-list" class="list"></div>
       </section>
@@ -425,7 +890,7 @@
 
   <!-- AUTH MODAL -->
   <div id="auth-modal" class="modal" aria-hidden="true">
-    <div class="modal-panel">
+    <div class="modal-panel auth-panel">
       <button
         id="close-auth-btn"
         class="modal-close"
@@ -435,12 +900,15 @@
         &times;
       </button>
 
-      <h3 id="auth-title">Sign in to Scopey</h3>
-      <p class="muted" id="auth-subtitle">
-        Use your email and password to access your dashboard.
-      </p>
+      <div class="auth-header">
+        <span class="auth-kicker">Scopey account</span>
+        <h3 id="auth-title">Sign in to Scopey</h3>
+        <p class="muted" id="auth-subtitle">
+          Use your email and password to access your dashboard.
+        </p>
+      </div>
 
-      <div class="theme-buttons" id="auth-mode-buttons" style="margin-bottom:16px;">
+      <div class="auth-mode-switch" id="auth-mode-buttons">
         <button class="btn btn-secondary active" type="button" data-auth-mode="signin">
           Existing account
         </button>
@@ -449,13 +917,19 @@
         </button>
       </div>
 
-      <label class="field-label" for="auth-email">Email</label>
-      <input id="auth-email" type="email" placeholder="you@example.com" />
+      <div class="auth-fields">
+        <div class="auth-field">
+          <label class="field-label" for="auth-email">Email</label>
+          <input id="auth-email" type="email" placeholder="you@example.com" />
+        </div>
 
-      <label class="field-label" for="auth-password">Password</label>
-      <input id="auth-password" type="password" placeholder="Enter your password" />
+        <div class="auth-field">
+          <label class="field-label" for="auth-password">Password</label>
+          <input id="auth-password" type="password" placeholder="Enter your password" />
+        </div>
+      </div>
 
-      <div class="modal-actions">
+      <div class="modal-actions auth-actions">
         <button id="auth-submit-btn" class="btn btn-primary" type="button">
           Continue
         </button>
@@ -509,6 +983,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260611-business-currency-scoped-v12"></script>
 </body>
 </html>
