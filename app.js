@@ -20,16 +20,28 @@ let currentChanges = [];
 let currentSuggestions = [];
 let currentUpdates = [];
 let currentProjectPayments = [];
+let currentAgreementTemplates = [];
+let currentActivity = [];
+let currentGallery = [];
+let currentAgreementVersions = [];
+let currentDeliverables = [];
 let currentProfile = null;
+let currentBilling = null;
 let currentProjectTab = "overview";
 
 let isClientView = false;
 let isBusy = false;
 let authMode = "signin";
+let pendingDeleteProject = null;
 
 const params = new URLSearchParams(window.location.search);
 const shareId = params.get("share");
 const clientSection = params.get("section") || "all";
+const clientToken = params.get("token") || "";
+let clientAccessCodeValue =
+  clientToken && sessionStorage.getItem(`scopey-access-${clientToken}`)
+    ? sessionStorage.getItem(`scopey-access-${clientToken}`)
+    : "";
 
 const ACCESSIBILITY_KEY = "scopey-accessibility";
 const SUPABASE_AUTH_KEY_PARTS = ["supabase", "auth", "token"];
@@ -60,6 +72,9 @@ const signInBtn = document.getElementById("header-sign-in-btn");
 const signOutBtn = document.getElementById("header-sign-out-btn");
 const dashboardBtn = document.getElementById("header-dashboard-btn");
 const heroStartBtn = document.getElementById("hero-start-btn");
+const landingFreeBtn = document.getElementById("landing-free-btn");
+const landingProBtn = document.getElementById("landing-pro-btn");
+const landingBusinessBtn = document.getElementById("landing-business-btn");
 
 const authModal = document.getElementById("auth-modal");
 const authEmailInput = document.getElementById("auth-email");
@@ -75,6 +90,17 @@ const accessibilityModal = document.getElementById("accessibility-modal");
 const closeAccessibilityBtn = document.getElementById("close-accessibility-btn");
 const resetAccessibilityBtn = document.getElementById("reset-accessibility-btn");
 
+const deleteProjectModal = document.getElementById("delete-project-modal");
+const deleteProjectFinalModal = document.getElementById("delete-project-final-modal");
+const closeDeleteProjectBtn = document.getElementById("close-delete-project-btn");
+const closeDeleteProjectFinalBtn = document.getElementById("close-delete-project-final-btn");
+const cancelDeleteProjectBtn = document.getElementById("cancel-delete-project-btn");
+const continueDeleteProjectBtn = document.getElementById("continue-delete-project-btn");
+const backDeleteProjectBtn = document.getElementById("back-delete-project-btn");
+const confirmDeleteProjectBtn = document.getElementById("confirm-delete-project-btn");
+const deleteProjectName = document.getElementById("delete-project-name");
+const deleteProjectFinalName = document.getElementById("delete-project-final-name");
+
 const projectListEl = document.getElementById("project-list");
 const toggleProjectCreateBtn = document.getElementById("toggle-project-create-btn");
 const projectCreateCard = document.getElementById("project-create-card");
@@ -86,6 +112,8 @@ const newProjectCurrency = document.getElementById("new-project-currency");
 const createProjectBtn = document.getElementById("create-project-btn");
 const profileBrandName = document.getElementById("profile-brand-name");
 const profileBio = document.getElementById("profile-bio");
+const profileContactEmail = document.getElementById("profile-contact-email");
+const profileDefaultCurrency = document.getElementById("profile-default-currency");
 const profileImage = document.getElementById("profile-image");
 const businessProfileForm = document.getElementById("business-profile-form");
 const customiseProfileBtn = document.getElementById("customise-profile-btn");
@@ -95,6 +123,13 @@ const profilePreviewImage = document.getElementById("profile-preview-image");
 const profilePreviewInitial = document.getElementById("profile-preview-initial");
 const profilePreviewName = document.getElementById("profile-preview-name");
 const profilePreviewBio = document.getElementById("profile-preview-bio");
+const billingPlanName = document.getElementById("billing-plan-name");
+const billingPlanPill = document.getElementById("billing-plan-pill");
+const billingPlanCopy = document.getElementById("billing-plan-copy");
+const billingUsage = document.getElementById("billing-usage");
+const billingLimitNote = document.getElementById("billing-limit-note");
+const upgradeProBtn = document.getElementById("upgrade-pro-btn");
+const upgradeBusinessBtn = document.getElementById("upgrade-business-btn");
 
 const ownerEmptyState = document.getElementById("owner-empty-state");
 const projectWorkspace = document.getElementById("project-workspace");
@@ -114,11 +149,31 @@ const metricPendingCount = document.getElementById("metric-pending-count");
 const metricPendingTotal = document.getElementById("metric-pending-total");
 const metricApprovedTotal = document.getElementById("metric-approved-total");
 const metricOutstandingTotal = document.getElementById("metric-outstanding-total");
+const projectPhaseName = document.getElementById("project-phase-name");
+const projectClientBrief = document.getElementById("project-client-brief");
+const projectHealthScore = document.getElementById("project-health-score");
+const projectHealthBar = document.getElementById("project-health-bar");
+const projectRiskLevel = document.getElementById("project-risk-level");
+const projectMoneyBrief = document.getElementById("project-money-brief");
+const projectScopeBrief = document.getElementById("project-scope-brief");
+const projectDeliveryBrief = document.getElementById("project-delivery-brief");
+const projectReadinessList = document.getElementById("project-readiness-list");
 
 const overviewSummaryCopy = document.getElementById("overview-summary-copy");
 const overviewNextAction = document.getElementById("overview-next-action");
 const overviewAttentionList = document.getElementById("overview-attention-list");
+const editProjectTitle = document.getElementById("edit-project-title");
+const editProjectClient = document.getElementById("edit-project-client");
+const editProjectClientEmail = document.getElementById("edit-project-client-email");
+const saveProjectDetailsBtn = document.getElementById("save-project-details-btn");
+const archiveProjectBtn = document.getElementById("archive-project-btn");
+const deleteProjectBtn = document.getElementById("delete-project-btn");
 
+const agreementTemplateSelect = document.getElementById("agreement-template-select");
+const agreementTemplateName = document.getElementById("agreement-template-name");
+const applyTemplateBtn = document.getElementById("apply-template-btn");
+const saveTemplateBtn = document.getElementById("save-template-btn");
+const exportAgreementBtn = document.getElementById("export-agreement-btn");
 const projectCurrency = document.getElementById("project-currency");
 const agreementSummary = document.getElementById("agreement-summary");
 const agreementScope = document.getElementById("agreement-scope");
@@ -131,6 +186,7 @@ const saveAgreementBtn = document.getElementById("save-agreement-btn");
 const sendAgreementBtn = document.getElementById("send-agreement-btn");
 const agreementStatusCopy = document.getElementById("agreement-status-copy");
 const agreementAcceptedCopy = document.getElementById("agreement-accepted-copy");
+const agreementVersionList = document.getElementById("agreement-version-list");
 
 const scopeTitleInput = document.getElementById("scope-title");
 const scopePriceInput = document.getElementById("scope-price");
@@ -144,8 +200,15 @@ const paymentLabel = document.getElementById("payment-label");
 const paymentAmount = document.getElementById("payment-amount");
 const paymentType = document.getElementById("payment-type");
 const paymentStatus = document.getElementById("payment-status");
+const paymentDueDate = document.getElementById("payment-due-date");
 const addPaymentBtn = document.getElementById("add-payment-btn");
 const projectPaymentList = document.getElementById("project-payment-list");
+const projectGalleryList = document.getElementById("project-gallery-list");
+const deliverableTitle = document.getElementById("deliverable-title");
+const deliverableNote = document.getElementById("deliverable-note");
+const deliverableImage = document.getElementById("deliverable-image");
+const addDeliverableBtn = document.getElementById("add-deliverable-btn");
+const deliverableList = document.getElementById("deliverable-list");
 
 const pendingList = document.getElementById("pending-list");
 const approvedList = document.getElementById("approved-list");
@@ -191,6 +254,10 @@ const clientUpdateMessage = document.getElementById("client-update-message");
 const clientUpdateImage = document.getElementById("client-update-image");
 const clientAddUpdateBtn = document.getElementById("client-add-update-btn");
 const clientUpdateList = document.getElementById("client-update-list");
+const clientGalleryList = document.getElementById("client-gallery-list");
+const clientVerificationCard = document.getElementById("client-verification-card");
+const clientAccessCode = document.getElementById("client-access-code");
+const clientVerifyBtn = document.getElementById("client-verify-btn");
 const clientAgreementPreview = document.getElementById("client-agreement-preview");
 const clientAcceptancePanel = document.getElementById("client-acceptance-panel");
 const clientAcceptName = document.getElementById("client-accept-name");
@@ -203,6 +270,7 @@ const clientCompletionPanel = document.getElementById("client-completion-panel")
 const clientCompleteName = document.getElementById("client-complete-name");
 const clientCompleteEmail = document.getElementById("client-complete-email");
 const clientApproveCompletionBtn = document.getElementById("client-approve-completion-btn");
+const clientDeliverableList = document.getElementById("client-deliverable-list");
 
 // =======================
 // HERO ROTATOR
@@ -277,6 +345,33 @@ function clearBanner() {
   if (!bannerEl) return;
   bannerEl.textContent = "";
   bannerEl.style.display = "none";
+}
+
+function getCurrentPlanKey() {
+  return currentBilling?.plan?.key || currentBilling?.plan?.plan || "free";
+}
+
+function getCurrentPlanName() {
+  return currentBilling?.plan?.name || "Free";
+}
+
+function getActiveProjectUsage() {
+  return currentBilling?.usage?.activeProjects || {
+    used: currentProjects.filter(
+      (project) => !project.archived_at && !["complete", "cancelled"].includes(project.status)
+    ).length,
+    limit: 1
+  };
+}
+
+function isActiveProjectLimitReached() {
+  const usage = getActiveProjectUsage();
+  return usage.limit !== null && usage.used >= usage.limit;
+}
+
+function showUpgradePrompt(message, plan = "pro") {
+  const planName = plan === "business" ? "Business" : "Pro";
+  showBanner(`${message} Upgrade to ${planName} when you're ready.`, "warning");
 }
 
 function isSupabaseAuthStorageKey(key) {
@@ -532,6 +627,52 @@ function renderProfilePreview(profile = currentProfile) {
   if (profileBio && !profileBio.value && profile?.bio) profileBio.value = profile.bio;
 }
 
+function renderBilling() {
+  const planName = getCurrentPlanName();
+  const planKey = getCurrentPlanKey();
+  const usage = getActiveProjectUsage();
+  const limitLabel = usage.limit === null ? "Unlimited" : usage.limit;
+  const atLimit = isActiveProjectLimitReached();
+
+  if (billingPlanName) billingPlanName.textContent = planName;
+  if (billingPlanPill) {
+    billingPlanPill.textContent = planName;
+    billingPlanPill.className = `status-chip status-${
+      planKey === "free" ? "neutral" : "success"
+    }`;
+  }
+  if (billingPlanCopy) {
+    billingPlanCopy.textContent =
+      currentBilling?.plan?.summary || "Free includes one active client project.";
+  }
+  if (billingUsage) {
+    billingUsage.innerHTML = "";
+    const label = document.createElement("span");
+    label.textContent = "Active projects";
+    const value = document.createElement("strong");
+    value.textContent = `${usage.used} / ${limitLabel}`;
+    billingUsage.appendChild(label);
+    billingUsage.appendChild(value);
+  }
+  if (billingLimitNote) {
+    billingLimitNote.textContent = atLimit
+      ? "Free is full. Archive, complete or delete a project, or upgrade to Pro."
+      : "Pro unlocks unlimited projects, automated emails, PDFs, templates and Stripe checkout.";
+    billingLimitNote.classList.toggle("hidden", planKey !== "free" && !atLimit);
+  }
+  if (upgradeProBtn) {
+    upgradeProBtn.classList.toggle("hidden", planKey !== "free");
+  }
+  if (upgradeBusinessBtn) {
+    upgradeBusinessBtn.textContent = planKey === "business" ? "Business active" : "Business";
+    upgradeBusinessBtn.disabled = planKey === "business";
+  }
+  if (createProjectBtn) {
+    createProjectBtn.disabled = atLimit;
+    createProjectBtn.textContent = atLimit ? "Upgrade for more projects" : "Create project";
+  }
+}
+
 function setBusinessProfileEditing(isEditing) {
   businessProfileForm?.classList.toggle("hidden", !isEditing);
   customiseProfileBtn?.classList.toggle("hidden", isEditing);
@@ -539,6 +680,10 @@ function setBusinessProfileEditing(isEditing) {
   if (isEditing) {
     if (profileBrandName) profileBrandName.value = getProfileName(currentProfile);
     if (profileBio) profileBio.value = currentProfile?.bio || "";
+    if (profileContactEmail) profileContactEmail.value = currentProfile?.contact_email || "";
+    if (profileDefaultCurrency) {
+      profileDefaultCurrency.value = currentProfile?.default_currency || "GBP";
+    }
   }
 }
 
@@ -598,6 +743,24 @@ function getPaymentStatusKind(status) {
   return "warning";
 }
 
+function isPaymentOverdue(payment) {
+  if (!payment?.due_date || payment.status !== "pending") return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(payment.due_date) < today;
+}
+
+function isPaymentDueSoon(payment) {
+  if (!payment?.due_date || payment.status !== "pending" || isPaymentOverdue(payment)) {
+    return false;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(payment.due_date);
+  const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+  return diffDays <= 7;
+}
+
 function isValidEmail(value) {
   if (!value) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -611,6 +774,8 @@ function getShareSectionForTab(tab = currentProjectTab) {
     payments: "payments",
     suggestions: "suggestions",
     updates: "updates",
+    gallery: "updates",
+    deliverables: "completion",
     completion: "completion",
     client: "all",
     overview: "all"
@@ -626,6 +791,7 @@ function getClientSectionLabel(section = getShareSectionForTab()) {
     payments: "payments",
     suggestions: "suggestions",
     updates: "updates",
+    gallery: "gallery",
     completion: "final approval",
     all: "project workspace"
   };
@@ -640,10 +806,266 @@ function getProjectShareLink(project = currentProject, section = getShareSection
   return url.toString();
 }
 
+function getShareTokenQuery() {
+  const query = new URLSearchParams();
+  if (clientToken) query.set("token", clientToken);
+  if (clientAccessCodeValue) query.set("accessCode", clientAccessCodeValue);
+  const text = query.toString();
+  return text ? `?${text}` : "";
+}
+
+function getAgreementFormPayload() {
+  return {
+    agreementSummary: agreementSummary?.value,
+    currency: projectCurrency?.value || getProjectCurrency(),
+    agreementScope: agreementScope?.value,
+    agreementExclusions: agreementExclusions?.value,
+    agreementTimeline: agreementTimeline?.value,
+    agreementPaymentTerms: agreementPaymentTerms?.value,
+    agreementRevisionTerms: agreementRevisionTerms?.value,
+    agreementCancellationTerms: agreementCancellationTerms?.value
+  };
+}
+
+function applyTemplateToAgreement(template) {
+  if (!template) return;
+  if (projectCurrency) projectCurrency.value = getProjectCurrency(template);
+  if (agreementSummary) agreementSummary.value = template.agreement_summary || "";
+  if (agreementScope) agreementScope.value = template.agreement_scope || "";
+  if (agreementExclusions) agreementExclusions.value = template.agreement_exclusions || "";
+  if (agreementTimeline) agreementTimeline.value = template.agreement_timeline || "";
+  if (agreementPaymentTerms) agreementPaymentTerms.value = template.agreement_payment_terms || "";
+  if (agreementRevisionTerms) agreementRevisionTerms.value = template.agreement_revision_terms || "";
+  if (agreementCancellationTerms) {
+    agreementCancellationTerms.value = template.agreement_cancellation_terms || "";
+  }
+}
+
+function setAgreementLocked(isLocked) {
+  [
+    projectCurrency,
+    agreementSummary,
+    agreementScope,
+    agreementExclusions,
+    agreementTimeline,
+    agreementPaymentTerms,
+    agreementRevisionTerms,
+    agreementCancellationTerms,
+    saveAgreementBtn,
+    sendAgreementBtn,
+    applyTemplateBtn
+  ].forEach((control) => {
+    if (control) control.disabled = isLocked;
+  });
+}
+
+async function downloadFileWithAuth(url, filename, mimeType = "application/pdf") {
+  const headers = await getAuthHeaders();
+  const response = await fetch(url, { headers });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = "Could not export file.";
+    try {
+      message = JSON.parse(text)?.error || message;
+    } catch {
+      // Keep generic export message when the response is not JSON.
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const typedBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
+  const objectUrl = URL.createObjectURL(typedBlob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function buildGalleryCard(item) {
+  const card = document.createElement("a");
+  card.className = "gallery-card";
+  card.href = item.image_url || item.file_url;
+  card.target = "_blank";
+  card.rel = "noopener noreferrer";
+
+  const image = document.createElement("img");
+  image.src = item.image_url || item.file_url;
+  image.alt = item.title || "Project image";
+  image.loading = "lazy";
+
+  const body = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = item.title || "Project image";
+  const meta = document.createElement("span");
+  meta.textContent = [item.source, item.created_at && formatDateTime(item.created_at)]
+    .filter(Boolean)
+    .join(" | ");
+
+  body.appendChild(title);
+  body.appendChild(meta);
+  card.appendChild(image);
+  card.appendChild(body);
+  return card;
+}
+
+function renderGallery(container, gallery = currentGallery) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (!gallery.length) {
+    container.appendChild(buildEmptyState("No project images have been uploaded yet."));
+    return;
+  }
+
+  gallery.forEach((item) => container.appendChild(buildGalleryCard(item)));
+}
+
+function renderTemplateOptions() {
+  if (!agreementTemplateSelect) return;
+  agreementTemplateSelect.innerHTML = '<option value="">Choose a template</option>';
+  currentAgreementTemplates.forEach((template) => {
+    const option = document.createElement("option");
+    option.value = template.id;
+    option.textContent = template.name;
+    agreementTemplateSelect.appendChild(option);
+  });
+}
+
 function getOutstandingTotal(payments = currentProjectPayments) {
   return payments
     .filter((payment) => payment.status === "pending")
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+}
+
+function getProjectPhaseCopy(project) {
+  const phases = {
+    draft: ["Project setup", "Build the agreement, scope and client handoff before sending."],
+    sent: ["Client review", "The client has the agreement and can accept when ready."],
+    accepted: ["Accepted scope", "The project is commercially agreed and ready to move into delivery."],
+    in_progress: ["Delivery active", "Keep progress updates and paid changes recorded as work moves forward."],
+    awaiting_final_approval: ["Final approval", "Final work is with the client for sign-off."],
+    complete: ["Complete", "The project has a completed approval record."],
+    cancelled: ["Cancelled", "This project has been stopped and should stay archived for reference."]
+  };
+
+  return phases[project?.status || "draft"] || phases.draft;
+}
+
+function buildReadinessItem(label, isComplete, detail, options = {}) {
+  const item = document.createElement("div");
+  item.className = `readiness-item ${isComplete ? "complete" : ""}`;
+
+  const marker = document.createElement("span");
+  marker.textContent = isComplete ? "Done" : "-";
+
+  const body = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = label;
+  const copy = document.createElement("p");
+  copy.textContent = detail;
+  copy.title = detail;
+  if (options.truncateDetail) copy.classList.add("truncate");
+
+  body.appendChild(strong);
+  body.appendChild(copy);
+  item.appendChild(marker);
+  item.appendChild(body);
+  return item;
+}
+
+function renderProjectCommandCentre(project, scopeItems, changes, suggestions, payments, deliverables) {
+  if (!projectPhaseName) return;
+
+  const pending = changes.filter((change) => change.status === "pending");
+  const approved = changes.filter((change) => change.status === "approved");
+  const approvedTotal = approved.reduce((sum, change) => sum + Number(change.price || 0), 0);
+  const outstandingTotal = getOutstandingTotal(payments);
+  const overdueCount = payments.filter(isPaymentOverdue).length;
+  const openSuggestions = suggestions.filter((suggestion) => suggestion.status === "suggested").length;
+  const approvedDeliverables = deliverables.filter((item) => item.status === "approved").length;
+  const [phaseTitle, phaseCopy] = getProjectPhaseCopy(project);
+
+  const checks = [
+    {
+      label: "Client email saved",
+      complete: Boolean(project.client_email),
+      detail: project.client_email || "Add the client email before sending the project.",
+      truncateDetail: Boolean(project.client_email)
+    },
+    {
+      label: "Agreement drafted",
+      complete: projectHasAgreement(project),
+      detail: projectHasAgreement(project)
+        ? "Terms are ready to share or revise."
+        : "Add scope, payment and revision terms."
+    },
+    {
+      label: "Original scope defined",
+      complete: scopeItems.length > 0,
+      detail: scopeItems.length
+        ? `${scopeItems.length} scope item${scopeItems.length === 1 ? "" : "s"} recorded.`
+        : "Add the work included in the base commission."
+    },
+    {
+      label: "Payments clean",
+      complete: overdueCount === 0,
+      detail: overdueCount
+        ? `${overdueCount} payment${overdueCount === 1 ? "" : "s"} overdue.`
+        : "No overdue project payments."
+    },
+    {
+      label: "Client suggestions reviewed",
+      complete: openSuggestions === 0,
+      detail: openSuggestions
+        ? `${openSuggestions} suggestion${openSuggestions === 1 ? "" : "s"} need a decision.`
+        : "No unreviewed suggestions."
+    },
+    {
+      label: "Deliverables controlled",
+      complete: deliverables.length === 0 || approvedDeliverables === deliverables.length,
+      detail: deliverables.length
+        ? `${approvedDeliverables} of ${deliverables.length} deliverable${deliverables.length === 1 ? "" : "s"} approved.`
+        : "Share final deliverables when delivery is ready."
+    }
+  ];
+
+  const score = Math.round(
+    (checks.filter((check) => check.complete).length / checks.length) * 100
+  );
+  const riskCopy = score >= 84 ? "Premium-ready" : score >= 58 ? "Needs attention" : "Needs setup";
+
+  projectPhaseName.textContent = phaseTitle;
+  if (projectClientBrief) projectClientBrief.textContent = phaseCopy;
+  if (projectHealthScore) projectHealthScore.textContent = `${score}%`;
+  if (projectHealthBar) projectHealthBar.style.width = `${score}%`;
+  if (projectRiskLevel) projectRiskLevel.textContent = riskCopy;
+  if (projectMoneyBrief) {
+    projectMoneyBrief.textContent = `${formatCurrency(approvedTotal)} approved extras | ${formatCurrency(outstandingTotal)} outstanding`;
+  }
+  if (projectScopeBrief) {
+    projectScopeBrief.textContent = `${scopeItems.length} included | ${pending.length} pending change${pending.length === 1 ? "" : "s"}`;
+  }
+  if (projectDeliveryBrief) {
+    projectDeliveryBrief.textContent = deliverables.length
+      ? `${approvedDeliverables}/${deliverables.length} deliverables approved`
+      : "Deliverables not shared yet";
+  }
+
+  if (projectReadinessList) {
+    projectReadinessList.innerHTML = "";
+    checks.forEach((check) => {
+      projectReadinessList.appendChild(
+        buildReadinessItem(check.label, check.complete, check.detail, {
+          truncateDetail: check.truncateDetail
+        })
+      );
+    });
+  }
 }
 
 function agreementRows(project) {
@@ -697,7 +1119,13 @@ function fillAgreementForm(project) {
 function buildPaymentRow(payment, options = {}) {
   const actions = document.createElement("div");
   actions.className = "action-stack";
-  actions.appendChild(buildStatusPill(payment.status, getPaymentStatusKind(payment.status)));
+  const statusText = isPaymentOverdue(payment)
+    ? "overdue"
+    : isPaymentDueSoon(payment)
+    ? "due soon"
+    : payment.status;
+  const statusKind = isPaymentOverdue(payment) ? "danger" : getPaymentStatusKind(payment.status);
+  actions.appendChild(buildStatusPill(statusText, statusKind));
 
   if (options.clientPay && payment.status === "pending") {
     const payBtn = document.createElement("button");
@@ -717,14 +1145,59 @@ function buildPaymentRow(payment, options = {}) {
     actions.appendChild(paidBtn);
   }
 
+  if (options.ownerControls) {
+    const invoiceBtn = document.createElement("button");
+    invoiceBtn.className = "btn btn-secondary btn-small";
+    invoiceBtn.type = "button";
+    invoiceBtn.textContent = payment.status === "paid" ? "Receipt" : "Invoice";
+    invoiceBtn.addEventListener("click", () => exportPaymentInvoice(payment, invoiceBtn));
+    actions.appendChild(invoiceBtn);
+  }
+
   const subtitleBits = [
     payment.payment_type,
     formatCurrency(payment.amount, payment.currency || getProjectCurrency()),
     payment.payment_method === "stripe" ? "Stripe" : "Manual"
   ];
+  if (payment.due_date) subtitleBits.push(`Due ${payment.due_date}`);
   if (payment.paid_at) subtitleBits.push(`Paid ${formatDateTime(payment.paid_at)}`);
 
   return buildListRow(payment.label, subtitleBits.join(" | "), actions);
+}
+
+function buildDeliverableRow(deliverable, options = {}) {
+  const actions = document.createElement("div");
+  actions.className = "action-stack";
+  actions.appendChild(
+    buildStatusPill(
+      deliverable.status || "shared",
+      deliverable.status === "approved" ? "success" : "warning"
+    )
+  );
+
+  if (options.clientApprove && deliverable.status !== "approved") {
+    const approveBtn = document.createElement("button");
+    approveBtn.className = "btn btn-primary btn-small";
+    approveBtn.type = "button";
+    approveBtn.textContent = "Approve";
+    approveBtn.addEventListener("click", () => approveDeliverable(deliverable, approveBtn));
+    actions.appendChild(approveBtn);
+  }
+
+  const details = [
+    deliverable.note,
+    deliverable.approved_at && `Approved ${formatDateTime(deliverable.approved_at)}`
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return buildCollaborationCard(
+    deliverable.title,
+    [deliverable.file_name, formatDateTime(deliverable.created_at)].filter(Boolean).join(" | "),
+    details,
+    deliverable.file_url,
+    actions
+  );
 }
 
 function applyClientSectionScope(section = clientSection) {
@@ -738,6 +1211,31 @@ function applyClientSectionScope(section = clientSection) {
   if (normalised !== "all") {
     showBanner(`Showing ${getClientSectionLabel(normalised)} for this project.`, "info");
   }
+}
+
+function setClientVerificationMode(isVerifying) {
+  clientVerificationCard?.classList.toggle("hidden", !isVerifying);
+
+  document.querySelectorAll("#client-view > section").forEach((section) => {
+    if (section === clientVerificationCard) return;
+    section.classList.toggle("hidden", isVerifying);
+  });
+}
+
+function renderClientVerification(project = {}) {
+  isClientView = true;
+  currentProject = project;
+  currentProfile = null;
+  currentSuggestions = [];
+  currentUpdates = [];
+  currentProjectPayments = [];
+  currentActivity = [];
+  currentGallery = [];
+  currentDeliverables = [];
+  setClientVerificationMode(true);
+  updateAuthButtons(false);
+  setView("client");
+  if (clientAccessCode && clientAccessCodeValue) clientAccessCode.value = clientAccessCodeValue;
 }
 
 // =======================
@@ -824,6 +1322,39 @@ function openAccessibilityModal() {
 
 function closeAccessibilityModal() {
   accessibilityModal?.setAttribute("aria-hidden", "true");
+}
+
+function getProjectDeleteLabel(project = pendingDeleteProject) {
+  return project?.title ? `"${project.title}"` : "this project";
+}
+
+function openProjectDeleteModal(project = currentProject) {
+  if (!project?.id) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  pendingDeleteProject = project;
+  if (deleteProjectName) deleteProjectName.textContent = getProjectDeleteLabel(project);
+  if (deleteProjectFinalName) deleteProjectFinalName.textContent = getProjectDeleteLabel(project);
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "true");
+  deleteProjectModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeProjectDeleteModals() {
+  deleteProjectModal?.setAttribute("aria-hidden", "true");
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "true");
+  pendingDeleteProject = null;
+  setButtonLoading(confirmDeleteProjectBtn, false, "Permanently delete");
+}
+
+function openProjectDeleteFinalModal() {
+  if (!pendingDeleteProject?.id) return;
+  if (deleteProjectFinalName) {
+    deleteProjectFinalName.textContent = getProjectDeleteLabel(pendingDeleteProject);
+  }
+  deleteProjectModal?.setAttribute("aria-hidden", "true");
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "false");
 }
 
 // =======================
@@ -1046,6 +1577,11 @@ async function signOut() {
   currentSuggestions = [];
   currentUpdates = [];
   currentProjectPayments = [];
+  currentActivity = [];
+  currentGallery = [];
+  currentAgreementTemplates = [];
+  currentAgreementVersions = [];
+  currentDeliverables = [];
   currentProfile = null;
   currentProjectTab = "overview";
   isClientView = false;
@@ -1122,6 +1658,9 @@ function renderProjectList() {
   }
 
   currentProjects.forEach((project) => {
+    const projectCard = document.createElement("div");
+    projectCard.className = "project-list-card";
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "project-list-item";
@@ -1139,7 +1678,8 @@ function renderProjectList() {
       project.client_name,
       project.client_email,
       getProjectCurrency(project),
-      getProjectStatusLabel(project.status)
+      getProjectStatusLabel(project.status),
+      project.archived_at && "Archived"
     ]
       .filter(Boolean)
       .join(" | ");
@@ -1157,7 +1697,21 @@ function renderProjectList() {
       }
     });
 
-    projectListEl.appendChild(button);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "project-card-delete";
+    deleteBtn.type = "button";
+    deleteBtn.setAttribute("aria-label", `Delete ${project.title}`);
+    deleteBtn.title = "Delete project";
+    deleteBtn.textContent = "×";
+    deleteBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openProjectDeleteModal(project);
+    });
+
+    projectCard.appendChild(button);
+    projectCard.appendChild(deleteBtn);
+    projectListEl.appendChild(projectCard);
   });
 }
 
@@ -1167,6 +1721,10 @@ function renderOwnerEmptyWorkspace() {
   currentSuggestions = [];
   currentUpdates = [];
   currentProjectPayments = [];
+  currentActivity = [];
+  currentGallery = [];
+  currentAgreementVersions = [];
+  currentDeliverables = [];
 
   if (metricScopeCount) metricScopeCount.textContent = "0";
   if (metricProjectStatus) metricProjectStatus.textContent = "Draft";
@@ -1174,9 +1732,29 @@ function renderOwnerEmptyWorkspace() {
   if (metricPendingTotal) metricPendingTotal.textContent = formatCurrency(0);
   if (metricApprovedTotal) metricApprovedTotal.textContent = formatCurrency(0);
   if (metricOutstandingTotal) metricOutstandingTotal.textContent = formatCurrency(0);
+  if (projectPhaseName) projectPhaseName.textContent = "Project setup";
+  if (projectClientBrief) projectClientBrief.textContent = "Select a project to see client readiness.";
+  if (projectHealthScore) projectHealthScore.textContent = "0%";
+  if (projectHealthBar) projectHealthBar.style.width = "0%";
+  if (projectRiskLevel) projectRiskLevel.textContent = "Needs setup";
+  if (projectMoneyBrief) projectMoneyBrief.textContent = "No project selected";
+  if (projectScopeBrief) projectScopeBrief.textContent = "No scope items yet";
+  if (projectDeliveryBrief) projectDeliveryBrief.textContent = "No deliverables shared";
+  if (projectReadinessList) projectReadinessList.innerHTML = "";
 }
 
-function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], updates = [], payments = []) {
+function renderOwnerWorkspace(
+  project,
+  scopeItems,
+  changes,
+  suggestions = [],
+  updates = [],
+  payments = [],
+  activity = currentActivity,
+  gallery = currentGallery,
+  agreementVersions = currentAgreementVersions,
+  deliverables = currentDeliverables
+) {
   ownerEmptyState?.classList.add("hidden");
   projectWorkspace?.classList.remove("hidden");
 
@@ -1189,6 +1767,19 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
   }
   renderProfilePreview(currentProfile);
   fillAgreementForm(project);
+  setAgreementLocked(false);
+  if (editProjectTitle) editProjectTitle.value = project.title || "";
+  if (editProjectClient) editProjectClient.value = project.client_name || "";
+  if (editProjectClientEmail) editProjectClientEmail.value = project.client_email || "";
+  const projectDetailsLocked = Boolean(project.accepted_at);
+  [editProjectTitle, editProjectClient, editProjectClientEmail, saveProjectDetailsBtn].forEach(
+    (control) => {
+      if (control) control.disabled = projectDetailsLocked;
+    }
+  );
+  if (archiveProjectBtn) {
+    archiveProjectBtn.textContent = project.archived_at ? "Restore project" : "Archive project";
+  }
 
   const pending = changes.filter((change) => change.status === "pending");
   const approved = changes.filter((change) => change.status === "approved");
@@ -1204,6 +1795,7 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
     approved.reduce((sum, change) => sum + Number(change.price || 0), 0)
   );
   if (metricOutstandingTotal) metricOutstandingTotal.textContent = formatCurrency(outstandingTotal);
+  renderProjectCommandCentre(project, scopeItems, changes, suggestions, payments, deliverables);
 
   overviewSummaryCopy.textContent =
     `${project.title} is ${getProjectStatusLabel(project.status).toLowerCase()} with ${pending.length} pending change request${pending.length === 1 ? "" : "s"} and ${formatCurrency(outstandingTotal)} outstanding in project payments.`;
@@ -1232,7 +1824,9 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
   if (suggestions.some((suggestion) => suggestion.status === "suggested")) attentionItems.push(["Suggestions pending", "Review new client suggestions before they become scope."]);
   if (pending.length) attentionItems.push(["Change payments pending", `${pending.length} change request${pending.length === 1 ? "" : "s"} awaiting payment.`]);
   if (outstandingTotal > 0) attentionItems.push(["Project payments outstanding", `${formatCurrency(outstandingTotal)} is still pending.`]);
+  if (payments.some(isPaymentOverdue)) attentionItems.push(["Overdue payment", "At least one project payment is past its due date."]);
   if (project.status === "awaiting_final_approval") attentionItems.push(["Final approval", "The client needs to approve completion."]);
+  if (deliverables.some((item) => item.status !== "approved")) attentionItems.push(["Deliverables awaiting approval", "Final files have been shared but not all are approved."]);
   if (!attentionItems.length) attentionItems.push(["All clear", "No urgent project actions right now."]);
   attentionItems.forEach(([title, subtitle]) => overviewAttentionList.appendChild(buildListRow(title, subtitle)));
 
@@ -1255,10 +1849,10 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
     ownerClientScopeList.appendChild(buildEmptyState("No scope items available."));
   } else {
     scopeItems.forEach((item) => {
-      const row = buildListRow(item.title, `Included · ${formatCurrency(item.price)}`);
+      const row = buildListRow(item.title, `Included | ${formatCurrency(item.price)}`);
       scopeList.appendChild(row);
       ownerClientScopeList.appendChild(
-        buildListRow(item.title, `Included · ${formatCurrency(item.price)}`)
+        buildListRow(item.title, `Included | ${formatCurrency(item.price)}`)
       );
     });
   }
@@ -1271,13 +1865,13 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
       const ownerLabel = document.createElement("span");
       ownerLabel.textContent = "Awaiting payment";
       pendingList.appendChild(
-        buildListRow(change.title, `Change · ${formatCurrency(change.price)}`, ownerLabel)
+        buildListRow(change.title, `Change | ${formatCurrency(change.price)}`, ownerLabel)
       );
 
       const previewLabel = document.createElement("span");
       previewLabel.textContent = "Pay required";
       ownerClientPendingList.appendChild(
-        buildListRow(change.title, `Pending · ${formatCurrency(change.price)}`, previewLabel)
+        buildListRow(change.title, `Pending | ${formatCurrency(change.price)}`, previewLabel)
       );
     });
   }
@@ -1291,24 +1885,46 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
       ownerLabel.textContent = change.paid ? "Paid & approved" : "Approved";
 
       const subtitle = change.paid_at
-        ? `Approved · ${formatCurrency(change.price)} · Paid ${new Date(change.paid_at).toLocaleString()}`
-        : `Approved · ${formatCurrency(change.price)}`;
+        ? `Approved | ${formatCurrency(change.price)} | Paid ${new Date(change.paid_at).toLocaleString()}`
+        : `Approved | ${formatCurrency(change.price)}`;
 
       approvedList.appendChild(buildListRow(change.title, subtitle, ownerLabel));
 
       const previewLabel = document.createElement("span");
       previewLabel.textContent = "Approved";
       ownerClientApprovedList.appendChild(
-        buildListRow(change.title, `Approved · ${formatCurrency(change.price)}`, previewLabel)
+        buildListRow(change.title, `Approved | ${formatCurrency(change.price)}`, previewLabel)
       );
     });
   }
 
   renderAgreementPreview(agreementAcceptedCopy, project);
   renderAgreementPreview(ownerClientAgreementPreview, project);
+  if (agreementVersionList) {
+    agreementVersionList.innerHTML = "";
+    if (!agreementVersions.length) {
+      agreementVersionList.appendChild(buildEmptyState("No agreement versions yet."));
+    } else {
+      agreementVersions.forEach((version) => {
+        agreementVersionList.appendChild(
+          buildListRow(
+            `Version ${version.version_number}`,
+            [
+              version.status,
+              version.accepted_by_name && `Accepted by ${version.accepted_by_name}`,
+              formatDateTime(version.accepted_at || version.sent_at || version.created_at)
+            ]
+              .filter(Boolean)
+              .join(" | "),
+            buildStatusPill(version.status, version.status === "accepted" ? "success" : "neutral")
+          )
+        );
+      });
+    }
+  }
   if (agreementStatusCopy) {
     agreementStatusCopy.textContent = project.accepted_at
-      ? `Accepted by ${project.accepted_by_name || "client"} on ${formatDateTime(project.accepted_at)}.`
+      ? `Accepted by ${project.accepted_by_name || "client"} on ${formatDateTime(project.accepted_at)}. Saving changes will create a new draft revision.`
       : project.status === "sent"
       ? "Sent for client acceptance. The client can accept from the shared project page."
       : "Save the agreement, then send the client share link for acceptance.";
@@ -1425,7 +2041,7 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
   }
 
   projectTimelineList.innerHTML = "";
-  const timelineItems = [
+  const milestoneItems = [
     ["Created", project.created_at],
     ["Sent to client", project.sent_at],
     ["Agreement accepted", project.accepted_at],
@@ -1433,12 +2049,30 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
     ["Completed", project.completed_at],
     ["Cancelled", project.cancelled_at]
   ].filter(([, value]) => value);
-  timelineItems.forEach(([title, value]) => {
-    projectTimelineList.appendChild(buildListRow(title, formatDateTime(value)));
+  const activityItems = activity.map((item) => [
+    item.title,
+    [item.detail, formatDateTime(item.created_at)].filter(Boolean).join(" | ")
+  ]);
+  const timelineItems = [...activityItems, ...milestoneItems.map(([title, value]) => [title, formatDateTime(value)])];
+  timelineItems.forEach(([title, subtitle]) => {
+    projectTimelineList.appendChild(buildListRow(title, subtitle));
   });
   if (!timelineItems.length) {
     projectTimelineList.appendChild(buildEmptyState("No project milestones yet."));
   }
+
+  if (deliverableList) {
+    deliverableList.innerHTML = "";
+    if (!deliverables.length) {
+      deliverableList.appendChild(buildEmptyState("No final deliverables yet."));
+    } else {
+      deliverables.forEach((deliverable) => {
+        deliverableList.appendChild(buildDeliverableRow(deliverable));
+      });
+    }
+  }
+
+  renderGallery(projectGalleryList, gallery);
 
   setCurrentProjectTab(currentProjectTab);
 }
@@ -1450,15 +2084,122 @@ async function loadProfile() {
 
   currentProfile = data.profile;
   renderProfilePreview(currentProfile);
+  if (newProjectCurrency) {
+    newProjectCurrency.value = currentProfile?.default_currency || "GBP";
+  }
   return currentProfile;
+}
+
+async function loadBilling() {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/billing`, { headers });
+  currentBilling = await readJsonResponse(response, "Could not load billing.");
+  renderBilling();
+  return currentBilling;
+}
+
+async function startUpgradeCheckout(plan = "pro", button = null) {
+  if (!currentUser && !hasStoredAuthSession()) {
+    openAuthModal();
+    showBanner("Create your free account first, then choose a plan from the dashboard.", "info");
+    return;
+  }
+
+  const defaultText = plan === "business" ? "Business" : "Upgrade to Pro";
+  setButtonLoading(button, true, plan === "business" ? "Opening Business..." : "Opening Pro...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/billing/checkout`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ plan })
+    });
+    const data = await readJsonResponse(response, "Could not start upgrade checkout.");
+
+    if (!data.url) throw new Error("Checkout did not return a URL.");
+    window.location.href = data.url;
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not start upgrade checkout.", "error");
+  } finally {
+    setButtonLoading(button, false, defaultText);
+  }
+}
+
+async function loadAgreementTemplates() {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/agreement-templates`, { headers });
+    const data = await readJsonResponse(response, "Could not load templates.");
+    currentAgreementTemplates = data.templates || [];
+    renderTemplateOptions();
+  } catch (error) {
+    console.error("Template load error:", error);
+    currentAgreementTemplates = [];
+    renderTemplateOptions();
+  }
+}
+
+async function saveAgreementTemplate() {
+  const name = agreementTemplateName?.value.trim();
+
+  if (!name) {
+    showBanner("Add a template name first.", "error");
+    return;
+  }
+
+  setButtonLoading(saveTemplateBtn, true, "Saving...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/agreement-templates`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name,
+        ...getAgreementFormPayload()
+      })
+    });
+
+    await readJsonResponse(response, "Could not save template.");
+    if (agreementTemplateName) agreementTemplateName.value = "";
+    await loadAgreementTemplates();
+    showBanner("Agreement template saved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not save template.", "error");
+  } finally {
+    setButtonLoading(saveTemplateBtn, false, "Save template");
+  }
+}
+
+function applySelectedTemplate() {
+  const template = currentAgreementTemplates.find(
+    (item) => item.id === agreementTemplateSelect?.value
+  );
+
+  if (!template) {
+    showBanner("Choose a template first.", "error");
+    return;
+  }
+
+  applyTemplateToAgreement(template);
+  showBanner("Template applied. Save the agreement when ready.", "success");
 }
 
 async function saveProfile() {
   const brandName = profileBrandName?.value.trim();
   const bio = profileBio?.value.trim();
+  const contactEmail = profileContactEmail?.value.trim();
 
   if (!brandName) {
     showBanner("Add a brand name first.", "error");
+    return;
+  }
+
+  if (contactEmail && !isValidEmail(contactEmail)) {
+    showBanner("Please enter a valid contact email.", "error");
     return;
   }
 
@@ -1470,7 +2211,13 @@ async function saveProfile() {
     const response = await fetch(`${API_URL}/profile`, {
       method: "PUT",
       headers,
-      body: JSON.stringify({ brandName, bio, image })
+      body: JSON.stringify({
+        brandName,
+        bio,
+        contactEmail,
+        defaultCurrency: profileDefaultCurrency?.value || "GBP",
+        image
+      })
     });
     const data = await readJsonResponse(response, "Could not save profile.");
 
@@ -1484,7 +2231,9 @@ async function saveProfile() {
         currentChanges,
         currentSuggestions,
         currentUpdates,
-        currentProjectPayments
+        currentProjectPayments,
+        currentActivity,
+        currentGallery
       );
     }
     setBusinessProfileEditing(false);
@@ -1505,14 +2254,16 @@ async function loadProjects() {
 
   const { data, error } = await db
     .from("projects")
-    .select("id,title,client_name,client_email,currency,share_id,status,created_at")
+    .select("id,title,client_name,client_email,currency,share_id,status,archived_at,created_at")
     .eq("user_id", currentUser.id)
+    .order("archived_at", { ascending: true, nullsFirst: true })
     .order("created_at", { ascending: true });
 
   if (error) throw error;
 
   currentProjects = data || [];
   renderProjectList();
+  renderBilling();
 
   if (!currentProjects.length) {
     currentProjectId = null;
@@ -1534,7 +2285,7 @@ async function loadProject() {
 
   const { data: project, error: projectError } = await db
     .from("projects")
-    .select("id,title,client_name,client_email,currency,share_id,status,agreement_summary,agreement_scope,agreement_exclusions,agreement_timeline,agreement_payment_terms,agreement_revision_terms,agreement_cancellation_terms,agreement_snapshot,sent_at,accepted_at,accepted_by_name,accepted_by_email,final_approval_requested_at,completed_at,completed_by_name,completed_by_email,cancelled_at,created_at")
+    .select("id,title,client_name,client_email,currency,share_id,status,agreement_summary,agreement_scope,agreement_exclusions,agreement_timeline,agreement_payment_terms,agreement_revision_terms,agreement_cancellation_terms,agreement_snapshot,sent_at,accepted_at,accepted_by_name,accepted_by_email,final_approval_requested_at,completed_at,completed_by_name,completed_by_email,cancelled_at,archived_at,created_at")
     .eq("id", currentProjectId)
     .single();
 
@@ -1555,7 +2306,7 @@ async function loadProject() {
 
   if (changesError) throw changesError;
 
-  let collaboration = { suggestions: [], updates: [] };
+  let collaboration = { suggestions: [], updates: [], activity: [], gallery: [] };
 
   try {
     const headers = await getAuthHeaders();
@@ -1581,6 +2332,10 @@ async function loadProject() {
   currentSuggestions = collaboration.suggestions || [];
   currentUpdates = collaboration.updates || [];
   currentProjectPayments = collaboration.projectPayments || [];
+  currentActivity = collaboration.activity || [];
+  currentGallery = collaboration.gallery || [];
+  currentAgreementVersions = collaboration.agreementVersions || [];
+  currentDeliverables = collaboration.deliverables || [];
 
   renderProjectList();
   renderOwnerWorkspace(
@@ -1589,7 +2344,11 @@ async function loadProject() {
     currentChanges,
     currentSuggestions,
     currentUpdates,
-    currentProjectPayments
+    currentProjectPayments,
+    currentActivity,
+    currentGallery,
+    currentAgreementVersions,
+    currentDeliverables
   );
 }
 
@@ -1597,7 +2356,7 @@ async function createProject() {
   const title = newProjectTitle?.value.trim();
   const clientName = newProjectClient?.value.trim();
   const clientEmail = newProjectClientEmail?.value.trim();
-  const currency = newProjectCurrency?.value || "GBP";
+  const currency = newProjectCurrency?.value || currentProfile?.default_currency || "GBP";
 
   if (!title || !clientName || !clientEmail) {
     showBanner("Please enter project name, client name and client email.", "error");
@@ -1609,32 +2368,34 @@ async function createProject() {
     return;
   }
 
+  if (isActiveProjectLimitReached()) {
+    showUpgradePrompt("Free includes one active project.", "pro");
+    return;
+  }
+
   setButtonLoading(createProjectBtn, true, "Creating...");
 
   try {
-    const { data, error } = await db
-      .from("projects")
-      .insert([
-        {
-          title,
-          client_name: clientName,
-          client_email: clientEmail,
-          currency,
-          user_id: currentUser.id,
-          share_id: crypto.randomUUID()
-        }
-      ])
-      .select("id")
-      .single();
-
-    if (error) throw error;
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/projects`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title,
+        clientName,
+        clientEmail,
+        currency
+      })
+    });
+    const data = await readJsonResponse(response, "Could not create project.");
 
     newProjectTitle.value = "";
     newProjectClient.value = "";
     newProjectClientEmail.value = "";
-    if (newProjectCurrency) newProjectCurrency.value = "GBP";
-    currentProjectId = data.id;
+    if (newProjectCurrency) newProjectCurrency.value = currentProfile?.default_currency || "GBP";
+    currentProjectId = data.project.id;
 
+    await loadBilling();
     await loadProjects();
 
     try {
@@ -1646,9 +2407,10 @@ async function createProject() {
     }
   } catch (error) {
     console.error(error);
-    showBanner("Could not create project.", "error");
+    showBanner(error.message || "Could not create project.", "error");
   } finally {
     setButtonLoading(createProjectBtn, false, "Create project");
+    renderBilling();
   }
 }
 
@@ -1747,16 +2509,7 @@ async function saveAgreement() {
     const response = await fetch(`${API_URL}/project/${encodeURIComponent(currentProjectId)}/agreement`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify({
-        agreementSummary: agreementSummary?.value,
-        currency: projectCurrency?.value || getProjectCurrency(),
-        agreementScope: agreementScope?.value,
-        agreementExclusions: agreementExclusions?.value,
-        agreementTimeline: agreementTimeline?.value,
-        agreementPaymentTerms: agreementPaymentTerms?.value,
-        agreementRevisionTerms: agreementRevisionTerms?.value,
-        agreementCancellationTerms: agreementCancellationTerms?.value
-      })
+      body: JSON.stringify(getAgreementFormPayload())
     });
 
     await readJsonResponse(response, "Could not save agreement.");
@@ -1792,6 +2545,9 @@ async function updateProjectStatus(status, button = null) {
     });
 
     await readJsonResponse(response, "Could not update project status.");
+    if (["complete", "cancelled"].includes(status)) {
+      await loadBilling();
+    }
     await loadProject();
     showBanner(
       status === "sent"
@@ -1804,6 +2560,111 @@ async function updateProjectStatus(status, button = null) {
     showBanner(error.message || "Could not update project status.", "error");
   } finally {
     setButtonLoading(button, false);
+  }
+}
+
+async function saveProjectDetails() {
+  if (!currentProjectId) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  const title = editProjectTitle?.value.trim();
+  const clientName = editProjectClient?.value.trim();
+  const clientEmail = editProjectClientEmail?.value.trim();
+
+  if (!title || !clientName || !clientEmail) {
+    showBanner("Project name, client name and client email are required.", "error");
+    return;
+  }
+
+  if (!isValidEmail(clientEmail)) {
+    showBanner("Please enter a valid client email.", "error");
+    return;
+  }
+
+  setButtonLoading(saveProjectDetailsBtn, true, "Saving...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/project/${encodeURIComponent(currentProjectId)}/details`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        title,
+        clientName,
+        clientEmail,
+        currency: projectCurrency?.value || getProjectCurrency()
+      })
+    });
+
+    await readJsonResponse(response, "Could not save project details.");
+    await loadBilling();
+    await loadProjects();
+    await loadProject();
+    showBanner("Project details saved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not save project details.", "error");
+  } finally {
+    setButtonLoading(saveProjectDetailsBtn, false, "Save details");
+  }
+}
+
+async function toggleProjectArchive() {
+  if (!currentProjectId) return;
+
+  const archived = !currentProject?.archived_at;
+  setButtonLoading(archiveProjectBtn, true, archived ? "Archiving..." : "Restoring...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/project/${encodeURIComponent(currentProjectId)}/archive`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ archived })
+    });
+
+    await readJsonResponse(response, "Could not update archive state.");
+    await loadProjects();
+    await loadProject();
+    showBanner(archived ? "Project archived." : "Project restored.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not update archive state.", "error");
+  } finally {
+    setButtonLoading(archiveProjectBtn, false, archived ? "Archive project" : "Restore project");
+  }
+}
+
+async function deleteProject() {
+  const projectToDelete = pendingDeleteProject || currentProject;
+  if (!projectToDelete?.id) return;
+
+  setButtonLoading(confirmDeleteProjectBtn, true, "Deleting...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/project/${encodeURIComponent(projectToDelete.id)}`, {
+      method: "DELETE",
+      headers
+    });
+
+    await readJsonResponse(response, "Could not delete project.");
+    if (currentProjectId === projectToDelete.id) {
+      currentProjectId = null;
+      currentProject = null;
+    }
+    closeProjectDeleteModals();
+    await loadBilling();
+    await loadProjects();
+    if (currentProjectId) await loadProject();
+    showBanner("Project deleted.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not delete project.", "error");
+  } finally {
+    setButtonLoading(confirmDeleteProjectBtn, false, "Permanently delete");
   }
 }
 
@@ -1833,13 +2694,15 @@ async function addProjectPayment() {
         amount,
         paymentType: paymentType?.value || "custom",
         status: paymentStatus?.value || "pending",
-        paymentMethod: paymentStatus?.value === "paid" ? "manual" : "stripe"
+        paymentMethod: paymentStatus?.value === "paid" ? "manual" : "stripe",
+        dueDate: paymentDueDate?.value || null
       })
     });
 
     await readJsonResponse(response, "Could not add payment.");
     if (paymentLabel) paymentLabel.value = "";
     if (paymentAmount) paymentAmount.value = "";
+    if (paymentDueDate) paymentDueDate.value = "";
     await loadProject();
     showBanner("Payment added.", "success");
   } catch (error) {
@@ -1872,6 +2735,46 @@ async function updateProjectPayment(payment, status, button) {
   }
 }
 
+async function exportPaymentInvoice(payment, button) {
+  setButtonLoading(button, true, "Exporting...");
+
+  try {
+    await downloadFileWithAuth(
+      `${API_URL}/project-payments/${encodeURIComponent(payment.id)}/invoice`,
+      `${payment.invoice_number || `scopey-payment-${payment.id}`}.pdf`
+    );
+    await loadProject();
+    showBanner("Invoice exported.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not export invoice.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function exportAgreement() {
+  if (!currentProjectId) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  setButtonLoading(exportAgreementBtn, true, "Exporting...");
+
+  try {
+    await downloadFileWithAuth(
+      `${API_URL}/project/${encodeURIComponent(currentProjectId)}/agreement-export`,
+      `${currentProject?.title || "scopey"}-agreement.pdf`
+    );
+    showBanner("Agreement exported.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not export agreement.", "error");
+  } finally {
+    setButtonLoading(exportAgreementBtn, false, "Export agreement");
+  }
+}
+
 async function copyShareLink() {
   if (!currentProject?.share_id) {
     showBanner("Select a project first.", "error");
@@ -1880,7 +2783,24 @@ async function copyShareLink() {
 
   try {
     const section = getShareSectionForTab();
-    const link = getProjectShareLink(currentProject, section);
+    let link = getProjectShareLink(currentProject, section);
+
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_URL}/project/${encodeURIComponent(currentProject.id)}/share-links`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ section })
+        }
+      );
+      const data = await readJsonResponse(response, "Could not create scoped link.");
+      link = data.link || link;
+    } catch (linkError) {
+      console.warn("Scoped link fallback:", linkError);
+    }
+
     await navigator.clipboard.writeText(link);
     showBanner(`${getClientSectionLabel(section)} link copied.`, "success");
   } catch (error) {
@@ -1889,7 +2809,7 @@ async function copyShareLink() {
   }
 }
 
-function emailClientProject() {
+async function emailClientProject(event = null) {
   if (!currentProject?.share_id) {
     showBanner("Select a project first.", "error");
     return;
@@ -1900,29 +2820,53 @@ function emailClientProject() {
     return;
   }
 
-  const section = getShareSectionForTab();
-  const sectionLabel = getClientSectionLabel(section);
-  const link = getProjectShareLink(currentProject, section);
-  const subject = `Scopey ${sectionLabel} review: ${currentProject.title}`;
-  const body = [
-    `Hi ${currentProject.client_name || "there"},`,
-    "",
-    `I've shared the Scopey ${sectionLabel} for ${currentProject.title}.`,
-    "",
-    `Open it here: ${link}`,
-    "",
-    `Current status: ${getProjectStatusLabel(currentProject.status)}`,
-    "",
-    section === "all"
-      ? "You can review the agreement, scope, payments, changes, updates and final approval from that page."
-      : `This link opens the ${sectionLabel} section for this project.`,
-    "",
-    "Thanks"
-  ].join("\n");
+  const button = event?.target?.closest?.("button") || null;
+  setButtonLoading(button, true, "Preparing...");
 
-  const mailto = `mailto:${encodeURIComponent(currentProject.client_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailto;
-  showBanner("Opening email draft for the client.", "success");
+  try {
+    const section = getShareSectionForTab();
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/project/${encodeURIComponent(currentProject.id)}/send-email`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ section })
+      }
+    );
+    const data = await readJsonResponse(response, "Could not prepare client email.");
+
+    if (data.sent) {
+      await loadProject();
+      showBanner(`Client email sent to ${currentProject.client_email}.`, "success");
+    } else {
+      let copied = false;
+      if (data.link && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(data.link);
+          copied = true;
+        } catch (clipboardError) {
+          console.warn("Client link copy fallback failed:", clipboardError);
+        }
+      }
+      await loadProject();
+      showBanner(
+        data.provider === "not_configured"
+          ? copied
+            ? "Automatic email sending is not configured yet. Client review link copied instead."
+            : "Automatic email sending is not configured yet. Copy the client link manually from Client review."
+          : copied
+          ? "Client email was not sent. Client review link copied instead."
+          : "Client email was not sent. Copy the client link manually from Client review.",
+        "warning"
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not prepare client email.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 async function updateSuggestionStatus(suggestion, status, button) {
@@ -2034,14 +2978,70 @@ async function addOwnerUpdate() {
   }
 }
 
+async function addDeliverable() {
+  if (!currentProjectId) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  const title = deliverableTitle?.value.trim();
+  const note = deliverableNote?.value.trim();
+
+  if (!title) {
+    showBanner("Add a deliverable title first.", "error");
+    return;
+  }
+
+  setButtonLoading(addDeliverableBtn, true, "Adding...");
+
+  try {
+    const image = await fileToDataUrl(deliverableImage);
+
+    if (!image) {
+      showBanner("Upload a deliverable file first.", "error");
+      return;
+    }
+
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/project/${encodeURIComponent(currentProjectId)}/deliverables`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ title, note, image })
+      }
+    );
+
+    await readJsonResponse(response, "Could not add deliverable.");
+    if (deliverableTitle) deliverableTitle.value = "";
+    if (deliverableNote) deliverableNote.value = "";
+    if (deliverableImage) deliverableImage.value = "";
+    await loadProject();
+    showBanner("Deliverable added.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not add deliverable.", "error");
+  } finally {
+    setButtonLoading(addDeliverableBtn, false, "Add deliverable");
+  }
+}
+
 // =======================
 // CLIENT VIEW
 // =======================
 async function loadSharedProject() {
-  const response = await fetch(`${API_URL}/public/project/${encodeURIComponent(shareId)}`);
+  const response = await fetch(
+    `${API_URL}/public/project/${encodeURIComponent(shareId)}${getShareTokenQuery()}`
+  );
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    if (response.status === 401 && data?.requiresVerification) {
+      renderClientVerification(data.project || {});
+      showBanner("Enter the access code from your Scopey email to open this project.", "warning");
+      return;
+    }
+
     throw new Error(data?.error || "Could not load shared project.");
   }
 
@@ -2051,6 +3051,10 @@ async function loadSharedProject() {
   currentSuggestions = data.suggestions || [];
   currentUpdates = data.updates || [];
   currentProjectPayments = data.projectPayments || [];
+  currentActivity = data.activity || [];
+  currentGallery = data.gallery || [];
+  currentAgreementVersions = data.agreementVersions || [];
+  currentDeliverables = data.deliverables || [];
   renderClient(
     data.project,
     data.scopeItems,
@@ -2058,7 +3062,9 @@ async function loadSharedProject() {
     currentSuggestions,
     currentUpdates,
     currentProfile,
-    currentProjectPayments
+    currentProjectPayments,
+    currentGallery,
+    currentDeliverables
   );
   applyClientSectionScope(clientSection);
 
@@ -2077,8 +3083,11 @@ function renderClient(
   suggestions = [],
   updates = [],
   profile = currentProfile,
-  payments = []
+  payments = [],
+  gallery = currentGallery,
+  deliverables = currentDeliverables
 ) {
+  setClientVerificationMode(false);
   renderClientProfile(profile);
   clientProjectTitle.textContent = project.title;
   clientProjectSubtitle.textContent = `Client: ${project.client_name} | ${getProjectStatusLabel(project.status)} | Managed by ${getProfileName(profile)}`;
@@ -2110,13 +3119,15 @@ function renderClient(
   clientSuggestionList.innerHTML = "";
   clientUpdateList.innerHTML = "";
   clientPaymentList.innerHTML = "";
+  if (clientDeliverableList) clientDeliverableList.innerHTML = "";
+  renderGallery(clientGalleryList, gallery);
 
   if (scopeItems.length === 0) {
     clientScopeList.appendChild(buildEmptyState("No scope items available."));
   } else {
     scopeItems.forEach((item) => {
       clientScopeList.appendChild(
-        buildListRow(item.title, `Included · ${formatCurrency(item.price)}`)
+        buildListRow(item.title, `Included | ${formatCurrency(item.price)}`)
       );
     });
   }
@@ -2134,7 +3145,7 @@ function renderClient(
       payBtn.onclick = (event) => startPublicPayment(change, event);
 
       clientPendingList.appendChild(
-        buildListRow(change.title, `Pending · ${formatCurrency(change.price)}`, payBtn)
+        buildListRow(change.title, `Pending | ${formatCurrency(change.price)}`, payBtn)
       );
     });
   }
@@ -2155,8 +3166,8 @@ function renderClient(
       label.textContent = "Approved";
 
       const subtitle = change.paid_at
-        ? `Approved · ${formatCurrency(change.price)} · Paid ${new Date(change.paid_at).toLocaleString()}`
-        : `Approved · ${formatCurrency(change.price)}`;
+        ? `Approved | ${formatCurrency(change.price)} | Paid ${new Date(change.paid_at).toLocaleString()}`
+        : `Approved | ${formatCurrency(change.price)}`;
 
       clientApprovedList.appendChild(buildListRow(change.title, subtitle, label));
     });
@@ -2208,6 +3219,47 @@ function renderClient(
         : "Final approval will appear here when the project is ready for sign-off.";
   }
   clientCompletionPanel?.classList.toggle("hidden", project.status !== "awaiting_final_approval");
+
+  if (clientDeliverableList) {
+    if (!deliverables.length) {
+      clientDeliverableList.appendChild(buildEmptyState("No final deliverables have been shared yet."));
+    } else {
+      deliverables.forEach((deliverable) => {
+        clientDeliverableList.appendChild(
+          buildDeliverableRow(deliverable, { clientApprove: true })
+        );
+      });
+    }
+  }
+}
+
+async function verifyClientAccess() {
+  const accessCode = clientAccessCode?.value.trim();
+
+  if (!accessCode) {
+    showBanner("Enter the access code from your email first.", "error");
+    return;
+  }
+
+  clientAccessCodeValue = accessCode;
+  if (clientToken) {
+    sessionStorage.setItem(`scopey-access-${clientToken}`, accessCode);
+  }
+
+  setButtonLoading(clientVerifyBtn, true, "Verifying...");
+
+  try {
+    await loadSharedProject();
+    showBanner("Project unlocked.", "success");
+  } catch (error) {
+    if (clientToken) sessionStorage.removeItem(`scopey-access-${clientToken}`);
+    clientAccessCodeValue = "";
+    console.error(error);
+    renderClientVerification(currentProject || {});
+    showBanner(error.message || "Could not verify this access code.", "error");
+  } finally {
+    setButtonLoading(clientVerifyBtn, false, "Verify");
+  }
 }
 
 async function startPublicPayment(change, event) {
@@ -2225,7 +3277,9 @@ async function startPublicPayment(change, event) {
       },
       body: JSON.stringify({
         shareId,
-        changeId: change.id
+        changeId: change.id,
+        section: clientSection,
+        token: clientToken
       })
     });
 
@@ -2259,7 +3313,9 @@ async function startProjectPayment(payment, event) {
       },
       body: JSON.stringify({
         shareId,
-        paymentId: payment.id
+        paymentId: payment.id,
+        section: clientSection,
+        token: clientToken
       })
     });
 
@@ -2343,6 +3399,40 @@ async function approveCompletion() {
     showBanner(error.message || "Could not approve completion.", "error");
   } finally {
     setButtonLoading(clientApproveCompletionBtn, false, "Approve completion");
+  }
+}
+
+async function approveDeliverable(deliverable, button) {
+  const clientName = clientCompleteName?.value.trim() || clientAcceptName?.value.trim();
+  const clientEmail = clientCompleteEmail?.value.trim() || clientAcceptEmail?.value.trim();
+
+  if (!clientName) {
+    showBanner("Add your name in the final approval section before approving deliverables.", "error");
+    return;
+  }
+
+  setButtonLoading(button, true, "Approving...");
+
+  try {
+    const response = await fetch(
+      `${API_URL}/public/project/${encodeURIComponent(shareId)}/deliverables/${encodeURIComponent(deliverable.id)}/approve`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ clientName, clientEmail })
+      }
+    );
+
+    await readJsonResponse(response, "Could not approve deliverable.");
+    await loadSharedProject();
+    showBanner("Deliverable approved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not approve deliverable.", "error");
+  } finally {
+    setButtonLoading(button, false, "Approve");
   }
 }
 
@@ -2437,7 +3527,9 @@ async function initOwnerView() {
     setView("owner");
     renderOwnerEmptyWorkspace();
 
+    await loadBilling();
     await loadProfile();
+    await loadAgreementTemplates();
     await loadProjects();
 
     if (currentProjectId) {
@@ -2516,6 +3608,11 @@ async function init() {
 // =======================
 signInBtn?.addEventListener("click", openAuthModal);
 heroStartBtn?.addEventListener("click", openAuthModal);
+landingFreeBtn?.addEventListener("click", openAuthModal);
+landingProBtn?.addEventListener("click", () => startUpgradeCheckout("pro", landingProBtn));
+landingBusinessBtn?.addEventListener("click", () =>
+  startUpgradeCheckout("business", landingBusinessBtn)
+);
 closeAuthBtn?.addEventListener("click", closeAuthModal);
 
 authSubmitBtn?.addEventListener("click", handlePasswordAuth);
@@ -2580,12 +3677,32 @@ createProjectBtn?.addEventListener("click", createProject);
 customiseProfileBtn?.addEventListener("click", () => setBusinessProfileEditing(true));
 cancelProfileBtn?.addEventListener("click", () => setBusinessProfileEditing(false));
 saveProfileBtn?.addEventListener("click", saveProfile);
+upgradeProBtn?.addEventListener("click", () => startUpgradeCheckout("pro", upgradeProBtn));
+upgradeBusinessBtn?.addEventListener("click", () =>
+  startUpgradeCheckout("business", upgradeBusinessBtn)
+);
 saveAgreementBtn?.addEventListener("click", saveAgreement);
 sendAgreementBtn?.addEventListener("click", () => updateProjectStatus("sent", sendAgreementBtn));
+applyTemplateBtn?.addEventListener("click", applySelectedTemplate);
+saveTemplateBtn?.addEventListener("click", saveAgreementTemplate);
+exportAgreementBtn?.addEventListener("click", exportAgreement);
+saveProjectDetailsBtn?.addEventListener("click", saveProjectDetails);
+archiveProjectBtn?.addEventListener("click", toggleProjectArchive);
+deleteProjectBtn?.addEventListener("click", () => openProjectDeleteModal(currentProject));
+closeDeleteProjectBtn?.addEventListener("click", closeProjectDeleteModals);
+closeDeleteProjectFinalBtn?.addEventListener("click", closeProjectDeleteModals);
+cancelDeleteProjectBtn?.addEventListener("click", closeProjectDeleteModals);
+continueDeleteProjectBtn?.addEventListener("click", openProjectDeleteFinalModal);
+backDeleteProjectBtn?.addEventListener("click", () => {
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "true");
+  deleteProjectModal?.setAttribute("aria-hidden", "false");
+});
+confirmDeleteProjectBtn?.addEventListener("click", deleteProject);
 addScopeBtn?.addEventListener("click", addScopeItem);
 addChangeBtn?.addEventListener("click", addChange);
 addPaymentBtn?.addEventListener("click", addProjectPayment);
 ownerAddUpdateBtn?.addEventListener("click", addOwnerUpdate);
+addDeliverableBtn?.addEventListener("click", addDeliverable);
 startWorkBtn?.addEventListener("click", () => updateProjectStatus("in_progress", startWorkBtn));
 requestFinalBtn?.addEventListener("click", () =>
   updateProjectStatus("awaiting_final_approval", requestFinalBtn)
@@ -2600,6 +3717,7 @@ clientAddSuggestionBtn?.addEventListener("click", submitClientSuggestion);
 clientAddUpdateBtn?.addEventListener("click", submitClientUpdate);
 clientAcceptAgreementBtn?.addEventListener("click", acceptAgreement);
 clientApproveCompletionBtn?.addEventListener("click", approveCompletion);
+clientVerifyBtn?.addEventListener("click", verifyClientAccess);
 
 db.auth.onAuthStateChange(async (event, session) => {
   currentUser = session?.user || null;
@@ -2623,6 +3741,9 @@ db.auth.onAuthStateChange(async (event, session) => {
 window.addEventListener("click", (event) => {
   if (event.target === authModal) closeAuthModal();
   if (event.target === accessibilityModal) closeAccessibilityModal();
+  if (event.target === deleteProjectModal || event.target === deleteProjectFinalModal) {
+    closeProjectDeleteModals();
+  }
 });
 
 window.ScopeyActions = {

@@ -120,7 +120,7 @@
               <span class="workflow-number">3</span>
               <div>
                 <strong>Respond with a clear value</strong>
-                <p>Accept at +£200, revise the request, or decline it before work begins.</p>
+                <p>Accept at +GBP 200, revise the request, or decline it before work begins.</p>
               </div>
             </div>
 
@@ -128,6 +128,29 @@
               Paid extras stay separate from the original scope and every decision is recorded.
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="premium-strip" aria-label="Scopey operating layer">
+        <div>
+          <span>Client portal</span>
+          <strong>Private review links</strong>
+          <p>Send focused views for agreements, payments, suggestions, updates or final approval.</p>
+        </div>
+        <div>
+          <span>Commercial control</span>
+          <strong>Value stays visible</strong>
+          <p>Track pending extras, project payments, due dates, receipts and client approvals together.</p>
+        </div>
+        <div>
+          <span>Delivery record</span>
+          <strong>Proof in one place</strong>
+          <p>Keep progress images, client references, final deliverables and acceptance history attached to the project.</p>
+        </div>
+        <div>
+          <span>Agreement history</span>
+          <strong>Clear revision trail</strong>
+          <p>Revise accepted terms into a new version without losing the original acceptance record.</p>
         </div>
       </section>
 
@@ -182,25 +205,45 @@
             <li>Client review page</li>
           </ul>
           <div class="price-cta">
-            <button class="btn btn-secondary" type="button">Current plan</button>
+            <button id="landing-free-btn" class="btn btn-secondary" type="button">Start free</button>
           </div>
         </div>
 
         <div class="pricing-card featured">
           <div class="pricing-header">
             <span>Pro</span>
-            <div class="price-value">Coming soon</div>
+            <div class="price-value">£15/mo</div>
           </div>
           <p class="price-description">
-            For growing studios who need deeper records, exports and custom agreements.
+            For solo freelancers sending polished client reviews, agreements and payment links.
           </p>
           <ul class="price-list">
             <li>Unlimited projects</li>
-            <li>Custom agreements</li>
-            <li>Receipts, exports and history</li>
+            <li>Automated client emails</li>
+            <li>PDF agreements, invoices and templates</li>
           </ul>
           <div class="price-cta">
-            <button class="btn btn-primary" type="button">Join waitlist</button>
+            <button id="landing-pro-btn" class="btn btn-primary" type="button">Upgrade to Pro</button>
+          </div>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <span>Business</span>
+            <div class="price-value">£39/mo</div>
+          </div>
+          <p class="price-description">
+            For small studios that need more capacity, priority support and team-ready controls.
+          </p>
+          <ul class="price-list">
+            <li>Everything in Pro</li>
+            <li>Higher storage limits</li>
+            <li>Business-ready support and controls</li>
+          </ul>
+          <div class="price-cta">
+            <button id="landing-business-btn" class="btn btn-secondary" type="button">
+              Choose Business
+            </button>
           </div>
         </div>
       </section>
@@ -237,6 +280,25 @@
               <label class="field-label" for="profile-bio">Short intro</label>
               <textarea id="profile-bio" rows="3" placeholder="A short line clients will see on shared project pages."></textarea>
 
+              <label class="field-label" for="profile-contact-email">Contact email</label>
+              <input id="profile-contact-email" type="email" placeholder="studio@example.com" />
+
+              <label class="field-label" for="profile-default-currency">Default currency</label>
+              <select id="profile-default-currency">
+                <option value="GBP">GBP - British pound</option>
+                <option value="USD">USD - US dollar</option>
+                <option value="EUR">EUR - Euro</option>
+                <option value="AUD">AUD - Australian dollar</option>
+                <option value="CAD">CAD - Canadian dollar</option>
+                <option value="NZD">NZD - New Zealand dollar</option>
+                <option value="SGD">SGD - Singapore dollar</option>
+                <option value="CHF">CHF - Swiss franc</option>
+                <option value="SEK">SEK - Swedish krona</option>
+                <option value="NOK">NOK - Norwegian krone</option>
+                <option value="DKK">DKK - Danish krone</option>
+                <option value="PLN">PLN - Polish zloty</option>
+              </select>
+
               <label class="field-label" for="profile-image">Profile image</label>
               <input id="profile-image" type="file" accept="image/*" />
 
@@ -248,6 +310,32 @@
                   Cancel
                 </button>
               </div>
+            </div>
+          </section>
+
+          <section class="card billing-card">
+            <div class="section-row">
+              <div>
+                <div class="card-title">Plan</div>
+                <strong id="billing-plan-name" class="billing-plan-name">Free</strong>
+              </div>
+              <span id="billing-plan-pill" class="status-chip status-neutral">Free</span>
+            </div>
+            <p id="billing-plan-copy" class="card-copy card-copy-small">
+              Free includes one active client project.
+            </p>
+            <div id="billing-usage" class="usage-meter">
+              <span>Active projects</span>
+              <strong>0 / 1</strong>
+            </div>
+            <div id="billing-limit-note" class="upgrade-note hidden"></div>
+            <div class="billing-actions">
+              <button id="upgrade-pro-btn" class="btn btn-primary btn-block" type="button">
+                Upgrade to Pro
+              </button>
+              <button id="upgrade-business-btn" class="btn btn-secondary btn-block" type="button">
+                Business
+              </button>
             </div>
           </section>
 
@@ -306,7 +394,7 @@
             <div class="card-title">Project workspace</div>
             <h2 class="empty-state-heading">Create your first project</h2>
             <p class="card-copy">
-              Use the left pane to create a project. Once a project is selected, you’ll see its scope,
+              Use the left pane to create a project. Once a project is selected, you'll see its scope,
               change requests, values and client review tools here.
             </p>
           </section>
@@ -345,17 +433,54 @@
               </section>
               <section class="card small">
                 <div class="card-title">Pending value</div>
-                <div id="metric-pending-total" class="card-value">£0</div>
+                <div id="metric-pending-total" class="card-value">GBP 0</div>
               </section>
               <section class="card small">
                 <div class="card-title">Approved value</div>
-                <div id="metric-approved-total" class="card-value">£0</div>
+                <div id="metric-approved-total" class="card-value">GBP 0</div>
               </section>
               <section class="card small">
                 <div class="card-title">Outstanding payments</div>
-                <div id="metric-outstanding-total" class="card-value">£0</div>
+                <div id="metric-outstanding-total" class="card-value">GBP 0</div>
               </section>
             </div>
+
+            <section class="card command-card">
+              <div class="command-header">
+                <div>
+                  <div class="card-title">Command centre</div>
+                  <strong id="project-phase-name" class="command-title">Project setup</strong>
+                  <p id="project-client-brief" class="card-copy card-copy-small">
+                    Select a project to see client readiness.
+                  </p>
+                </div>
+                <div class="health-score">
+                  <span>Readiness</span>
+                  <strong id="project-health-score">0%</strong>
+                  <div class="health-meter" aria-hidden="true">
+                    <div id="project-health-bar"></div>
+                  </div>
+                  <p id="project-risk-level">Needs setup</p>
+                </div>
+              </div>
+
+              <div class="command-grid">
+                <div>
+                  <span>Money position</span>
+                  <strong id="project-money-brief">No project selected</strong>
+                </div>
+                <div>
+                  <span>Scope control</span>
+                  <strong id="project-scope-brief">No scope items yet</strong>
+                </div>
+                <div>
+                  <span>Delivery record</span>
+                  <strong id="project-delivery-brief">No deliverables shared</strong>
+                </div>
+              </div>
+
+              <div id="project-readiness-list" class="readiness-list"></div>
+            </section>
 
             <section class="card">
               <div class="card-title">Project workspace</div>
@@ -367,6 +492,8 @@
                 <button class="project-tab" type="button" data-project-tab="payments">Payments</button>
                 <button class="project-tab" type="button" data-project-tab="suggestions">Suggestions</button>
                 <button class="project-tab" type="button" data-project-tab="updates">Updates</button>
+                <button class="project-tab" type="button" data-project-tab="gallery">Gallery</button>
+                <button class="project-tab" type="button" data-project-tab="deliverables">Deliverables</button>
                 <button class="project-tab" type="button" data-project-tab="completion">Completion</button>
                 <button class="project-tab" type="button" data-project-tab="client">Client review</button>
               </div>
@@ -392,52 +519,120 @@
                   <div class="card-title">Needs attention</div>
                   <div id="overview-attention-list" class="list list-compact"></div>
                 </section>
+
+                <section class="card nested-card margin-top-md">
+                  <div class="card-title">Project settings</div>
+                  <p class="card-copy card-copy-small">
+                    Edit project details before the agreement is accepted, or archive old work.
+                  </p>
+                  <div class="compose-form compose-form-compact">
+                    <div>
+                      <label class="field-label" for="edit-project-title">Project name</label>
+                      <input id="edit-project-title" placeholder="Project name" />
+                    </div>
+                    <div>
+                      <label class="field-label" for="edit-project-client">Client name</label>
+                      <input id="edit-project-client" placeholder="Client name" />
+                    </div>
+                    <div>
+                      <label class="field-label" for="edit-project-client-email">Client email</label>
+                      <input id="edit-project-client-email" type="email" placeholder="client@example.com" />
+                    </div>
+                  </div>
+                  <div class="modal-actions margin-top-md">
+                    <button id="save-project-details-btn" class="btn btn-primary" type="button">
+                      Save details
+                    </button>
+                    <button id="archive-project-btn" class="btn btn-secondary" type="button">
+                      Archive project
+                    </button>
+                    <button id="delete-project-btn" class="btn btn-secondary" type="button">
+                      Delete project
+                    </button>
+                  </div>
+                </section>
               </div>
 
               <div id="project-tab-agreement" class="project-tab-panel hidden">
-                <div class="dashboard-grid two-up-grid">
+                <div class="dashboard-grid agreement-editor-grid">
                   <section class="card nested-card">
                     <div class="card-title">Project agreement</div>
                     <p class="card-copy card-copy-small">
                       Write the terms the client accepts before work moves forward.
                     </p>
 
-                    <label class="field-label" for="project-currency">Project currency</label>
-                    <select id="project-currency">
-                      <option value="GBP">GBP - British pound</option>
-                      <option value="USD">USD - US dollar</option>
-                      <option value="EUR">EUR - Euro</option>
-                      <option value="AUD">AUD - Australian dollar</option>
-                      <option value="CAD">CAD - Canadian dollar</option>
-                      <option value="NZD">NZD - New Zealand dollar</option>
-                      <option value="SGD">SGD - Singapore dollar</option>
-                      <option value="CHF">CHF - Swiss franc</option>
-                      <option value="SEK">SEK - Swedish krona</option>
-                      <option value="NOK">NOK - Norwegian krone</option>
-                      <option value="DKK">DKK - Danish krone</option>
-                      <option value="PLN">PLN - Polish zloty</option>
-                    </select>
+                    <div class="agreement-template-grid">
+                      <div>
+                        <label class="field-label" for="agreement-template-select">Template</label>
+                        <select id="agreement-template-select">
+                          <option value="">Choose a template</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="field-label" for="agreement-template-name">Save as template</label>
+                        <input id="agreement-template-name" placeholder="Website redesign terms" />
+                      </div>
+                      <div class="field-action">
+                        <button id="apply-template-btn" class="btn btn-secondary btn-block" type="button">
+                          Apply
+                        </button>
+                      </div>
+                    </div>
 
-                    <label class="field-label" for="agreement-summary">Project summary</label>
-                    <textarea id="agreement-summary" rows="3" placeholder="What is being commissioned and what outcome is expected."></textarea>
+                    <div class="form-stack agreement-form-stack">
+                      <div>
+                        <label class="field-label" for="project-currency">Project currency</label>
+                        <select id="project-currency">
+                          <option value="GBP">GBP - British pound</option>
+                          <option value="USD">USD - US dollar</option>
+                          <option value="EUR">EUR - Euro</option>
+                          <option value="AUD">AUD - Australian dollar</option>
+                          <option value="CAD">CAD - Canadian dollar</option>
+                          <option value="NZD">NZD - New Zealand dollar</option>
+                          <option value="SGD">SGD - Singapore dollar</option>
+                          <option value="CHF">CHF - Swiss franc</option>
+                          <option value="SEK">SEK - Swedish krona</option>
+                          <option value="NOK">NOK - Norwegian krone</option>
+                          <option value="DKK">DKK - Danish krone</option>
+                          <option value="PLN">PLN - Polish zloty</option>
+                        </select>
+                      </div>
 
-                    <label class="field-label" for="agreement-scope">Included scope</label>
-                    <textarea id="agreement-scope" rows="4" placeholder="List the work included in the original price."></textarea>
+                      <div>
+                        <label class="field-label" for="agreement-summary">Project summary</label>
+                        <textarea id="agreement-summary" rows="4" placeholder="What is being commissioned and what outcome is expected."></textarea>
+                      </div>
 
-                    <label class="field-label" for="agreement-exclusions">Exclusions</label>
-                    <textarea id="agreement-exclusions" rows="3" placeholder="What is not included unless separately approved."></textarea>
+                      <div>
+                        <label class="field-label" for="agreement-scope">Included scope</label>
+                        <textarea id="agreement-scope" rows="7" placeholder="List the work included in the original price."></textarea>
+                      </div>
 
-                    <label class="field-label" for="agreement-timeline">Timeline</label>
-                    <textarea id="agreement-timeline" rows="3" placeholder="Expected dates, milestones, or delivery notes."></textarea>
+                      <div>
+                        <label class="field-label" for="agreement-exclusions">Exclusions</label>
+                        <textarea id="agreement-exclusions" rows="5" placeholder="What is not included unless separately approved."></textarea>
+                      </div>
 
-                    <label class="field-label" for="agreement-payment-terms">Payment terms</label>
-                    <textarea id="agreement-payment-terms" rows="3" placeholder="Deposit, milestone, final payment, or invoice terms."></textarea>
+                      <div>
+                        <label class="field-label" for="agreement-timeline">Timeline</label>
+                        <textarea id="agreement-timeline" rows="4" placeholder="Expected dates, milestones, or delivery notes."></textarea>
+                      </div>
 
-                    <label class="field-label" for="agreement-revision-terms">Revision and change policy</label>
-                    <textarea id="agreement-revision-terms" rows="3" placeholder="How revisions work and when extra changes become chargeable."></textarea>
+                      <div>
+                        <label class="field-label" for="agreement-payment-terms">Payment terms</label>
+                        <textarea id="agreement-payment-terms" rows="5" placeholder="Deposit, milestone, final payment, or invoice terms."></textarea>
+                      </div>
 
-                    <label class="field-label" for="agreement-cancellation-terms">Cancellation terms</label>
-                    <textarea id="agreement-cancellation-terms" rows="3" placeholder="What happens if either side cancels the commission."></textarea>
+                      <div>
+                        <label class="field-label" for="agreement-revision-terms">Revision and change policy</label>
+                        <textarea id="agreement-revision-terms" rows="5" placeholder="How revisions work and when extra changes become chargeable."></textarea>
+                      </div>
+
+                      <div>
+                        <label class="field-label" for="agreement-cancellation-terms">Cancellation terms</label>
+                        <textarea id="agreement-cancellation-terms" rows="4" placeholder="What happens if either side cancels the commission."></textarea>
+                      </div>
+                    </div>
 
                     <div class="modal-actions margin-top-md">
                       <button id="save-agreement-btn" class="btn btn-primary" type="button">
@@ -445,6 +640,12 @@
                       </button>
                       <button id="send-agreement-btn" class="btn btn-secondary" type="button">
                         Send for acceptance
+                      </button>
+                      <button id="save-template-btn" class="btn btn-secondary" type="button">
+                        Save template
+                      </button>
+                      <button id="export-agreement-btn" class="btn btn-secondary" type="button">
+                        Export agreement
                       </button>
                     </div>
                   </section>
@@ -455,6 +656,8 @@
                       Save the agreement, then send the client share link for acceptance.
                     </p>
                     <div id="agreement-accepted-copy" class="agreement-snapshot"></div>
+                    <div class="card-title margin-top-md">Agreement history</div>
+                    <div id="agreement-version-list" class="list list-compact"></div>
                   </section>
                 </div>
               </div>
@@ -498,19 +701,26 @@
                       Create a priced request when the client asks for extra work.
                     </p>
 
-                    <div class="compose-form compose-form-compact">
+                    <div class="form-stack">
                       <div>
                         <label class="field-label" for="change-input">Change description</label>
-                        <input id="change-input" placeholder="Add homepage animation" />
+                        <textarea
+                          id="change-input"
+                          rows="4"
+                          placeholder="Add homepage animation, including what changes from the original scope."
+                        ></textarea>
                       </div>
-                      <div>
-                        <label class="field-label" for="change-price">Price</label>
-                        <input id="change-price" type="number" min="0" step="1" placeholder="200" />
-                      </div>
-                      <div class="field-action">
-                        <button id="add-change-btn" class="btn btn-primary btn-block" type="button">
-                          Add
-                        </button>
+
+                      <div class="form-row form-row-action">
+                        <div>
+                          <label class="field-label" for="change-price">Price</label>
+                          <input id="change-price" type="number" min="0" step="1" placeholder="200" />
+                        </div>
+                        <div class="field-action">
+                          <button id="add-change-btn" class="btn btn-primary btn-block" type="button">
+                            Add change
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </section>
@@ -541,31 +751,42 @@
                       Track deposits, milestones, final balances or manual payments against the project.
                     </p>
 
-                    <div class="compose-form compose-form-compact">
+                    <div class="form-stack">
                       <div>
                         <label class="field-label" for="payment-label">Payment label</label>
-                        <input id="payment-label" placeholder="Deposit" />
+                        <input id="payment-label" placeholder="Deposit, milestone 2, final balance, or licence fee" />
                       </div>
-                      <div>
-                        <label class="field-label" for="payment-amount">Amount</label>
-                        <input id="payment-amount" type="number" min="0" step="1" placeholder="250" />
+
+                      <div class="form-row">
+                        <div>
+                          <label class="field-label" for="payment-amount">Amount</label>
+                          <input id="payment-amount" type="number" min="0" step="1" placeholder="250" />
+                        </div>
+                        <div>
+                          <label class="field-label" for="payment-type">Type</label>
+                          <select id="payment-type">
+                            <option value="deposit">Deposit</option>
+                            <option value="milestone">Milestone</option>
+                            <option value="final">Final</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label class="field-label" for="payment-type">Type</label>
-                        <select id="payment-type">
-                          <option value="deposit">Deposit</option>
-                          <option value="milestone">Milestone</option>
-                          <option value="final">Final</option>
-                          <option value="custom">Custom</option>
-                        </select>
+
+                      <div class="form-row">
+                        <div>
+                          <label class="field-label" for="payment-due-date">Due date</label>
+                          <input id="payment-due-date" type="date" />
+                        </div>
+                        <div>
+                          <label class="field-label" for="payment-status">Status</label>
+                          <select id="payment-status">
+                            <option value="pending">Pending client payment</option>
+                            <option value="paid">Already paid manually</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
-
-                    <label class="field-label" for="payment-status">Status</label>
-                    <select id="payment-status">
-                      <option value="pending">Pending client payment</option>
-                      <option value="paid">Already paid manually</option>
-                    </select>
 
                     <div class="modal-actions margin-top-md">
                       <button id="add-payment-btn" class="btn btn-primary" type="button">
@@ -634,6 +855,43 @@
                 </div>
               </div>
 
+              <div id="project-tab-gallery" class="project-tab-panel hidden">
+                <section class="card nested-card">
+                  <div class="card-title">Project gallery</div>
+                  <p class="card-copy card-copy-small">
+                    Images uploaded through updates and suggestions appear here as the project record.
+                  </p>
+                  <div id="project-gallery-list" class="gallery-grid"></div>
+                </section>
+              </div>
+
+              <div id="project-tab-deliverables" class="project-tab-panel hidden">
+                <div class="dashboard-grid two-up-grid">
+                  <section class="card nested-card">
+                    <div class="card-title">Add deliverable</div>
+                    <p class="card-copy card-copy-small">
+                      Share final files or proof images for client approval.
+                    </p>
+                    <label class="field-label" for="deliverable-title">Deliverable title</label>
+                    <input id="deliverable-title" placeholder="Final homepage design" />
+                    <label class="field-label" for="deliverable-note">Note</label>
+                    <textarea id="deliverable-note" rows="3" placeholder="What this file includes."></textarea>
+                    <label class="field-label" for="deliverable-image">File</label>
+                    <input id="deliverable-image" type="file" accept="image/*" />
+                    <div class="modal-actions margin-top-md">
+                      <button id="add-deliverable-btn" class="btn btn-primary" type="button">
+                        Add deliverable
+                      </button>
+                    </div>
+                  </section>
+
+                  <section class="card nested-card">
+                    <div class="card-title">Final deliverables</div>
+                    <div id="deliverable-list" class="list"></div>
+                  </section>
+                </div>
+              </div>
+
               <div id="project-tab-completion" class="project-tab-panel hidden">
                 <div class="dashboard-grid two-up-grid">
                   <section class="card nested-card">
@@ -659,7 +917,7 @@
                   </section>
 
                   <section class="card nested-card">
-                    <div class="card-title">Project timeline</div>
+                    <div class="card-title">Activity timeline</div>
                     <div id="project-timeline-list" class="list list-compact"></div>
                   </section>
                 </div>
@@ -737,6 +995,24 @@
 
     <!-- CLIENT VIEW -->
     <section id="client-view" class="hidden client-shell">
+      <section id="client-verification-card" class="card hidden">
+        <div class="card-title">Client access</div>
+        <p class="card-copy">
+          Enter the access code from your Scopey email to open this project link.
+        </p>
+        <div class="compose-form compose-form-compact">
+          <div>
+            <label class="field-label" for="client-access-code">Access code</label>
+            <input id="client-access-code" inputmode="numeric" placeholder="6-digit code" />
+          </div>
+          <div class="field-action">
+            <button id="client-verify-btn" class="btn btn-primary btn-block" type="button">
+              Verify
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section class="card client-hero-card">
         <div id="client-profile-card" class="client-profile">
           <div class="profile-avatar profile-avatar-large" aria-hidden="true">
@@ -857,6 +1133,11 @@
         <div id="client-update-list" class="list"></div>
       </section>
 
+      <section class="card" data-client-section="updates">
+        <div class="card-title">Project gallery</div>
+        <div id="client-gallery-list" class="gallery-grid"></div>
+      </section>
+
       <section class="card" data-client-section="completion">
         <div class="card-title">Final approval</div>
         <p id="client-completion-copy" class="card-copy">
@@ -879,6 +1160,11 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <section class="card" data-client-section="completion">
+        <div class="card-title">Final deliverables</div>
+        <div id="client-deliverable-list" class="list"></div>
       </section>
 
       <section class="card" data-client-section="changes">
@@ -940,6 +1226,67 @@
     </div>
   </div>
 
+  <!-- PROJECT DELETE MODAL -->
+  <div id="delete-project-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel danger-panel">
+      <button
+        id="close-delete-project-btn"
+        class="modal-close"
+        aria-label="Close delete project confirmation"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <span class="auth-kicker">Delete project</span>
+      <h3>Are you sure?</h3>
+      <p class="muted">
+        You are about to delete <strong id="delete-project-name">this project</strong>.
+        All project data will be lost, including scope, changes, payments, client suggestions,
+        updates, images, agreements and deliverables.
+      </p>
+
+      <div class="modal-actions modal-actions-right margin-top-md">
+        <button id="cancel-delete-project-btn" class="btn btn-secondary" type="button">
+          Keep project
+        </button>
+        <button id="continue-delete-project-btn" class="btn btn-danger" type="button">
+          Yes, continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FINAL PROJECT DELETE MODAL -->
+  <div id="delete-project-final-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel danger-panel">
+      <button
+        id="close-delete-project-final-btn"
+        class="modal-close"
+        aria-label="Close final delete project confirmation"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <span class="auth-kicker">Final confirmation</span>
+      <h3>Really, really delete it?</h3>
+      <p class="muted">
+        This is permanent. Once <strong id="delete-project-final-name">this project</strong>
+        is deleted, Scopey cannot recover its records.
+      </p>
+
+      <div class="modal-actions modal-actions-right margin-top-md">
+        <button id="back-delete-project-btn" class="btn btn-secondary" type="button">
+          Go back
+        </button>
+        <button id="confirm-delete-project-btn" class="btn btn-danger" type="button">
+          Permanently delete
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ACCESSIBILITY MODAL -->
   <div id="accessibility-modal" class="modal" aria-hidden="true">
     <div class="modal-panel">
@@ -983,6 +1330,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260611-business-currency-scoped-v12"></script>
+  <script src="app.js?v=20260612-project-delete-modals-v26"></script>
 </body>
 </html>
