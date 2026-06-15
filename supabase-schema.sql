@@ -90,6 +90,23 @@ create table if not exists public.user_plans (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.policy_acceptances (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  terms_version text not null,
+  privacy_version text not null,
+  accepted_at timestamptz not null default now(),
+  user_agent text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.policy_acceptances
+  add column if not exists terms_version text,
+  add column if not exists privacy_version text,
+  add column if not exists accepted_at timestamptz not null default now(),
+  add column if not exists user_agent text,
+  add column if not exists updated_at timestamptz not null default now();
+
 alter table public.user_plans
   add column if not exists subscription_status text not null default 'free',
   add column if not exists stripe_customer_id text,
@@ -227,6 +244,50 @@ create table if not exists public.project_deliverables (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.rights_artworks (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  description text,
+  image_ref text,
+  source_commission_id uuid references public.projects(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.rights_artworks
+  add column if not exists description text,
+  add column if not exists image_ref text,
+  add column if not exists source_commission_id uuid,
+  add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.rights_licenses (
+  id uuid primary key default gen_random_uuid(),
+  artwork_id uuid not null references public.rights_artworks(id) on delete cascade,
+  client_name text not null,
+  usage_type text not null
+    check (usage_type in ('print', 'merchandise', 'digital', 'packaging', 'advertising', 'all_uses')),
+  territory text not null
+    check (territory in ('worldwide', 'uk', 'eu', 'north_america')),
+  exclusive boolean not null default false,
+  fee numeric(10, 2) not null default 0,
+  currency text not null default 'GBP',
+  start_date date not null,
+  end_date date,
+  notes text,
+  acknowledged_conflict boolean not null default false,
+  conflict_snapshot jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (end_date is null or end_date >= start_date)
+);
+
+alter table public.rights_licenses
+  add column if not exists notes text,
+  add column if not exists acknowledged_conflict boolean not null default false,
+  add column if not exists conflict_snapshot jsonb not null default '[]'::jsonb,
+  add column if not exists updated_at timestamptz not null default now();
+
 do $$
 begin
   alter table public.scope_items
@@ -308,6 +369,22 @@ begin
     foreign key (project_id)
     references public.projects(id)
     on delete cascade;
+
+  alter table public.rights_artworks
+    drop constraint if exists rights_artworks_source_commission_id_fkey;
+  alter table public.rights_artworks
+    add constraint rights_artworks_source_commission_id_fkey
+    foreign key (source_commission_id)
+    references public.projects(id)
+    on delete set null;
+
+  alter table public.rights_licenses
+    drop constraint if exists rights_licenses_artwork_id_fkey;
+  alter table public.rights_licenses
+    add constraint rights_licenses_artwork_id_fkey
+    foreign key (artwork_id)
+    references public.rights_artworks(id)
+    on delete cascade;
 end $$;
 
 create index if not exists suggestions_project_id_created_at_idx
@@ -325,6 +402,9 @@ create index if not exists agreement_templates_user_id_created_at_idx
 create index if not exists user_plans_stripe_subscription_id_idx
   on public.user_plans(stripe_subscription_id);
 
+create index if not exists policy_acceptances_accepted_at_idx
+  on public.policy_acceptances(accepted_at desc);
+
 create index if not exists project_activity_project_id_created_at_idx
   on public.project_activity(project_id, created_at desc);
 
@@ -337,13 +417,25 @@ create index if not exists project_agreement_versions_project_id_version_idx
 create index if not exists project_deliverables_project_id_created_at_idx
   on public.project_deliverables(project_id, created_at desc);
 
+create index if not exists rights_artworks_owner_id_updated_at_idx
+  on public.rights_artworks(owner_id, updated_at desc);
+
+create index if not exists rights_artworks_source_commission_id_idx
+  on public.rights_artworks(source_commission_id);
+
+create index if not exists rights_licenses_artwork_id_start_date_idx
+  on public.rights_licenses(artwork_id, start_date desc);
+
 alter table public.freelancer_profiles enable row level security;
 alter table public.user_plans enable row level security;
+alter table public.policy_acceptances enable row level security;
 alter table public.agreement_templates enable row level security;
 alter table public.project_activity enable row level security;
 alter table public.project_share_links enable row level security;
 alter table public.project_agreement_versions enable row level security;
 alter table public.project_deliverables enable row level security;
+alter table public.rights_artworks enable row level security;
+alter table public.rights_licenses enable row level security;
 
 do $$
 begin
@@ -386,6 +478,43 @@ begin
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'
+      and tablename = 'policy_acceptances'
+      and policyname = 'Users can read their own policy acceptance'
+  ) then
+    create policy "Users can read their own policy acceptance"
+      on public.policy_acceptances
+      for select
+      using (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'policy_acceptances'
+      and policyname = 'Users can insert their own policy acceptance'
+  ) then
+    create policy "Users can insert their own policy acceptance"
+      on public.policy_acceptances
+      for insert
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'policy_acceptances'
+      and policyname = 'Users can update their own policy acceptance'
+  ) then
+    create policy "Users can update their own policy acceptance"
+      on public.policy_acceptances
+      for update
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
       and tablename = 'freelancer_profiles'
       and policyname = 'Users can update their own freelancer profile'
   ) then
@@ -407,5 +536,45 @@ begin
       for all
       using (auth.uid() = user_id)
       with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'rights_artworks'
+      and policyname = 'Users can manage their rights artworks'
+  ) then
+    create policy "Users can manage their rights artworks"
+      on public.rights_artworks
+      for all
+      using (auth.uid() = owner_id)
+      with check (auth.uid() = owner_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'rights_licenses'
+      and policyname = 'Users can manage licences for their rights artworks'
+  ) then
+    create policy "Users can manage licences for their rights artworks"
+      on public.rights_licenses
+      for all
+      using (
+        exists (
+          select 1
+          from public.rights_artworks
+          where rights_artworks.id = rights_licenses.artwork_id
+            and rights_artworks.owner_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.rights_artworks
+          where rights_artworks.id = rights_licenses.artwork_id
+            and rights_artworks.owner_id = auth.uid()
+        )
+      );
   end if;
 end $$;

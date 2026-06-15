@@ -10,6 +10,14 @@ import Stripe from "stripe";
 import PDFDocument from "pdfkit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  MODULE_NAME as RIGHTS_MODULE_NAME,
+  RIGHTS_CONFIG,
+  findConflicts,
+  isLicenseActive,
+  isLicenseExpiringSoon,
+  validateLicenseInput
+} from "./rights-core.js";
 
 // =======================
 // ENV CHECK
@@ -41,6 +49,7 @@ const supabase = createClient(
 const FRONTEND_URL = process.env.FRONTEND_URL;
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "scopey-uploads";
 const PORT = Number(process.env.PORT || 3000);
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 600);
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_ASSETS = new Set([
   "app.js",
@@ -133,6 +142,10 @@ const AGREEMENT_VERSION_SELECT =
   "id,project_id,version_number,status,agreement_snapshot,created_by_role,sent_at,accepted_at,accepted_by_name,accepted_by_email,created_at";
 const DELIVERABLE_SELECT =
   "id,project_id,title,note,file_url,file_name,status,approved_at,approved_by_name,approved_by_email,created_at";
+const RIGHTS_ARTWORK_SELECT =
+  "id,owner_id,title,description,image_ref,source_commission_id,created_at,updated_at";
+const RIGHTS_LICENSE_SELECT =
+  "id,artwork_id,client_name,usage_type,territory,exclusive,fee,currency,start_date,end_date,notes,acknowledged_conflict,conflict_snapshot,created_at,updated_at";
 const EMAIL_FROM = process.env.EMAIL_FROM || "Scopey <hello@scopey.local>";
 const SUPPORTED_CURRENCIES = new Set([
   "GBP",
@@ -172,7 +185,7 @@ const PLAN_DEFINITIONS = {
   pro: {
     key: "pro",
     name: "Pro",
-    summary: "For solo freelancers using Scopey with real clients.",
+    summary: "For solo freelancers who want polished client handoffs, PDFs and payment links.",
     priceLabel: "£15/month",
     limits: {
       activeProjects: null,
@@ -191,7 +204,7 @@ const PLAN_DEFINITIONS = {
   business: {
     key: "business",
     name: "Business",
-    summary: "For studios that need higher limits and team-ready controls.",
+    summary: "For studios and agencies that need higher storage, priority support and team-ready controls.",
     priceLabel: "£39/month",
     limits: {
       activeProjects: null,
@@ -213,6 +226,10 @@ const PLAN_DEFINITIONS = {
 const STRIPE_PLAN_PRICE_IDS = {
   pro: process.env.STRIPE_PRICE_ID_PRO,
   business: process.env.STRIPE_PRICE_ID_BUSINESS || process.env.STRIPE_PRICE_ID_PRO_PLUS
+};
+const POLICY_VERSIONS = {
+  terms: "2026-06-15",
+  privacy: "2026-06-15"
 };
 
 // =======================
@@ -236,7 +253,18 @@ app.use(
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100
+    max: RATE_LIMIT_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: "Too many requests. Please wait a moment and try again."
+    },
+    skip: (req) =>
+      req.method === "OPTIONS" ||
+      req.path === "/" ||
+      req.path === "/index.html" ||
+      req.path === "/favicon.ico" ||
+      FRONTEND_ASSETS.has(req.path.slice(1))
   })
 );
 
@@ -279,8 +307,27 @@ function publicPlanDefinition(plan) {
     priceLabel: plan.priceLabel,
     limits: plan.limits,
     features: plan.features,
-    checkoutConfigured: Boolean(STRIPE_PLAN_PRICE_IDS[plan.key])
+    checkoutConfigured: !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS[plan.key])
   };
+}
+
+function hasPlaceholderStripeValue(value) {
+  return !value || /xxx|dummy|\*/i.test(value);
+}
+
+function assertStripeBillingConfigured(plan) {
+  if (hasPlaceholderStripeValue(process.env.STRIPE_SECRET)) {
+    const err = new Error("Stripe billing is not configured yet. Add a real STRIPE_SECRET in .env.");
+    err.statusCode = 503;
+    throw err;
+  }
+
+  if (hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS[plan])) {
+    const planName = PLAN_DEFINITIONS[plan]?.name || "this plan";
+    const err = new Error(`Stripe checkout for ${planName} is not configured yet. Add the plan price ID in .env.`);
+    err.statusCode = 503;
+    throw err;
+  }
 }
 
 function createPlanRequiredError(feature, requiredPlan = "pro") {
@@ -353,7 +400,14 @@ async function getBillingOverview(user) {
         limit: plan.limits.activeProjects
       }
     },
-    plans: PLAN_ORDER.map((key) => publicPlanDefinition(PLAN_DEFINITIONS[key]))
+    plans: PLAN_ORDER.map((key) => publicPlanDefinition(PLAN_DEFINITIONS[key])),
+    setup: {
+      stripeBillingConfigured:
+        !hasPlaceholderStripeValue(process.env.STRIPE_SECRET) &&
+        !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.pro) &&
+        !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.business),
+      emailConfigured: !hasPlaceholderStripeValue(process.env.RESEND_API_KEY)
+    }
   };
 }
 
@@ -386,6 +440,53 @@ async function assertProjectLimit(userId) {
   }
 
   return { planRecord, activeProjects, limit };
+}
+
+async function getRightsLicenseLimit(userId) {
+  const planRecord = await getUserPlan(userId);
+  const planKey = normalisePlanKey(planRecord.plan);
+
+  if (planKey === "business") return { planRecord, limit: RIGHTS_CONFIG.businessTierLicenseCap };
+  if (planKey === "pro") return { planRecord, limit: RIGHTS_CONFIG.proTierLicenseCap };
+  return { planRecord, limit: RIGHTS_CONFIG.freeTierLicenseCap };
+}
+
+async function countRightsLicenses(userId) {
+  const { data: artworks, error: artworkError } = await supabase
+    .from("rights_artworks")
+    .select("id")
+    .eq("owner_id", userId);
+
+  if (artworkError) throw artworkError;
+
+  const artworkIds = (artworks || []).map((artwork) => artwork.id);
+  if (artworkIds.length === 0) return 0;
+
+  const { count, error } = await supabase
+    .from("rights_licenses")
+    .select("id", { count: "exact", head: true })
+    .in("artwork_id", artworkIds);
+
+  if (error) throw error;
+  return count || 0;
+}
+
+async function assertRightsLicenseLimit(userId) {
+  const { planRecord, limit } = await getRightsLicenseLimit(userId);
+
+  if (limit === null) {
+    return { planRecord, licenseCount: await countRightsLicenses(userId), limit };
+  }
+
+  const licenseCount = await countRightsLicenses(userId);
+  if (licenseCount >= limit) {
+    const err = createPlanRequiredError("Unlimited rights licences", "pro");
+    err.message = `Free includes ${limit} rights licences. Upgrade to Pro for unlimited licence tracking.`;
+    err.usage = { rightsLicenses: licenseCount, limit };
+    throw err;
+  }
+
+  return { planRecord, licenseCount, limit };
 }
 
 async function upsertUserPlan({
@@ -476,6 +577,28 @@ async function getOwnedProject(projectId, user) {
   }
 
   return project;
+}
+
+async function getOwnedArtwork(artworkId, user) {
+  const { data: artwork, error } = await supabase
+    .from("rights_artworks")
+    .select(RIGHTS_ARTWORK_SELECT)
+    .eq("id", artworkId)
+    .single();
+
+  if (error || !artwork) {
+    const err = new Error("Artwork not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (artwork.owner_id !== user.id) {
+    const err = new Error("Unauthorized access to artwork");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return artwork;
 }
 
 function isMissingRelationError(error) {
@@ -792,6 +915,160 @@ async function getOptionalProjectDeliverables(projectId) {
     console.warn("Project deliverables lookup fallback:", error.message);
     return [];
   }
+}
+
+function normaliseRightsDate(value) {
+  if (!value) return null;
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    const err = new Error("Licence dates must use YYYY-MM-DD");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function normaliseRightsOption(value, lookup, fallback) {
+  return lookup[value] ? value : fallback;
+}
+
+function rightsLicensePayload(body, fallbackCurrency = "GBP") {
+  const payload = {
+    client_name: body?.clientName?.trim?.() || body?.client_name?.trim?.() || "",
+    usage_type: normaliseRightsOption(
+      body?.usageType || body?.usage_type,
+      RIGHTS_CONFIG.usageTypes,
+      "digital"
+    ),
+    territory: normaliseRightsOption(
+      body?.territory,
+      RIGHTS_CONFIG.territories,
+      "worldwide"
+    ),
+    exclusive: Boolean(body?.exclusive),
+    fee: Number.isFinite(Number(body?.fee)) ? Number(body.fee) : 0,
+    currency: normaliseCurrency(body?.currency || fallbackCurrency),
+    start_date: normaliseRightsDate(body?.startDate || body?.start_date),
+    end_date: normaliseRightsDate(body?.endDate || body?.end_date),
+    notes: body?.notes?.trim?.() || null
+  };
+  const validation = validateLicenseInput(payload);
+
+  if (!validation.valid) {
+    const err = new Error(validation.errors.join(", "));
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return payload;
+}
+
+function decorateRightsLicense(license) {
+  return {
+    ...license,
+    active: isLicenseActive(license),
+    expiring_soon: isLicenseExpiringSoon(license)
+  };
+}
+
+function conflictResponse(conflict) {
+  return {
+    license: decorateRightsLicense(conflict.license),
+    reasons: conflict.reasons
+  };
+}
+
+async function getRightsOverview(userId) {
+  const { data: artworks, error: artworkError } = await supabase
+    .from("rights_artworks")
+    .select(RIGHTS_ARTWORK_SELECT)
+    .eq("owner_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (artworkError) throw artworkError;
+
+  const artworkIds = (artworks || []).map((artwork) => artwork.id);
+  let licenses = [];
+
+  if (artworkIds.length > 0) {
+    const { data, error } = await supabase
+      .from("rights_licenses")
+      .select(RIGHTS_LICENSE_SELECT)
+      .in("artwork_id", artworkIds)
+      .order("start_date", { ascending: false });
+
+    if (error) throw error;
+    licenses = data || [];
+  }
+
+  const decoratedLicenses = licenses.map(decorateRightsLicense);
+  const licensesByArtwork = decoratedLicenses.reduce((acc, license) => {
+    acc[license.artwork_id] ||= [];
+    acc[license.artwork_id].push(license);
+    return acc;
+  }, {});
+
+  return {
+    artworks: (artworks || []).map((artwork) => ({
+      ...artwork,
+      licenses: licensesByArtwork[artwork.id] || []
+    })),
+    licenses: decoratedLicenses
+  };
+}
+
+function createRightsSchemaError(error) {
+  if (!isMissingRelationError(error)) return error;
+
+  const err = new Error("Scopey Rights tables are not installed yet. Run the latest Supabase schema SQL.");
+  err.statusCode = 503;
+  return err;
+}
+
+function csvValue(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildRightsCsv(artworks, licenses) {
+  const artworkLookup = new Map(artworks.map((artwork) => [artwork.id, artwork]));
+  const headers = [
+    "Artwork",
+    "Client",
+    "Usage",
+    "Territory",
+    "Exclusive",
+    "Fee",
+    "Currency",
+    "Start date",
+    "End date",
+    "Active",
+    "Expiring soon",
+    "Conflict acknowledged",
+    "Notes"
+  ];
+  const rows = licenses.map((license) => {
+    const artwork = artworkLookup.get(license.artwork_id);
+    return [
+      artwork?.title || "",
+      license.client_name,
+      license.usage_type,
+      license.territory,
+      license.exclusive ? "Yes" : "No",
+      license.fee,
+      license.currency,
+      license.start_date,
+      license.end_date || "Ongoing",
+      license.active ? "Yes" : "No",
+      license.expiring_soon ? "Yes" : "No",
+      license.acknowledged_conflict ? "Yes" : "No",
+      license.notes || ""
+    ];
+  });
+
+  return [headers, ...rows].map((row) => row.map(csvValue).join(",")).join("\n");
 }
 
 async function recordProjectActivity(projectId, event) {
@@ -1287,12 +1564,8 @@ app.post("/billing/checkout", async (req, res) => {
       return res.status(400).json({ error: "Choose Pro or Business to upgrade." });
     }
 
+    assertStripeBillingConfigured(requestedPlan);
     const priceId = STRIPE_PLAN_PRICE_IDS[requestedPlan];
-    if (!priceId) {
-      return res.status(500).json({
-        error: `${PLAN_DEFINITIONS[requestedPlan].name} checkout is not configured yet.`
-      });
-    }
 
     const planRecord = await getUserPlan(user.id);
     const session = await stripe.checkout.sessions.create({
@@ -1318,6 +1591,12 @@ app.post("/billing/checkout", async (req, res) => {
           plan: requestedPlan
         }
       },
+      custom_text: {
+        submit: {
+          message:
+            "By subscribing, you request immediate access to Scopey digital services and agree to the Terms, Privacy Policy and Cancellation and Refund Policy."
+        }
+      },
       success_url: `${FRONTEND_URL}?billing=success`,
       cancel_url: `${FRONTEND_URL}?billing=cancelled`
     });
@@ -1328,6 +1607,45 @@ app.post("/billing/checkout", async (req, res) => {
     res
       .status(error.statusCode || 500)
       .json({ error: error.message || "Could not start upgrade checkout" });
+  }
+});
+
+// =======================
+// LEGAL ACCEPTANCE
+// =======================
+app.post("/legal/acceptance", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const termsVersion = req.body?.termsVersion || POLICY_VERSIONS.terms;
+    const privacyVersion = req.body?.privacyVersion || POLICY_VERSIONS.privacy;
+
+    const { data, error } = await supabase
+      .from("policy_acceptances")
+      .upsert(
+        {
+          user_id: user.id,
+          terms_version: termsVersion,
+          privacy_version: privacyVersion,
+          accepted_at: new Date().toISOString(),
+          user_agent: req.get("user-agent") || null,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "user_id" }
+      )
+      .select("user_id,terms_version,privacy_version,accepted_at")
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ acceptance: data });
+  } catch (error) {
+    const missingPolicyTable = isMissingRelationError(error);
+    const message = missingPolicyTable
+      ? "Policy acceptance table is not installed yet. Run the latest Supabase schema SQL."
+      : error.message || "Could not record policy acceptance";
+    console.error("Policy acceptance error:", message);
+    res
+      .status(missingPolicyTable ? 503 : error.statusCode || 500)
+      .json({ error: message });
   }
 });
 
@@ -1530,6 +1848,211 @@ app.post("/agreement-templates", async (req, res) => {
         error: error.message || "Could not save template",
         code: error.code,
         requiredPlan: error.requiredPlan
+      });
+  }
+});
+
+// =======================
+// SCOPEY RIGHTS
+// =======================
+app.get("/rights", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const overview = await getRightsOverview(user.id);
+    const { planRecord, limit } = await getRightsLicenseLimit(user.id);
+
+    res.json({
+      moduleName: RIGHTS_MODULE_NAME,
+      config: RIGHTS_CONFIG,
+      plan: {
+        key: normalisePlanKey(planRecord.plan),
+        licenseLimit: limit,
+        reportingEnabled: RIGHTS_CONFIG.reportingEnabledTiers.includes(
+          normalisePlanKey(planRecord.plan)
+        )
+      },
+      usage: {
+        licenses: {
+          used: overview.licenses.length,
+          limit
+        }
+      },
+      ...overview
+    });
+  } catch (error) {
+    const responseError = createRightsSchemaError(error);
+    console.error("Rights load error:", responseError.message);
+    res
+      .status(responseError.statusCode || 500)
+      .json({ error: responseError.message || "Could not load rights library" });
+  }
+});
+
+app.get("/rights/report.csv", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    await assertPlan(user.id, "pro", "Rights reporting");
+    const overview = await getRightsOverview(user.id);
+    const csv = buildRightsCsv(overview.artworks, overview.licenses);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="scopey-rights-report.csv"');
+    res.send(csv);
+  } catch (error) {
+    const responseError = createRightsSchemaError(error);
+    console.error("Rights report error:", responseError.message);
+    res
+      .status(responseError.statusCode || 500)
+      .json({
+        error: responseError.message || "Could not export rights report",
+        code: responseError.code,
+        requiredPlan: responseError.requiredPlan
+      });
+  }
+});
+
+app.post("/rights/artworks", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const title = req.body?.title?.trim();
+    const sourceCommissionId = req.body?.sourceCommissionId || req.body?.source_commission_id || null;
+
+    if (!title) {
+      return res.status(400).json({ error: "Artwork title is required" });
+    }
+
+    if (sourceCommissionId) {
+      await getOwnedProject(sourceCommissionId, user);
+    }
+
+    const { data, error } = await supabase
+      .from("rights_artworks")
+      .insert([
+        {
+          owner_id: user.id,
+          title: title.slice(0, 140),
+          description: req.body?.description?.trim?.() || null,
+          image_ref: req.body?.imageRef?.trim?.() || req.body?.image_ref?.trim?.() || null,
+          source_commission_id: sourceCommissionId
+        }
+      ])
+      .select(RIGHTS_ARTWORK_SELECT)
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ artwork: data });
+  } catch (error) {
+    const responseError = createRightsSchemaError(error);
+    console.error("Rights artwork create error:", responseError.message);
+    res
+      .status(responseError.statusCode || 500)
+      .json({ error: responseError.message || "Could not create artwork" });
+  }
+});
+
+app.post("/project/:projectId/rights/artwork", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const { projectId } = req.params;
+    const project = await getOwnedProject(projectId, user);
+
+    if (project.status !== "complete") {
+      return res.status(409).json({
+        error: "Rights artworks can be created from completed projects only."
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("rights_artworks")
+      .insert([
+        {
+          owner_id: user.id,
+          title: req.body?.title?.trim?.() || project.title,
+          description:
+            req.body?.description?.trim?.() ||
+            project.agreement_summary ||
+            "Artwork created from a completed Scopey commission.",
+          image_ref: req.body?.imageRef?.trim?.() || req.body?.image_ref?.trim?.() || null,
+          source_commission_id: project.id
+        }
+      ])
+      .select(RIGHTS_ARTWORK_SELECT)
+      .single();
+
+    if (error) throw error;
+
+    await recordProjectActivity(project.id, {
+      actorRole: "freelancer",
+      eventType: "rights_artwork_created",
+      title: "Rights artwork created",
+      detail: `"${data.title}" was added to Scopey Rights.`
+    });
+
+    res.status(201).json({ artwork: data });
+  } catch (error) {
+    const responseError = createRightsSchemaError(error);
+    console.error("Project rights artwork create error:", responseError.message);
+    res
+      .status(responseError.statusCode || 500)
+      .json({ error: responseError.message || "Could not create rights artwork" });
+  }
+});
+
+app.post("/rights/artworks/:artworkId/licenses", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    await assertRightsLicenseLimit(user.id);
+    const { artworkId } = req.params;
+    const artwork = await getOwnedArtwork(artworkId, user);
+    const payload = rightsLicensePayload(req.body, req.body?.currency || "GBP");
+
+    const { data: existing, error: existingError } = await supabase
+      .from("rights_licenses")
+      .select(RIGHTS_LICENSE_SELECT)
+      .eq("artwork_id", artwork.id);
+
+    if (existingError) throw existingError;
+
+    const conflicts = findConflicts(payload, existing || []);
+    const acknowledgedConflict = Boolean(req.body?.acknowledgedConflict || req.body?.acknowledged_conflict);
+
+    if (conflicts.length > 0 && !acknowledgedConflict) {
+      return res.status(409).json({
+        error: "This licence may conflict with existing rights. Review and acknowledge before saving.",
+        conflicts: conflicts.map(conflictResponse)
+      });
+    }
+
+    const conflictSnapshot = conflicts.length > 0 ? conflicts.map(conflictResponse) : [];
+    const { data, error } = await supabase
+      .from("rights_licenses")
+      .insert([
+        {
+          artwork_id: artwork.id,
+          ...payload,
+          acknowledged_conflict: conflicts.length > 0,
+          conflict_snapshot: conflictSnapshot
+        }
+      ])
+      .select(RIGHTS_LICENSE_SELECT)
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({
+      license: decorateRightsLicense(data),
+      conflicts: conflictSnapshot
+    });
+  } catch (error) {
+    const responseError = createRightsSchemaError(error);
+    console.error("Rights license create error:", responseError.message);
+    res
+      .status(responseError.statusCode || 500)
+      .json({
+        error: responseError.message || "Could not create licence",
+        code: responseError.code,
+        requiredPlan: responseError.requiredPlan,
+        usage: responseError.usage
       });
   }
 });
@@ -2022,9 +2545,11 @@ app.patch("/project/:projectId/status", async (req, res) => {
       const profile = await getProfileForUser(user.id);
       update.completed_at = new Date().toISOString();
       update.completed_by_name = profile.brand_name;
+      update.archived_at = update.completed_at;
     }
     if (status === "cancelled") {
       update.cancelled_at = new Date().toISOString();
+      update.archived_at = update.cancelled_at;
     }
 
     const { data, error } = await supabase
