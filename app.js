@@ -15,21 +15,39 @@ let currentUser = null;
 let currentProjectId = null;
 let currentProject = null;
 let currentProjects = [];
+let currentArchivedProjects = [];
 let currentScopeItems = [];
 let currentChanges = [];
 let currentSuggestions = [];
 let currentUpdates = [];
 let currentProjectPayments = [];
+let currentAgreementTemplates = [];
+let currentActivity = [];
+let currentGallery = [];
+let currentAgreementVersions = [];
+let currentDeliverables = [];
 let currentProfile = null;
+let currentBilling = null;
+let currentRights = null;
 let currentProjectTab = "overview";
+let currentGuidedAction = null;
+let selectedBillingPlanKey = null;
+let isCreatingProject = false;
 
 let isClientView = false;
 let isBusy = false;
 let authMode = "signin";
+let pendingDeleteProject = null;
+let pendingProjectAction = null;
 
 const params = new URLSearchParams(window.location.search);
 const shareId = params.get("share");
 const clientSection = params.get("section") || "all";
+const clientToken = params.get("token") || "";
+let clientAccessCodeValue =
+  clientToken && sessionStorage.getItem(`scopey-access-${clientToken}`)
+    ? sessionStorage.getItem(`scopey-access-${clientToken}`)
+    : "";
 
 const ACCESSIBILITY_KEY = "scopey-accessibility";
 const SUPABASE_AUTH_KEY_PARTS = ["supabase", "auth", "token"];
@@ -47,6 +65,10 @@ const SUPPORTED_CURRENCIES = [
   "DKK",
   "PLN"
 ];
+const POLICY_VERSIONS = {
+  terms: "2026-06-15",
+  privacy: "2026-06-15"
+};
 
 // =======================
 // DOM REFERENCES
@@ -59,7 +81,11 @@ const clientView = document.getElementById("client-view");
 const signInBtn = document.getElementById("header-sign-in-btn");
 const signOutBtn = document.getElementById("header-sign-out-btn");
 const dashboardBtn = document.getElementById("header-dashboard-btn");
+const accountBtn = document.getElementById("header-account-btn");
 const heroStartBtn = document.getElementById("hero-start-btn");
+const landingFreeBtn = document.getElementById("landing-free-btn");
+const landingProBtn = document.getElementById("landing-pro-btn");
+const landingBusinessBtn = document.getElementById("landing-business-btn");
 
 const authModal = document.getElementById("auth-modal");
 const authEmailInput = document.getElementById("auth-email");
@@ -69,13 +95,49 @@ const authMagicLinkBtn = document.getElementById("auth-magic-link-btn");
 const closeAuthBtn = document.getElementById("close-auth-btn");
 const authTitle = document.getElementById("auth-title");
 const authSubtitle = document.getElementById("auth-subtitle");
+const authLegalConsentWrap = document.getElementById("auth-legal-consent-wrap");
+const authLegalConsent = document.getElementById("auth-legal-consent");
 
 const accessibilityButton = document.getElementById("accessibility-button");
 const accessibilityModal = document.getElementById("accessibility-modal");
 const closeAccessibilityBtn = document.getElementById("close-accessibility-btn");
 const resetAccessibilityBtn = document.getElementById("reset-accessibility-btn");
+const legalModal = document.getElementById("legal-modal");
+const closeLegalBtn = document.getElementById("close-legal-btn");
+const legalTitle = document.getElementById("legal-title");
+const legalUpdated = document.getElementById("legal-updated");
+const legalReviewNote = document.getElementById("legal-review-note");
+const legalContent = document.getElementById("legal-content");
+const accountModal = document.getElementById("account-modal");
+const closeAccountBtn = document.getElementById("close-account-btn");
+const accountPlanName = document.getElementById("account-plan-name");
+const accountPlanCopy = document.getElementById("account-plan-copy");
+const accountProjectUsage = document.getElementById("account-project-usage");
+const accountProjectNote = document.getElementById("account-project-note");
+const accountStripeStatus = document.getElementById("account-stripe-status");
+const accountEmailStatus = document.getElementById("account-email-status");
+const accountPlanGrid = document.getElementById("account-plan-grid");
+
+const deleteProjectModal = document.getElementById("delete-project-modal");
+const deleteProjectFinalModal = document.getElementById("delete-project-final-modal");
+const closeDeleteProjectBtn = document.getElementById("close-delete-project-btn");
+const closeDeleteProjectFinalBtn = document.getElementById("close-delete-project-final-btn");
+const cancelDeleteProjectBtn = document.getElementById("cancel-delete-project-btn");
+const continueDeleteProjectBtn = document.getElementById("continue-delete-project-btn");
+const backDeleteProjectBtn = document.getElementById("back-delete-project-btn");
+const confirmDeleteProjectBtn = document.getElementById("confirm-delete-project-btn");
+const deleteProjectName = document.getElementById("delete-project-name");
+const deleteProjectFinalName = document.getElementById("delete-project-final-name");
+const projectActionModal = document.getElementById("project-action-modal");
+const closeProjectActionBtn = document.getElementById("close-project-action-btn");
+const cancelProjectActionBtn = document.getElementById("cancel-project-action-btn");
+const confirmProjectActionBtn = document.getElementById("confirm-project-action-btn");
+const projectActionEyebrow = document.getElementById("project-action-eyebrow");
+const projectActionTitle = document.getElementById("project-action-title");
+const projectActionCopy = document.getElementById("project-action-copy");
 
 const projectListEl = document.getElementById("project-list");
+const archivedProjectListEl = document.getElementById("archived-project-list");
 const toggleProjectCreateBtn = document.getElementById("toggle-project-create-btn");
 const projectCreateCard = document.getElementById("project-create-card");
 
@@ -86,6 +148,8 @@ const newProjectCurrency = document.getElementById("new-project-currency");
 const createProjectBtn = document.getElementById("create-project-btn");
 const profileBrandName = document.getElementById("profile-brand-name");
 const profileBio = document.getElementById("profile-bio");
+const profileContactEmail = document.getElementById("profile-contact-email");
+const profileDefaultCurrency = document.getElementById("profile-default-currency");
 const profileImage = document.getElementById("profile-image");
 const businessProfileForm = document.getElementById("business-profile-form");
 const customiseProfileBtn = document.getElementById("customise-profile-btn");
@@ -95,14 +159,48 @@ const profilePreviewImage = document.getElementById("profile-preview-image");
 const profilePreviewInitial = document.getElementById("profile-preview-initial");
 const profilePreviewName = document.getElementById("profile-preview-name");
 const profilePreviewBio = document.getElementById("profile-preview-bio");
+const billingPlanName = document.getElementById("billing-plan-name");
+const billingPlanPill = document.getElementById("billing-plan-pill");
+const billingPlanCopy = document.getElementById("billing-plan-copy");
+const billingUsage = document.getElementById("billing-usage");
+const billingLimitNote = document.getElementById("billing-limit-note");
+const billingFeatureList = document.getElementById("billing-feature-list");
+const billingPlanCtaBtn = document.getElementById("billing-plan-cta-btn");
+const upgradeProBtn = document.getElementById("upgrade-pro-btn");
+const upgradeBusinessBtn = document.getElementById("upgrade-business-btn");
+const rightsModal = document.getElementById("rights-modal");
+const openRightsBtn = document.getElementById("open-rights-btn");
+const closeRightsBtn = document.getElementById("close-rights-btn");
+const rightsSidebarPill = document.getElementById("rights-sidebar-pill");
+const rightsSidebarArtworkCount = document.getElementById("rights-sidebar-artwork-count");
+const rightsSidebarLicenseUsage = document.getElementById("rights-sidebar-license-usage");
+const rightsModuleName = document.getElementById("rights-module-name");
+const rightsPlanPill = document.getElementById("rights-plan-pill");
+const rightsLicenseUsage = document.getElementById("rights-license-usage");
+const rightsArtworkCount = document.getElementById("rights-artwork-count");
+const rightsExportBtn = document.getElementById("rights-export-btn");
+const rightsArtworkTitle = document.getElementById("rights-artwork-title");
+const rightsArtworkDescription = document.getElementById("rights-artwork-description");
+const rightsCreateArtworkBtn = document.getElementById("rights-create-artwork-btn");
+const rightsArtworkList = document.getElementById("rights-artwork-list");
 
 const ownerEmptyState = document.getElementById("owner-empty-state");
 const projectWorkspace = document.getElementById("project-workspace");
 
 const copyLinkBtn = document.getElementById("copy-link-btn");
-const copyLinkBtnSecondary = document.getElementById("copy-link-btn-secondary");
+const handoffCopyLinkBtn = document.getElementById("handoff-copy-link-btn");
+const clientReviewCopyLinkBtn = document.getElementById("client-review-copy-link-btn");
+const previewClientBtn = document.getElementById("preview-client-btn");
+const clientPreviewBtn = document.getElementById("client-preview-btn");
+const clientPreviewBtnSecondary = document.getElementById("client-preview-btn-secondary");
 const emailClientBtn = document.getElementById("email-client-btn");
-const emailClientBtnSecondary = document.getElementById("email-client-btn-secondary");
+const handoffEmailClientBtn = document.getElementById("handoff-email-client-btn");
+const clientReviewEmailClientBtn = document.getElementById("client-review-email-client-btn");
+const setupWizard = document.getElementById("setup-wizard");
+const setupStepAgreement = document.getElementById("setup-step-agreement");
+const setupStepScope = document.getElementById("setup-step-scope");
+const setupStepPayments = document.getElementById("setup-step-payments");
+const setupStepClient = document.getElementById("setup-step-client");
 
 const projectTitleEl = document.getElementById("project-title");
 const projectSubtitleEl = document.getElementById("project-subtitle");
@@ -114,11 +212,40 @@ const metricPendingCount = document.getElementById("metric-pending-count");
 const metricPendingTotal = document.getElementById("metric-pending-total");
 const metricApprovedTotal = document.getElementById("metric-approved-total");
 const metricOutstandingTotal = document.getElementById("metric-outstanding-total");
+const projectPhaseName = document.getElementById("project-phase-name");
+const projectClientBrief = document.getElementById("project-client-brief");
+const projectHealthScore = document.getElementById("project-health-score");
+const projectHealthBar = document.getElementById("project-health-bar");
+const projectRiskLevel = document.getElementById("project-risk-level");
+const projectJourneySteps = document.getElementById("project-journey-steps");
+const guidedActionTitle = document.getElementById("guided-action-title");
+const guidedActionCopy = document.getElementById("guided-action-copy");
+const guidedActionBtn = document.getElementById("guided-action-btn");
+const projectMoneyBrief = document.getElementById("project-money-brief");
+const projectScopeBrief = document.getElementById("project-scope-brief");
+const projectDeliveryBrief = document.getElementById("project-delivery-brief");
+const projectReadinessList = document.getElementById("project-readiness-list");
 
 const overviewSummaryCopy = document.getElementById("overview-summary-copy");
 const overviewNextAction = document.getElementById("overview-next-action");
 const overviewAttentionList = document.getElementById("overview-attention-list");
+const handoffSummaryCopy = document.getElementById("handoff-summary-copy");
+const handoffStatusChip = document.getElementById("handoff-status-chip");
+const handoffLinkScope = document.getElementById("handoff-link-scope");
+const handoffEmailState = document.getElementById("handoff-email-state");
+const handoffClientAction = document.getElementById("handoff-client-action");
+const editProjectTitle = document.getElementById("edit-project-title");
+const editProjectClient = document.getElementById("edit-project-client");
+const editProjectClientEmail = document.getElementById("edit-project-client-email");
+const saveProjectDetailsBtn = document.getElementById("save-project-details-btn");
+const archiveProjectBtn = document.getElementById("archive-project-btn");
+const deleteProjectBtn = document.getElementById("delete-project-btn");
 
+const agreementTemplateSelect = document.getElementById("agreement-template-select");
+const agreementTemplateName = document.getElementById("agreement-template-name");
+const applyTemplateBtn = document.getElementById("apply-template-btn");
+const saveTemplateBtn = document.getElementById("save-template-btn");
+const exportAgreementBtn = document.getElementById("export-agreement-btn");
 const projectCurrency = document.getElementById("project-currency");
 const agreementSummary = document.getElementById("agreement-summary");
 const agreementScope = document.getElementById("agreement-scope");
@@ -131,6 +258,7 @@ const saveAgreementBtn = document.getElementById("save-agreement-btn");
 const sendAgreementBtn = document.getElementById("send-agreement-btn");
 const agreementStatusCopy = document.getElementById("agreement-status-copy");
 const agreementAcceptedCopy = document.getElementById("agreement-accepted-copy");
+const agreementVersionList = document.getElementById("agreement-version-list");
 
 const scopeTitleInput = document.getElementById("scope-title");
 const scopePriceInput = document.getElementById("scope-price");
@@ -144,8 +272,15 @@ const paymentLabel = document.getElementById("payment-label");
 const paymentAmount = document.getElementById("payment-amount");
 const paymentType = document.getElementById("payment-type");
 const paymentStatus = document.getElementById("payment-status");
+const paymentDueDate = document.getElementById("payment-due-date");
 const addPaymentBtn = document.getElementById("add-payment-btn");
 const projectPaymentList = document.getElementById("project-payment-list");
+const projectGalleryList = document.getElementById("project-gallery-list");
+const deliverableTitle = document.getElementById("deliverable-title");
+const deliverableNote = document.getElementById("deliverable-note");
+const deliverableImage = document.getElementById("deliverable-image");
+const addDeliverableBtn = document.getElementById("add-deliverable-btn");
+const deliverableList = document.getElementById("deliverable-list");
 
 const pendingList = document.getElementById("pending-list");
 const approvedList = document.getElementById("approved-list");
@@ -178,6 +313,12 @@ const clientProfileName = document.getElementById("client-profile-name");
 const clientProfileBio = document.getElementById("client-profile-bio");
 const clientProjectTitle = document.getElementById("client-project-title");
 const clientProjectSubtitle = document.getElementById("client-project-subtitle");
+const clientNextAction = document.getElementById("client-next-action");
+const clientStatusChip = document.getElementById("client-status-chip");
+const clientSummaryScope = document.getElementById("client-summary-scope");
+const clientSummaryChanges = document.getElementById("client-summary-changes");
+const clientSummaryPayments = document.getElementById("client-summary-payments");
+const clientSummaryDeliverables = document.getElementById("client-summary-deliverables");
 const clientScopeList = document.getElementById("client-scope-list");
 const clientPendingList = document.getElementById("client-pending-list");
 const clientApprovedList = document.getElementById("client-approved-list");
@@ -191,6 +332,10 @@ const clientUpdateMessage = document.getElementById("client-update-message");
 const clientUpdateImage = document.getElementById("client-update-image");
 const clientAddUpdateBtn = document.getElementById("client-add-update-btn");
 const clientUpdateList = document.getElementById("client-update-list");
+const clientGalleryList = document.getElementById("client-gallery-list");
+const clientVerificationCard = document.getElementById("client-verification-card");
+const clientAccessCode = document.getElementById("client-access-code");
+const clientVerifyBtn = document.getElementById("client-verify-btn");
 const clientAgreementPreview = document.getElementById("client-agreement-preview");
 const clientAcceptancePanel = document.getElementById("client-acceptance-panel");
 const clientAcceptName = document.getElementById("client-accept-name");
@@ -203,6 +348,7 @@ const clientCompletionPanel = document.getElementById("client-completion-panel")
 const clientCompleteName = document.getElementById("client-complete-name");
 const clientCompleteEmail = document.getElementById("client-complete-email");
 const clientApproveCompletionBtn = document.getElementById("client-approve-completion-btn");
+const clientDeliverableList = document.getElementById("client-deliverable-list");
 
 // =======================
 // HERO ROTATOR
@@ -220,6 +366,296 @@ const heroBottomLines = [
   "More confident pricing.",
   "More sustainable work."
 ];
+
+const LEGAL_DOCUMENTS = {
+  privacy: {
+    title: "Privacy Policy",
+    updated: "Last updated: 15 June 2026",
+    status: "MVP-ready once your legal name, contact details, providers and retention periods are confirmed.",
+    intro:
+      "This policy explains how Scopey collects and uses personal data. Replace placeholders before launch.",
+    sections: [
+      {
+        heading: "Who we are",
+        body: [
+          "Scopey is operated by [your legal name / company name], [company number if applicable], at [registered or trading address].",
+          "For privacy questions, contact [privacy contact email]."
+        ]
+      },
+      {
+        heading: "Personal data we collect",
+        body: [
+          "Account details such as name, email address, authentication identifiers and plan information.",
+          "Project data added by users, including client names, client email addresses, project scope, agreement text, payments, suggestions, uploaded images and deliverables.",
+          "Billing data needed to process subscriptions and payment links. Card details are handled by Stripe and are not stored by Scopey.",
+          "Technical data such as device/browser information, security logs and essential session data."
+        ]
+      },
+      {
+        heading: "Why we use personal data",
+        body: [
+          "To provide Scopey accounts, dashboards, shared client pages and collaboration tools.",
+          "To process subscriptions, payment links, invoices and receipts.",
+          "To send service emails such as sign-in links, project review links and account notices.",
+          "To keep Scopey secure, diagnose faults, prevent misuse and improve the product."
+        ]
+      },
+      {
+        heading: "Lawful bases",
+        body: [
+          "Contract: to provide the Scopey service and paid plans.",
+          "Legitimate interests: to secure, maintain and improve Scopey and prevent abuse.",
+          "Legal obligation: to keep records required for tax, accounting, compliance or dispute handling.",
+          "Consent: where optional cookies, marketing or optional integrations are used."
+        ]
+      },
+      {
+        heading: "Who we share data with",
+        body: [
+          "Supabase for authentication, database, file storage and related infrastructure.",
+          "Stripe for subscriptions, checkout, payment processing and billing records.",
+          "Resend or another configured email provider for service emails.",
+          "Hosting, monitoring and support providers used to operate Scopey.",
+          "AI providers such as Anthropic or OpenAI only if an AI feature is enabled and the user submits content to that feature."
+        ]
+      },
+      {
+        heading: "International transfers and retention",
+        body: [
+          "Some providers may process data outside the UK. Scopey should rely on appropriate safeguards where required.",
+          "Account and project data is kept while an account is active. Some billing, security and legal records may be kept longer where required.",
+          "Users should be able to request deletion, subject to legal or fraud-prevention retention requirements."
+        ]
+      },
+      {
+        heading: "Your rights",
+        body: [
+          "Individuals may have rights to access, correct, delete, restrict or object to processing of their personal data, and to data portability where applicable.",
+          "UK users can complain to the ICO if they are unhappy with how their data is handled."
+        ]
+      },
+      {
+        heading: "Data requests",
+        body: [
+          "To request access, correction, deletion or export of personal data, contact [privacy contact email].",
+          "Scopey should respond to privacy requests within the legal timeframe that applies to the request.",
+          "Some information may need to be retained for billing, tax, security, fraud prevention or dispute reasons."
+        ]
+      },
+      {
+        heading: "ICO registration",
+        body: [
+          "Scopey should complete the ICO data protection fee self-assessment and register/pay the fee unless an exemption applies.",
+          "Once registered, add the ICO registration number or company privacy contact details here."
+        ]
+      }
+    ]
+  },
+  terms: {
+    title: "Terms of Service",
+    updated: "Review draft last updated: 15 June 2026",
+    status: "Needs legal review before relying on it for liability, disputes, paid plans and account termination.",
+    intro:
+      "These terms set the commercial and ownership rules for using Scopey. They should be legally reviewed before launch.",
+    sections: [
+      {
+        heading: "The service",
+        body: [
+          "Scopey helps freelancers manage commission scope, client communication, approvals, files, payments and rights records.",
+          "Features may vary by plan and may change over time as the product develops."
+        ]
+      },
+      {
+        heading: "Accounts and responsibilities",
+        body: [
+          "Users are responsible for keeping account credentials secure and for the accuracy of project, client, payment and rights information they add.",
+          "Users must have permission to upload, process and share any client data, images, artwork, references or deliverables they place in Scopey."
+        ]
+      },
+      {
+        heading: "Ownership",
+        body: [
+          "Users and their clients keep ownership of their artwork, project files, client materials and uploaded content.",
+          "Users grant Scopey a limited licence to host, process, display and transmit that content only as needed to provide the service.",
+          "Scopey owns the Scopey product, software, code, brand, interface, documentation and related intellectual property."
+        ]
+      },
+      {
+        heading: "Plans and billing",
+        body: [
+          "Free, Pro and Business plans may have different limits for projects, storage, exports, automated emails, payment links and rights records.",
+          "Paid subscriptions renew until cancelled. Prices, taxes and billing cycles should be shown before checkout.",
+          "Users remain responsible for freelancer-client contracts, taxes, invoice accuracy and any payment disputes with their clients."
+        ]
+      },
+      {
+        heading: "Termination",
+        body: [
+          "Users may cancel their account or subscription according to the product controls and cancellation policy.",
+          "Scopey may suspend or terminate accounts that breach these terms, misuse the service, create security risk or fail to pay."
+        ]
+      },
+      {
+        heading: "Limits of liability",
+        body: [
+          "Scopey is a workflow and record-keeping tool. It does not replace legal, tax, financial or intellectual property advice.",
+          "To the extent permitted by law, Scopey is not responsible for user-client disputes, inaccurate project records, rights decisions or losses caused by misuse of the service."
+        ]
+      }
+    ]
+  },
+  "acceptable-use": {
+    title: "Acceptable Use Policy",
+    updated: "Last updated: 15 June 2026",
+    status: "MVP-ready as product rules once final wording is reviewed against your Terms.",
+    intro:
+      "This can live inside the Terms, but keeping the rules visible is useful.",
+    sections: [
+      {
+        heading: "You must not use Scopey to",
+        body: [
+          "Upload or share content you do not own or do not have permission to use.",
+          "Infringe copyright, trade marks, privacy rights, publicity rights or other intellectual property rights.",
+          "Upload illegal, exploitative, abusive, hateful, harassing, defamatory or fraudulent content.",
+          "Upload malware, attempt unauthorised access, scrape the service, overload systems or bypass security controls.",
+          "Use Scopey for spam, deceptive activity, money laundering, sanctions evasion or other unlawful activity."
+        ]
+      },
+      {
+        heading: "Sensitive content",
+        body: [
+          "Users should avoid adding special-category personal data or unnecessary sensitive client information unless they have a lawful basis and appropriate safeguards.",
+          "Scopey may remove content or restrict accounts where content creates legal, security or platform risk."
+        ]
+      }
+    ]
+  },
+  cookies: {
+    title: "Cookie Policy",
+    updated: "Last updated: 15 June 2026",
+    status: "MVP-ready if Scopey only uses essential auth/session/preference storage.",
+    intro:
+      "Scopey currently appears to rely on essential app storage only. A consent banner becomes important if analytics, advertising or other non-essential cookies are added.",
+    sections: [
+      {
+        heading: "Essential cookies and local storage",
+        body: [
+          "Scopey may use essential cookies, local storage or similar technologies to keep users signed in, remember accessibility preferences and operate the app securely.",
+          "These are necessary for the service and do not require optional consent."
+        ]
+      },
+      {
+        heading: "Optional cookies",
+        body: [
+          "If Scopey later adds analytics, marketing, heatmaps, advertising pixels or similar non-essential tools, users should be given clear information and a choice before those tools run.",
+          "The cookie banner should let users accept, reject and manage optional cookies."
+        ]
+      }
+    ]
+  },
+  refunds: {
+    title: "Cancellation and Refund Policy",
+    updated: "Last updated: 15 June 2026",
+    status: "MVP-ready checkout wording, but review once final prices, customer type and payment flow are settled.",
+    intro:
+      "This policy is for Scopey paid tiers and future add-ons. It should be reviewed against the final checkout flow.",
+    sections: [
+      {
+        heading: "Subscriptions",
+        body: [
+          "Paid plans renew automatically unless cancelled before the next renewal date.",
+          "Cancelling a paid plan should stop future renewals. Access may continue until the end of the paid billing period unless required otherwise by law or stated at checkout."
+        ]
+      },
+      {
+        heading: "UK consumer cooling-off period",
+        body: [
+          "If a customer buys as a consumer, they may have a 14-day cooling-off right for distance purchases.",
+          "If the customer asks for immediate access to digital services during the cooling-off period, they may be asked to acknowledge that cancellation rights can be affected once the service has started or been fully supplied.",
+          "Business customers may not have the same consumer cancellation rights."
+        ]
+      },
+      {
+        heading: "Refunds",
+        body: [
+          "Refunds may be provided where required by law, where there has been a billing error, or where Scopey chooses to offer one as a goodwill gesture.",
+          "Client payments made through freelancer project links may involve the freelancer, their client and Stripe. Scopey should explain whether it is only providing payment tooling or is merchant of record for any payment."
+        ]
+      },
+      {
+        heading: "Checkout wording",
+        body: [
+          "Suggested checkout notice: By subscribing, you agree to the Terms, Privacy Policy and Cancellation and Refund Policy. You request immediate access to Scopey digital services and understand this may affect any cooling-off cancellation rights once access begins."
+        ]
+      }
+    ]
+  },
+  subprocessors: {
+    title: "Sub-processor List",
+    updated: "Last updated: 15 June 2026",
+    status: "MVP-ready once you confirm the exact providers and regions used in production.",
+    intro:
+      "This list explains which providers may process personal data so Scopey can run the service.",
+    sections: [
+      {
+        heading: "Current expected providers",
+        body: [
+          "Supabase: authentication, database, file storage and related backend infrastructure.",
+          "Stripe: subscription billing, checkout, payment links and payment records.",
+          "Resend or configured email provider: transactional emails and client review links.",
+          "Hosting provider: web hosting, server runtime and operational logs.",
+          "Monitoring or logging provider, if enabled: security, diagnostics and reliability monitoring."
+        ]
+      },
+      {
+        heading: "Conditional providers",
+        body: [
+          "Anthropic, OpenAI or another AI provider should only be listed if Scopey enables AI features and sends user-submitted content to that provider.",
+          "Analytics providers should only be listed if non-essential analytics are added and reflected in the Cookie Policy."
+        ]
+      },
+      {
+        heading: "Changes",
+        body: [
+          "Scopey may update this list when providers change.",
+          "Business-tier customers may be given notice of material sub-processor changes where required by contract."
+        ]
+      }
+    ]
+  },
+  dpa: {
+    title: "Data Processing Addendum Note",
+    updated: "Review note last updated: 15 June 2026",
+    status: "Keep as a review-needed Business-tier document until a full DPA is prepared.",
+    intro:
+      "This is a lower-priority starter note for Business customers. A full DPA should be reviewed professionally.",
+    sections: [
+      {
+        heading: "Likely roles",
+        body: [
+          "For freelancer/client project data, the Scopey user is likely the controller and Scopey is likely a processor providing hosted software.",
+          "For Scopey's own account, billing, security and product analytics data, Scopey may act as controller."
+        ]
+      },
+      {
+        heading: "DPA topics to cover",
+        body: [
+          "Processing subject matter, duration, nature and purpose.",
+          "Categories of personal data and data subjects.",
+          "Controller instructions, confidentiality, security measures, sub-processors, breach assistance and deletion/return of data.",
+          "International transfer safeguards and audit/support process."
+        ]
+      },
+      {
+        heading: "Sub-processors",
+        body: [
+          "Prepare a public sub-processor list covering Supabase, Stripe, email provider, hosting, monitoring and any AI providers used by enabled features.",
+          "Business-tier customers may expect notice of material sub-processor changes."
+        ]
+      }
+    ]
+  }
+};
 
 let heroTopIndex = 0;
 let heroBottomIndex = 0;
@@ -279,6 +715,62 @@ function clearBanner() {
   bannerEl.style.display = "none";
 }
 
+function getCurrentPlanKey() {
+  return currentBilling?.plan?.key || currentBilling?.plan?.plan || "free";
+}
+
+function getCurrentPlanName() {
+  return currentBilling?.plan?.name || "Free";
+}
+
+function getActiveProjectUsage() {
+  return currentBilling?.usage?.activeProjects || {
+    used: currentProjects.filter(
+      (project) => !project.archived_at && !["complete", "cancelled"].includes(project.status)
+    ).length,
+    limit: 1
+  };
+}
+
+function isActiveProjectLimitReached() {
+  const usage = getActiveProjectUsage();
+  return usage.limit !== null && usage.used >= usage.limit;
+}
+
+function showUpgradePrompt(message, plan = "pro") {
+  const planName = plan === "business" ? "Business" : "Pro";
+  showBanner(`${message} Upgrade to ${planName} when you're ready.`, "warning");
+}
+
+function userHasPlan(requiredPlan = "pro") {
+  const ranks = { free: 0, pro: 1, business: 2 };
+  return (ranks[getCurrentPlanKey()] || 0) >= (ranks[requiredPlan] || 0);
+}
+
+function requirePlan(requiredPlan, feature) {
+  if (userHasPlan(requiredPlan)) return true;
+  const planName = requiredPlan === "business" ? "Business" : "Pro";
+  showBanner(`${feature} is included with ${planName}.`, "warning");
+  openAccountModal();
+  return false;
+}
+
+function setLockedControl(control, isLocked, label, lockedLabel) {
+  if (!control) return;
+  control.classList.toggle("plan-locked", isLocked);
+  control.title = isLocked ? `${label} is included with Pro` : "";
+  control.textContent = isLocked ? lockedLabel : label;
+}
+
+function renderPlanLockedStates() {
+  const proLocked = !userHasPlan("pro");
+  setLockedControl(emailClientBtn, proLocked, "Email client", "Email client · Pro");
+  setLockedControl(handoffEmailClientBtn, proLocked, "Email client", "Email client · Pro");
+  setLockedControl(clientReviewEmailClientBtn, proLocked, "Email client", "Email client · Pro");
+  setLockedControl(saveTemplateBtn, proLocked, "Save template", "Save template · Pro");
+  setLockedControl(exportAgreementBtn, proLocked, "Export agreement", "Export agreement · Pro");
+}
+
 function isSupabaseAuthStorageKey(key) {
   const normalised = key.toLowerCase();
   return SUPABASE_AUTH_KEY_PARTS.every((part) => normalised.includes(part));
@@ -316,6 +808,7 @@ function setView(mode) {
   landingView?.classList.add("hidden");
   ownerView?.classList.add("hidden");
   clientView?.classList.add("hidden");
+  document.body.classList.toggle("app-view-active", mode === "owner" || mode === "client");
 
   if (mode === "landing") landingView?.classList.remove("hidden");
   if (mode === "owner") ownerView?.classList.remove("hidden");
@@ -347,10 +840,144 @@ function resetAuthLoadingState() {
   setButtonLoading(authMagicLinkBtn, false, "Use magic link instead");
 }
 
-function buildEmptyState(text) {
+const EMPTY_STATE_CONTENT = {
+  "No active projects.": {
+    title: "No active projects yet",
+    copy: "Create a client workspace when you are ready to track scope, terms and approvals.",
+    actionLabel: "New project",
+    action: () => setProjectCreateVisible(true, true)
+  },
+  "No archived projects.": {
+    title: "No archived projects",
+    copy: "Completed, cancelled or manually archived work will appear here for reference."
+  },
+  "No scope items yet.": {
+    title: "No included scope yet",
+    copy: "Add the work covered by the original price so future extras are easy to separate.",
+    actionLabel: "Add scope item",
+    tab: "scope"
+  },
+  "No scope items available.": {
+    title: "Scope has not been shared yet",
+    copy: "Included work will appear here once it is added to the project."
+  },
+  "No pending changes.": {
+    title: "No paid extras waiting",
+    copy: "When a client asks for something outside the original scope, add it here with a clear value.",
+    actionLabel: "Add change",
+    tab: "changes"
+  },
+  "There are no pending changes.": {
+    title: "No pending changes",
+    copy: "The client has no paid extras waiting for review right now."
+  },
+  "No approved changes.": {
+    title: "No approved extras yet",
+    copy: "Approved paid changes will build a useful record beside the original agreement."
+  },
+  "No approved changes yet.": {
+    title: "No approved extras yet",
+    copy: "Approved paid changes will appear here once the client accepts them."
+  },
+  "No agreement versions yet.": {
+    title: "No saved agreement versions",
+    copy: "Save the agreement to start a clean record of terms and revisions.",
+    actionLabel: "Open agreement",
+    tab: "agreement"
+  },
+  "No project payments yet.": {
+    title: "No project payments yet",
+    copy: "Add deposits, milestones or final balances when you want payment expectations visible.",
+    actionLabel: "Add payment",
+    tab: "payments"
+  },
+  "No client suggestions yet.": {
+    title: "No client suggestions yet",
+    copy: "Client ideas and references will appear here when they submit them from the shared page."
+  },
+  "No shared updates yet.": {
+    title: "No progress updates yet",
+    copy: "Share a short note or image when you want the client to understand progress.",
+    actionLabel: "Add update",
+    tab: "updates"
+  },
+  "No project milestones yet.": {
+    title: "No timeline events yet",
+    copy: "Sending, acceptance, completion and important project activity will appear here."
+  },
+  "No final deliverables yet.": {
+    title: "No final deliverables yet",
+    copy: "Upload final files or proof images when the project is ready for approval.",
+    actionLabel: "Add deliverable",
+    tab: "deliverables"
+  },
+  "No project images have been uploaded yet.": {
+    title: "No project images yet",
+    copy: "Images from updates, suggestions and deliverables will collect here automatically."
+  },
+  "The original scope has not been added yet.": {
+    title: "Scope is still being prepared",
+    copy: "The included work will appear here once the freelancer adds it."
+  },
+  "No paid changes are waiting for approval.": {
+    title: "No paid changes waiting",
+    copy: "Extra work requests that need approval or payment will appear here."
+  },
+  "No deposits, milestones or balances are due right now.": {
+    title: "No payments due",
+    copy: "Deposits, milestones and balances will appear here when payment is needed."
+  },
+  "Approved paid changes will be recorded here.": {
+    title: "No approved changes yet",
+    copy: "Paid extras will be recorded here once they are approved."
+  },
+  "Client ideas and freelancer responses will appear here.": {
+    title: "No suggestions yet",
+    copy: "Use this area for new ideas, references or change suggestions."
+  },
+  "Progress notes, reference images and decision updates will appear here.": {
+    title: "No updates yet",
+    copy: "Project notes, images and decisions will appear here as the work moves forward."
+  },
+  "Final files will appear here when they are ready for approval.": {
+    title: "No final files yet",
+    copy: "Final deliverables will appear here when they are ready to review."
+  }
+};
+
+function buildEmptyState(content) {
+  const config =
+    typeof content === "string"
+      ? EMPTY_STATE_CONTENT[content] || { title: content, copy: "" }
+      : content;
   const div = document.createElement("div");
   div.className = "empty-state";
-  div.textContent = text;
+
+  const title = document.createElement("strong");
+  title.textContent = config.title || "";
+  div.appendChild(title);
+
+  if (config.copy) {
+    const copy = document.createElement("p");
+    copy.textContent = config.copy;
+    div.appendChild(copy);
+  }
+
+  if (config.actionLabel) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-secondary btn-small";
+    button.textContent = config.actionLabel;
+    button.addEventListener("click", () => {
+      if (typeof config.action === "function") {
+        config.action();
+        return;
+      }
+      if (config.tab) setCurrentProjectTab(config.tab);
+    });
+    div.appendChild(button);
+  }
+
   return div;
 }
 
@@ -532,6 +1159,307 @@ function renderProfilePreview(profile = currentProfile) {
   if (profileBio && !profileBio.value && profile?.bio) profileBio.value = profile.bio;
 }
 
+function getBillingPlanDefinition(planKey) {
+  return (currentBilling?.plans || []).find((plan) => plan.key === planKey);
+}
+
+function getSelectedBillingPlanKey() {
+  const currentPlanKey = getCurrentPlanKey();
+  if (!selectedBillingPlanKey) selectedBillingPlanKey = currentPlanKey;
+  if (!getBillingPlanDefinition(selectedBillingPlanKey)) selectedBillingPlanKey = currentPlanKey;
+  return selectedBillingPlanKey;
+}
+
+function selectBillingPlan(planKey) {
+  selectedBillingPlanKey = planKey;
+  renderBilling();
+}
+
+function renderBilling() {
+  const planKey = getCurrentPlanKey();
+  const selectedPlanKey = getSelectedBillingPlanKey();
+  const selectedPlan = getBillingPlanDefinition(selectedPlanKey) || currentBilling?.plan;
+  const planName = selectedPlan?.name || getCurrentPlanName();
+  const usage = getActiveProjectUsage();
+  const limitLabel = usage.limit === null ? "Unlimited" : usage.limit;
+  const atLimit = isActiveProjectLimitReached();
+
+  if (billingPlanName) billingPlanName.textContent = planName;
+  if (billingPlanPill) {
+    billingPlanPill.textContent = selectedPlanKey === planKey ? "Current" : selectedPlan?.priceLabel || planName;
+    billingPlanPill.className = `status-chip status-${
+      selectedPlanKey === planKey ? "success" : "neutral"
+    }`;
+  }
+  if (billingPlanCopy) {
+    billingPlanCopy.textContent =
+      selectedPlan?.summary || "Free includes one active client project.";
+  }
+  if (billingUsage) {
+    billingUsage.innerHTML = "";
+    const label = document.createElement("span");
+    label.textContent = "Active projects";
+    const value = document.createElement("strong");
+    value.textContent = `${usage.used} / ${limitLabel}`;
+    billingUsage.appendChild(label);
+    billingUsage.appendChild(value);
+  }
+  if (billingFeatureList) {
+    billingFeatureList.innerHTML = "";
+    getPlanFeatureList(selectedPlanKey).forEach((feature) => {
+      const item = document.createElement("li");
+      item.textContent = feature;
+      billingFeatureList.appendChild(item);
+    });
+  }
+  if (billingPlanCtaBtn) {
+    const isCurrentPlan = selectedPlanKey === planKey;
+    const isFreePlan = selectedPlanKey === "free";
+    billingPlanCtaBtn.classList.toggle("hidden", isFreePlan);
+    billingPlanCtaBtn.disabled = isCurrentPlan || isFreePlan;
+    billingPlanCtaBtn.textContent = isCurrentPlan
+      ? `${planName} active`
+      : `Get ${planName}`;
+  }
+  if (billingLimitNote) {
+    billingLimitNote.textContent = atLimit
+      ? "Free is full. Archive, complete or delete a project, or upgrade to Pro."
+      : "Pro unlocks unlimited projects, automated emails, PDFs, templates and Stripe checkout.";
+    billingLimitNote.classList.toggle("hidden", planKey !== "free" && !atLimit);
+  }
+  if (upgradeProBtn) {
+    upgradeProBtn.classList.toggle("active", selectedPlanKey === "pro");
+    upgradeProBtn.textContent = planKey === "pro" ? "Pro active" : "Pro";
+  }
+  if (upgradeBusinessBtn) {
+    upgradeBusinessBtn.classList.toggle("active", selectedPlanKey === "business");
+    upgradeBusinessBtn.textContent = planKey === "business" ? "Business active" : "Business";
+    upgradeBusinessBtn.disabled = false;
+  }
+  if (createProjectBtn) {
+    createProjectBtn.disabled = atLimit;
+    createProjectBtn.textContent = atLimit ? "Upgrade for more projects" : "Create project";
+  }
+  renderAccountBilling();
+  renderPlanLockedStates();
+}
+
+function getPlanFeatureList(planKey) {
+  const features = {
+    free: [
+      "1 active client project",
+      "Shared client review page",
+      "Scope and change tracking",
+      "10 Scopey Rights licences"
+    ],
+    pro: [
+      "Unlimited active projects",
+      "Automatic client emails",
+      "PDF agreements, invoices and receipts",
+      "Agreement templates",
+      "Stripe payment links for paid approvals",
+      "Unlimited Scopey Rights licences and CSV export"
+    ],
+    business: [
+      "Everything in Pro",
+      "10 GB project image storage",
+      "Priority support for live client work",
+      "Team-ready controls foundation",
+      "Stronger fit for studios and agencies",
+      "Rights reporting for larger client libraries"
+    ]
+  };
+  return features[planKey] || features.free;
+}
+
+function renderRights() {
+  const moduleName = currentRights?.moduleName || "Scopey Rights";
+  const plan = currentRights?.plan || {};
+  const usage = currentRights?.usage?.licenses || { used: 0, limit: 10 };
+  const artworks = currentRights?.artworks || [];
+  const limitLabel = usage.limit === null ? "Unlimited" : usage.limit;
+  const rightsPillText = plan.reportingEnabled ? "Reporting" : "Free ledger";
+  const rightsPillClass = `status-chip status-${plan.reportingEnabled ? "success" : "neutral"}`;
+
+  if (rightsModuleName) rightsModuleName.textContent = moduleName;
+  if (rightsPlanPill) {
+    rightsPlanPill.textContent = rightsPillText;
+    rightsPlanPill.className = rightsPillClass;
+  }
+  if (rightsSidebarPill) {
+    rightsSidebarPill.textContent = rightsPillText;
+    rightsSidebarPill.className = rightsPillClass;
+  }
+  if (rightsLicenseUsage) rightsLicenseUsage.textContent = `${usage.used || 0} / ${limitLabel}`;
+  if (rightsArtworkCount) rightsArtworkCount.textContent = String(artworks.length);
+  if (rightsSidebarLicenseUsage) rightsSidebarLicenseUsage.textContent = `${usage.used || 0} / ${limitLabel}`;
+  if (rightsSidebarArtworkCount) rightsSidebarArtworkCount.textContent = String(artworks.length);
+  if (rightsExportBtn) {
+    rightsExportBtn.classList.toggle("plan-locked", !plan.reportingEnabled);
+    rightsExportBtn.textContent = plan.reportingEnabled ? "Export CSV" : "Export CSV on Pro";
+  }
+  if (!rightsArtworkList) return;
+
+  rightsArtworkList.innerHTML = "";
+
+  if (!currentRights) {
+    rightsArtworkList.appendChild(
+      buildEmptyState({
+        title: "Rights library not loaded",
+        copy: "Run the latest Supabase schema, then reopen the dashboard to use Scopey Rights."
+      })
+    );
+    return;
+  }
+
+  if (artworks.length === 0) {
+    rightsArtworkList.appendChild(
+      buildEmptyState({
+        title: "No artwork records yet",
+        copy: "Add finished artwork here, then track which clients can use it and where."
+      })
+    );
+    return;
+  }
+
+  artworks.slice(0, 4).forEach((artwork) => {
+    const card = document.createElement("div");
+    card.className = "rights-artwork-card";
+
+    const main = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = artwork.title;
+    const copy = document.createElement("p");
+    copy.className = "card-copy card-copy-small";
+    copy.textContent = artwork.description || "No description yet.";
+    main.appendChild(title);
+    main.appendChild(copy);
+
+    const meta = document.createElement("div");
+    meta.className = "rights-artwork-meta";
+    meta.appendChild(buildStatusPill(`${artwork.licenses?.length || 0} licences`, "neutral"));
+    if ((artwork.licenses || []).some((license) => license.expiring_soon)) {
+      meta.appendChild(buildStatusPill("Expiring soon", "warning"));
+    }
+    if ((artwork.licenses || []).some((license) => license.acknowledged_conflict)) {
+      meta.appendChild(buildStatusPill("Conflict noted", "danger"));
+    }
+
+    card.appendChild(main);
+    card.appendChild(meta);
+    rightsArtworkList.appendChild(card);
+  });
+}
+
+function renderAccountBilling() {
+  if (!accountModal || !currentBilling) return;
+
+  const planKey = getCurrentPlanKey();
+  const planName = getCurrentPlanName();
+  const usage = getActiveProjectUsage();
+  const limitLabel = usage.limit === null ? "Unlimited" : usage.limit;
+  const setup = currentBilling.setup || {};
+
+  if (accountPlanName) accountPlanName.textContent = planName;
+  if (accountPlanCopy) {
+    accountPlanCopy.textContent =
+      currentBilling.plan?.summary || "Free includes one active client project.";
+  }
+  if (accountProjectUsage) accountProjectUsage.textContent = `${usage.used} / ${limitLabel}`;
+  if (accountProjectNote) {
+    accountProjectNote.textContent =
+      usage.limit === null
+        ? "Your plan can run unlimited active projects."
+        : "Upgrade to Pro for unlimited active projects.";
+  }
+  if (accountStripeStatus) {
+    const ready = Boolean(setup.stripeBillingConfigured);
+    accountStripeStatus.textContent = ready ? "Ready" : "Needs setup";
+    accountStripeStatus.className = `status-chip status-${ready ? "success" : "warning"}`;
+  }
+  if (accountEmailStatus) {
+    const ready = Boolean(setup.emailConfigured);
+    accountEmailStatus.textContent = ready ? "Ready" : "Not configured";
+    accountEmailStatus.className = `status-chip status-${ready ? "success" : "warning"}`;
+  }
+  if (!accountPlanGrid) return;
+
+  accountPlanGrid.innerHTML = "";
+  (currentBilling.plans || []).forEach((plan) => {
+    const card = document.createElement("section");
+    card.className = `account-plan-card ${plan.key === planKey ? "active" : ""}`;
+
+    const header = document.createElement("div");
+    header.className = "account-plan-card-header";
+
+    const titleWrap = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = plan.name;
+    const price = document.createElement("span");
+    price.textContent = plan.priceLabel;
+    titleWrap.appendChild(name);
+    titleWrap.appendChild(price);
+
+    const badge = buildStatusPill(plan.key === planKey ? "Current" : "Available", plan.key === planKey ? "success" : "neutral");
+    header.appendChild(titleWrap);
+    header.appendChild(badge);
+
+    const copy = document.createElement("p");
+    copy.textContent = plan.summary;
+
+    const list = document.createElement("ul");
+    getPlanFeatureList(plan.key).forEach((feature) => {
+      const item = document.createElement("li");
+      item.textContent = feature;
+      list.appendChild(item);
+    });
+
+    card.appendChild(header);
+    card.appendChild(copy);
+    card.appendChild(list);
+
+    if (plan.key !== "free" && plan.key !== planKey) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-primary btn-block";
+      button.textContent = `Choose ${plan.name}`;
+      button.addEventListener("click", () => startUpgradeCheckout(plan.key, button));
+      card.appendChild(button);
+    }
+
+    accountPlanGrid.appendChild(card);
+  });
+}
+
+function setProjectCreateVisible(isVisible, rememberChoice = false) {
+  isCreatingProject = isVisible;
+  projectCreateCard?.classList.toggle("hidden", !isVisible);
+  if (toggleProjectCreateBtn) {
+    toggleProjectCreateBtn.textContent = isVisible ? "Back to project" : "New project";
+  }
+  if (rememberChoice && projectCreateCard) {
+    projectCreateCard.dataset.userOpened = isVisible ? "true" : "false";
+  }
+
+  if (isVisible) {
+    ownerEmptyState?.classList.add("hidden");
+    projectWorkspace?.classList.add("hidden");
+  } else if (currentProject) {
+    ownerEmptyState?.classList.add("hidden");
+    projectWorkspace?.classList.remove("hidden");
+  } else {
+    renderOwnerEmptyWorkspace();
+  }
+
+  renderProjectList();
+}
+
+function syncProjectCreateVisibility() {
+  const hasActiveProjects = currentProjects.length > 0;
+  const userOpened = projectCreateCard?.dataset.userOpened === "true";
+  setProjectCreateVisible(!hasActiveProjects || userOpened);
+}
+
 function setBusinessProfileEditing(isEditing) {
   businessProfileForm?.classList.toggle("hidden", !isEditing);
   customiseProfileBtn?.classList.toggle("hidden", isEditing);
@@ -539,6 +1467,10 @@ function setBusinessProfileEditing(isEditing) {
   if (isEditing) {
     if (profileBrandName) profileBrandName.value = getProfileName(currentProfile);
     if (profileBio) profileBio.value = currentProfile?.bio || "";
+    if (profileContactEmail) profileContactEmail.value = currentProfile?.contact_email || "";
+    if (profileDefaultCurrency) {
+      profileDefaultCurrency.value = currentProfile?.default_currency || "GBP";
+    }
   }
 }
 
@@ -598,6 +1530,24 @@ function getPaymentStatusKind(status) {
   return "warning";
 }
 
+function isPaymentOverdue(payment) {
+  if (!payment?.due_date || payment.status !== "pending") return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(payment.due_date) < today;
+}
+
+function isPaymentDueSoon(payment) {
+  if (!payment?.due_date || payment.status !== "pending" || isPaymentOverdue(payment)) {
+    return false;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(payment.due_date);
+  const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+  return diffDays <= 7;
+}
+
 function isValidEmail(value) {
   if (!value) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -611,6 +1561,8 @@ function getShareSectionForTab(tab = currentProjectTab) {
     payments: "payments",
     suggestions: "suggestions",
     updates: "updates",
+    gallery: "updates",
+    deliverables: "completion",
     completion: "completion",
     client: "all",
     overview: "all"
@@ -626,6 +1578,7 @@ function getClientSectionLabel(section = getShareSectionForTab()) {
     payments: "payments",
     suggestions: "suggestions",
     updates: "updates",
+    gallery: "gallery",
     completion: "final approval",
     all: "project workspace"
   };
@@ -634,16 +1587,598 @@ function getClientSectionLabel(section = getShareSectionForTab()) {
 
 function getProjectShareLink(project = currentProject, section = getShareSectionForTab()) {
   if (!project?.share_id) return "";
-  const url = new URL(window.location.origin);
+  const url = new URL(API_URL);
   url.searchParams.set("share", project.share_id);
   if (section && section !== "all") url.searchParams.set("section", section);
   return url.toString();
+}
+
+function getShareTokenQuery() {
+  const query = new URLSearchParams();
+  if (clientToken) query.set("token", clientToken);
+  if (clientAccessCodeValue) query.set("accessCode", clientAccessCodeValue);
+  const text = query.toString();
+  return text ? `?${text}` : "";
+}
+
+function getAgreementFormPayload() {
+  return {
+    agreementSummary: agreementSummary?.value,
+    currency: projectCurrency?.value || getProjectCurrency(),
+    agreementScope: agreementScope?.value,
+    agreementExclusions: agreementExclusions?.value,
+    agreementTimeline: agreementTimeline?.value,
+    agreementPaymentTerms: agreementPaymentTerms?.value,
+    agreementRevisionTerms: agreementRevisionTerms?.value,
+    agreementCancellationTerms: agreementCancellationTerms?.value
+  };
+}
+
+function applyTemplateToAgreement(template) {
+  if (!template) return;
+  if (projectCurrency) projectCurrency.value = getProjectCurrency(template);
+  if (agreementSummary) agreementSummary.value = template.agreement_summary || "";
+  if (agreementScope) agreementScope.value = template.agreement_scope || "";
+  if (agreementExclusions) agreementExclusions.value = template.agreement_exclusions || "";
+  if (agreementTimeline) agreementTimeline.value = template.agreement_timeline || "";
+  if (agreementPaymentTerms) agreementPaymentTerms.value = template.agreement_payment_terms || "";
+  if (agreementRevisionTerms) agreementRevisionTerms.value = template.agreement_revision_terms || "";
+  if (agreementCancellationTerms) {
+    agreementCancellationTerms.value = template.agreement_cancellation_terms || "";
+  }
+}
+
+function setAgreementLocked(isLocked) {
+  [
+    projectCurrency,
+    agreementSummary,
+    agreementScope,
+    agreementExclusions,
+    agreementTimeline,
+    agreementPaymentTerms,
+    agreementRevisionTerms,
+    agreementCancellationTerms,
+    saveAgreementBtn,
+    sendAgreementBtn,
+    applyTemplateBtn
+  ].forEach((control) => {
+    if (control) control.disabled = isLocked;
+  });
+}
+
+async function downloadFileWithAuth(url, filename, mimeType = "application/pdf") {
+  const headers = await getAuthHeaders();
+  const response = await fetch(url, { headers });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = "Could not export file.";
+    try {
+      message = JSON.parse(text)?.error || message;
+    } catch {
+      // Keep generic export message when the response is not JSON.
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const typedBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
+  const objectUrl = URL.createObjectURL(typedBlob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function buildGalleryCard(item) {
+  const card = document.createElement("a");
+  card.className = "gallery-card";
+  card.href = item.image_url || item.file_url;
+  card.target = "_blank";
+  card.rel = "noopener noreferrer";
+
+  const image = document.createElement("img");
+  image.src = item.image_url || item.file_url;
+  image.alt = item.title || "Project image";
+  image.loading = "lazy";
+
+  const body = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = item.title || "Project image";
+  const meta = document.createElement("span");
+  meta.textContent = [item.source, item.created_at && formatDateTime(item.created_at)]
+    .filter(Boolean)
+    .join(" | ");
+
+  body.appendChild(title);
+  body.appendChild(meta);
+  card.appendChild(image);
+  card.appendChild(body);
+  return card;
+}
+
+function renderGallery(container, gallery = currentGallery) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (!gallery.length) {
+    container.appendChild(buildEmptyState("No project images have been uploaded yet."));
+    return;
+  }
+
+  gallery.forEach((item) => container.appendChild(buildGalleryCard(item)));
+}
+
+function renderTemplateOptions() {
+  if (!agreementTemplateSelect) return;
+  agreementTemplateSelect.innerHTML = '<option value="">Choose a template</option>';
+  currentAgreementTemplates.forEach((template) => {
+    const option = document.createElement("option");
+    option.value = template.id;
+    option.textContent = template.name;
+    agreementTemplateSelect.appendChild(option);
+  });
 }
 
 function getOutstandingTotal(payments = currentProjectPayments) {
   return payments
     .filter((payment) => payment.status === "pending")
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+}
+
+function getProjectPhaseCopy(project) {
+  const phases = {
+    draft: ["Project setup", "Build the agreement, scope and client handoff before sending."],
+    sent: ["Client review", "The client has the agreement and can accept when ready."],
+    accepted: ["Accepted scope", "The project is commercially agreed and ready to move into delivery."],
+    in_progress: ["Delivery active", "Keep progress updates and paid changes recorded as work moves forward."],
+    awaiting_final_approval: ["Final approval", "Final work is with the client for sign-off."],
+    complete: ["Complete", "The project has a completed approval record."],
+    cancelled: ["Cancelled", "This project has been stopped and should stay archived for reference."]
+  };
+
+  return phases[project?.status || "draft"] || phases.draft;
+}
+
+function getProjectJourney(project) {
+  const status = project?.status || "draft";
+  const order = ["draft", "sent", "accepted", "in_progress", "awaiting_final_approval", "complete"];
+  const activeIndex = status === "cancelled" ? order.length : Math.max(order.indexOf(status), 0);
+
+  return [
+    ["draft", "Set up"],
+    ["sent", "Send"],
+    ["accepted", "Accept"],
+    ["in_progress", "Work"],
+    ["awaiting_final_approval", "Review"],
+    ["complete", "Complete"]
+  ].map(([key, label], index) => ({
+    key,
+    label,
+    state: status === "cancelled"
+      ? "complete"
+      : index < activeIndex
+      ? "complete"
+      : index === activeIndex
+      ? "active"
+      : "upcoming"
+  }));
+}
+
+function renderProjectJourney(project) {
+  if (!projectJourneySteps) return;
+  projectJourneySteps.innerHTML = "";
+
+  getProjectJourney(project).forEach((step) => {
+    const item = document.createElement("div");
+    item.className = `project-journey-step ${step.state}`;
+    const dot = document.createElement("span");
+    dot.setAttribute("aria-hidden", "true");
+    const label = document.createElement("strong");
+    label.textContent = step.label;
+    item.appendChild(dot);
+    item.appendChild(label);
+    projectJourneySteps.appendChild(item);
+  });
+}
+
+function getGuidedAction(project, scopeItems = [], changes = [], suggestions = [], payments = [], deliverables = []) {
+  const pendingChanges = changes.filter((change) => change.status === "pending");
+  const openSuggestions = suggestions.filter((suggestion) => suggestion.status === "suggested");
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const overduePayments = payments.filter(isPaymentOverdue);
+  const unapprovedDeliverables = deliverables.filter((item) => item.status !== "approved");
+
+  if (!project) {
+    return {
+      title: "Create a client workspace",
+      copy: "Add the project and client details first. Scopey will guide the rest from there.",
+      label: "New project",
+      type: "create"
+    };
+  }
+
+  if (!project.client_email) {
+    return {
+      title: "Add the client email",
+      copy: "Scopey needs one client email before it can prepare a smooth review handoff.",
+      label: "Open settings",
+      type: "tab",
+      tab: "overview"
+    };
+  }
+
+  if (!projectHasAgreement(project)) {
+    return {
+      title: "Draft the agreement",
+      copy: "Write the scope, payment terms, revision rules and cancellation terms before sending.",
+      label: "Open agreement",
+      type: "tab",
+      tab: "agreement"
+    };
+  }
+
+  if (!scopeItems.length) {
+    return {
+      title: "Define the included scope",
+      copy: "Add the work included in the original price so extras are easier to explain later.",
+      label: "Add scope",
+      type: "tab",
+      tab: "scope"
+    };
+  }
+
+  if (project.status === "draft") {
+    return {
+      title: "Send the project for review",
+      copy: "The agreement and scope are ready. Mark it sent, then share the client review link.",
+      label: "Mark sent",
+      type: "status",
+      status: "sent"
+    };
+  }
+
+  if (project.status === "sent" && !project.accepted_at) {
+    return {
+      title: "Share the review link",
+      copy: "The client can now review and accept the agreement from their shared page.",
+      label: "Copy link",
+      type: "copy"
+    };
+  }
+
+  if (project.status === "accepted") {
+    return {
+      title: "Start delivery",
+      copy: "The client has accepted the scope. Mark the project in progress when work begins.",
+      label: "Mark in progress",
+      type: "status",
+      status: "in_progress"
+    };
+  }
+
+  if (openSuggestions.length) {
+    return {
+      title: "Review client suggestions",
+      copy: `${openSuggestions.length} client suggestion${openSuggestions.length === 1 ? "" : "s"} need a decision.`,
+      label: "Open suggestions",
+      type: "tab",
+      tab: "suggestions"
+    };
+  }
+
+  if (overduePayments.length || pendingPayments.length) {
+    return {
+      title: overduePayments.length ? "Handle overdue payment" : "Track pending payment",
+      copy: overduePayments.length
+        ? `${overduePayments.length} payment${overduePayments.length === 1 ? "" : "s"} are overdue.`
+        : `${pendingPayments.length} project payment${pendingPayments.length === 1 ? "" : "s"} are still pending.`,
+      label: "Open payments",
+      type: "tab",
+      tab: "payments"
+    };
+  }
+
+  if (pendingChanges.length) {
+    return {
+      title: "Follow up paid changes",
+      copy: `${pendingChanges.length} change request${pendingChanges.length === 1 ? "" : "s"} are waiting for approval or payment.`,
+      label: "Open changes",
+      type: "tab",
+      tab: "changes"
+    };
+  }
+
+  if (project.status === "awaiting_final_approval") {
+    return {
+      title: "Guide final approval",
+      copy: "Final approval has been requested. Share the completion link if the client needs it.",
+      label: "Copy link",
+      type: "copy"
+    };
+  }
+
+  if (project.status === "complete") {
+    return {
+      title: "Project complete",
+      copy: "This project has a completion record and should stay archived for reference.",
+      label: "View completion",
+      type: "tab",
+      tab: "completion"
+    };
+  }
+
+  if (unapprovedDeliverables.length) {
+    return {
+      title: "Check deliverable approval",
+      copy: `${unapprovedDeliverables.length} deliverable${unapprovedDeliverables.length === 1 ? "" : "s"} still need client approval.`,
+      label: "Open deliverables",
+      type: "tab",
+      tab: "deliverables"
+    };
+  }
+
+  return {
+    title: "Share a progress update",
+    copy: "Keep the client looped in with a short update, image, or next-step note.",
+    label: "Add update",
+    type: "tab",
+    tab: "updates"
+  };
+}
+
+function renderGuidedAction(project, scopeItems, changes, suggestions, payments, deliverables) {
+  currentGuidedAction = getGuidedAction(project, scopeItems, changes, suggestions, payments, deliverables);
+  if (guidedActionTitle) guidedActionTitle.textContent = currentGuidedAction.title;
+  if (guidedActionCopy) guidedActionCopy.textContent = currentGuidedAction.copy;
+  if (guidedActionBtn) {
+    guidedActionBtn.textContent = currentGuidedAction.label;
+    guidedActionBtn.disabled = false;
+  }
+}
+
+function renderSetupWizard(project, scopeItems = [], payments = []) {
+  if (!setupWizard) return;
+
+  const agreementDone = projectHasAgreement(project);
+  const scopeDone = scopeItems.length > 0;
+  const paymentsDone = payments.length > 0;
+  const status = project?.status || "draft";
+  const clientDone = Boolean(project && (project.sent_at || project.accepted_at || status !== "draft"));
+  const activeTab = !agreementDone
+    ? "agreement"
+    : !scopeDone
+    ? "scope"
+    : status === "draft"
+    ? "client"
+    : "updates";
+
+  const stepState = {
+    agreement: agreementDone ? "complete" : activeTab === "agreement" ? "active" : "upcoming",
+    scope: scopeDone ? "complete" : activeTab === "scope" ? "active" : "upcoming",
+    payments: paymentsDone ? "complete" : "optional",
+    client: clientDone ? "complete" : activeTab === "client" ? "active" : "upcoming"
+  };
+
+  if (setupStepAgreement) {
+    setupStepAgreement.textContent = agreementDone ? "Terms saved" : "Draft terms";
+  }
+  if (setupStepScope) {
+    setupStepScope.textContent = scopeDone
+      ? `${scopeItems.length} item${scopeItems.length === 1 ? "" : "s"} added`
+      : "Add included work";
+  }
+  if (setupStepPayments) {
+    setupStepPayments.textContent = paymentsDone
+      ? `${payments.length} payment${payments.length === 1 ? "" : "s"} added`
+      : "Optional milestones";
+  }
+  if (setupStepClient) {
+    setupStepClient.textContent = clientDone ? "Client link ready" : "Preview and send";
+  }
+
+  setupWizard.querySelectorAll("[data-setup-tab]").forEach((button) => {
+    const state = stepState[button.dataset.setupTab] || "upcoming";
+    button.className = `setup-step ${state}`;
+    button.setAttribute("aria-current", state === "active" ? "step" : "false");
+  });
+}
+
+function getClientNextAction(project, changes = [], payments = [], deliverables = []) {
+  const pendingChanges = changes.filter((change) => change.status === "pending");
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const unapprovedDeliverables = deliverables.filter((item) => item.status !== "approved");
+
+  if (!projectHasAgreement(project)) {
+    return "The freelancer is still preparing the agreement.";
+  }
+
+  if (project.status === "draft") {
+    return "This project is being prepared before formal client acceptance.";
+  }
+
+  if (!project.accepted_at && project.status !== "cancelled") {
+    return "Check the agreement and accept it when everything looks correct.";
+  }
+
+  if (pendingPayments.length) {
+    return `Review and pay ${pendingPayments.length} project payment${pendingPayments.length === 1 ? "" : "s"}.`;
+  }
+
+  if (pendingChanges.length) {
+    return `Review ${pendingChanges.length} paid change request${pendingChanges.length === 1 ? "" : "s"}.`;
+  }
+
+  if (project.status === "awaiting_final_approval") {
+    return "Review the final deliverables and approve completion when ready.";
+  }
+
+  if (unapprovedDeliverables.length && project.status !== "complete") {
+    return "Review the latest deliverables and approve the files that are complete.";
+  }
+
+  if (project.status === "complete") {
+    return "This project has been completed and approved.";
+  }
+
+  if (project.status === "cancelled") {
+    return "This project has been cancelled.";
+  }
+
+  return "Follow updates here and send suggestions when something needs review.";
+}
+
+function getOwnerHandoffCopy(project, scopeItems, payments, changes, deliverables) {
+  if (!project) return "Select a project to prepare the client handoff.";
+  if (!project.client_email) return "Add the client email before sending the review link.";
+  if (!projectHasAgreement(project)) return "Write the agreement before asking the client to accept the project.";
+  if (!scopeItems.length) return "Add the original scope so the client can see what is included.";
+  if (project.status === "draft") return "Ready to send once you are happy with the agreement, scope and payment setup.";
+  return getClientNextAction(project, changes, payments, deliverables);
+}
+
+function renderHandoffPanel(project, scopeItems, changes, payments, deliverables) {
+  if (!handoffSummaryCopy) return;
+
+  const section = getShareSectionForTab();
+  const email = project?.client_email || "";
+  handoffSummaryCopy.textContent = getOwnerHandoffCopy(project, scopeItems, payments, changes, deliverables);
+
+  if (handoffStatusChip) {
+    handoffStatusChip.textContent = getProjectStatusLabel(project?.status);
+    handoffStatusChip.className = `status-chip status-${getProjectStatusKind(project?.status)}`;
+  }
+
+  if (handoffLinkScope) {
+    handoffLinkScope.textContent = getClientSectionLabel(section);
+  }
+
+  if (handoffEmailState) {
+    handoffEmailState.textContent = email || "Not saved yet";
+    handoffEmailState.title = email;
+  }
+
+  if (handoffClientAction) {
+    handoffClientAction.textContent = getClientNextAction(project, changes, payments, deliverables);
+  }
+}
+
+function buildReadinessItem(label, isComplete, detail, options = {}) {
+  const item = document.createElement("div");
+  item.className = `readiness-item ${isComplete ? "complete" : ""}`;
+
+  const marker = document.createElement("span");
+  marker.textContent = isComplete ? "Done" : "-";
+
+  const body = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = label;
+  const copy = document.createElement("p");
+  copy.textContent = detail;
+  copy.title = detail;
+  if (options.truncateDetail) copy.classList.add("truncate");
+
+  body.appendChild(strong);
+  body.appendChild(copy);
+  item.appendChild(marker);
+  item.appendChild(body);
+  return item;
+}
+
+function renderProjectCommandCentre(project, scopeItems, changes, suggestions, payments, deliverables) {
+  if (!projectPhaseName) return;
+
+  const pending = changes.filter((change) => change.status === "pending");
+  const approved = changes.filter((change) => change.status === "approved");
+  const approvedTotal = approved.reduce((sum, change) => sum + Number(change.price || 0), 0);
+  const outstandingTotal = getOutstandingTotal(payments);
+  const overdueCount = payments.filter(isPaymentOverdue).length;
+  const openSuggestions = suggestions.filter((suggestion) => suggestion.status === "suggested").length;
+  const approvedDeliverables = deliverables.filter((item) => item.status === "approved").length;
+  const [phaseTitle, phaseCopy] = getProjectPhaseCopy(project);
+
+  const checks = [
+    {
+      label: "Client email saved",
+      complete: Boolean(project.client_email),
+      detail: project.client_email || "Add the client email before sending the project.",
+      truncateDetail: Boolean(project.client_email)
+    },
+    {
+      label: "Agreement drafted",
+      complete: projectHasAgreement(project),
+      detail: projectHasAgreement(project)
+        ? "Terms are ready to share or revise."
+        : "Add scope, payment and revision terms."
+    },
+    {
+      label: "Original scope defined",
+      complete: scopeItems.length > 0,
+      detail: scopeItems.length
+        ? `${scopeItems.length} scope item${scopeItems.length === 1 ? "" : "s"} recorded.`
+        : "Add the work included in the base commission."
+    },
+    {
+      label: "Payments clean",
+      complete: overdueCount === 0,
+      detail: overdueCount
+        ? `${overdueCount} payment${overdueCount === 1 ? "" : "s"} overdue.`
+        : "No overdue project payments."
+    },
+    {
+      label: "Client suggestions reviewed",
+      complete: openSuggestions === 0,
+      detail: openSuggestions
+        ? `${openSuggestions} suggestion${openSuggestions === 1 ? "" : "s"} need a decision.`
+        : "No unreviewed suggestions."
+    },
+    {
+      label: "Deliverables controlled",
+      complete: deliverables.length === 0 || approvedDeliverables === deliverables.length,
+      detail: deliverables.length
+        ? `${approvedDeliverables} of ${deliverables.length} deliverable${deliverables.length === 1 ? "" : "s"} approved.`
+        : "Share final deliverables when delivery is ready."
+    }
+  ];
+
+  const score = Math.round(
+    (checks.filter((check) => check.complete).length / checks.length) * 100
+  );
+  const riskCopy = score >= 84 ? "Premium-ready" : score >= 58 ? "Needs attention" : "Needs setup";
+
+  projectPhaseName.textContent = phaseTitle;
+  if (projectClientBrief) projectClientBrief.textContent = phaseCopy;
+  if (projectHealthScore) projectHealthScore.textContent = `${score}%`;
+  if (projectHealthBar) projectHealthBar.style.width = `${score}%`;
+  if (projectRiskLevel) projectRiskLevel.textContent = riskCopy;
+  if (projectMoneyBrief) {
+    projectMoneyBrief.textContent = `${formatCurrency(approvedTotal)} approved extras | ${formatCurrency(outstandingTotal)} outstanding`;
+  }
+  if (projectScopeBrief) {
+    projectScopeBrief.textContent = `${scopeItems.length} included | ${pending.length} pending change${pending.length === 1 ? "" : "s"}`;
+  }
+  if (projectDeliveryBrief) {
+    projectDeliveryBrief.textContent = deliverables.length
+      ? `${approvedDeliverables}/${deliverables.length} deliverables approved`
+      : "Deliverables not shared yet";
+  }
+
+  renderProjectJourney(project);
+  renderGuidedAction(project, scopeItems, changes, suggestions, payments, deliverables);
+
+  if (projectReadinessList) {
+    projectReadinessList.innerHTML = "";
+    checks.forEach((check) => {
+      projectReadinessList.appendChild(
+        buildReadinessItem(check.label, check.complete, check.detail, {
+          truncateDetail: check.truncateDetail
+        })
+      );
+    });
+  }
 }
 
 function agreementRows(project) {
@@ -697,7 +2232,13 @@ function fillAgreementForm(project) {
 function buildPaymentRow(payment, options = {}) {
   const actions = document.createElement("div");
   actions.className = "action-stack";
-  actions.appendChild(buildStatusPill(payment.status, getPaymentStatusKind(payment.status)));
+  const statusText = isPaymentOverdue(payment)
+    ? "overdue"
+    : isPaymentDueSoon(payment)
+    ? "due soon"
+    : payment.status;
+  const statusKind = isPaymentOverdue(payment) ? "danger" : getPaymentStatusKind(payment.status);
+  actions.appendChild(buildStatusPill(statusText, statusKind));
 
   if (options.clientPay && payment.status === "pending") {
     const payBtn = document.createElement("button");
@@ -717,14 +2258,59 @@ function buildPaymentRow(payment, options = {}) {
     actions.appendChild(paidBtn);
   }
 
+  if (options.ownerControls) {
+    const invoiceBtn = document.createElement("button");
+    invoiceBtn.className = "btn btn-secondary btn-small";
+    invoiceBtn.type = "button";
+    invoiceBtn.textContent = payment.status === "paid" ? "Receipt" : "Invoice";
+    invoiceBtn.addEventListener("click", () => exportPaymentInvoice(payment, invoiceBtn));
+    actions.appendChild(invoiceBtn);
+  }
+
   const subtitleBits = [
     payment.payment_type,
     formatCurrency(payment.amount, payment.currency || getProjectCurrency()),
     payment.payment_method === "stripe" ? "Stripe" : "Manual"
   ];
+  if (payment.due_date) subtitleBits.push(`Due ${payment.due_date}`);
   if (payment.paid_at) subtitleBits.push(`Paid ${formatDateTime(payment.paid_at)}`);
 
   return buildListRow(payment.label, subtitleBits.join(" | "), actions);
+}
+
+function buildDeliverableRow(deliverable, options = {}) {
+  const actions = document.createElement("div");
+  actions.className = "action-stack";
+  actions.appendChild(
+    buildStatusPill(
+      deliverable.status || "shared",
+      deliverable.status === "approved" ? "success" : "warning"
+    )
+  );
+
+  if (options.clientApprove && deliverable.status !== "approved") {
+    const approveBtn = document.createElement("button");
+    approveBtn.className = "btn btn-primary btn-small";
+    approveBtn.type = "button";
+    approveBtn.textContent = "Approve";
+    approveBtn.addEventListener("click", () => approveDeliverable(deliverable, approveBtn));
+    actions.appendChild(approveBtn);
+  }
+
+  const details = [
+    deliverable.note,
+    deliverable.approved_at && `Approved ${formatDateTime(deliverable.approved_at)}`
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return buildCollaborationCard(
+    deliverable.title,
+    [deliverable.file_name, formatDateTime(deliverable.created_at)].filter(Boolean).join(" | "),
+    details,
+    deliverable.file_url,
+    actions
+  );
 }
 
 function applyClientSectionScope(section = clientSection) {
@@ -737,6 +2323,76 @@ function applyClientSectionScope(section = clientSection) {
 
   if (normalised !== "all") {
     showBanner(`Showing ${getClientSectionLabel(normalised)} for this project.`, "info");
+  }
+}
+
+function setClientVerificationMode(isVerifying) {
+  clientVerificationCard?.classList.toggle("hidden", !isVerifying);
+
+  document.querySelectorAll("#client-view > section").forEach((section) => {
+    if (section === clientVerificationCard) return;
+    section.classList.toggle("hidden", isVerifying);
+  });
+}
+
+function renderClientVerification(project = {}) {
+  isClientView = true;
+  currentProject = project;
+  currentProfile = null;
+  currentSuggestions = [];
+  currentUpdates = [];
+  currentProjectPayments = [];
+  currentActivity = [];
+  currentGallery = [];
+  currentDeliverables = [];
+  setClientVerificationMode(true);
+  updateAuthButtons(false);
+  setView("client");
+  if (clientAccessCode && clientAccessCodeValue) clientAccessCode.value = clientAccessCodeValue;
+}
+
+function renderClientSummary(project, scopeItems, changes, payments, deliverables) {
+  const pendingChanges = changes.filter((change) => change.status === "pending");
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const approvedDeliverables = deliverables.filter((item) => item.status === "approved");
+  const pendingChangeValue = pendingChanges.reduce(
+    (sum, change) => sum + Number(change.price || 0),
+    0
+  );
+  const pendingPaymentValue = pendingPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0
+  );
+
+  if (clientNextAction) {
+    clientNextAction.textContent = getClientNextAction(project, changes, payments, deliverables);
+  }
+
+  if (clientStatusChip) {
+    clientStatusChip.textContent = getProjectStatusLabel(project.status);
+    clientStatusChip.className = `status-chip status-${getProjectStatusKind(project.status)}`;
+  }
+
+  if (clientSummaryScope) {
+    clientSummaryScope.textContent = `${scopeItems.length} item${scopeItems.length === 1 ? "" : "s"}`;
+  }
+
+  if (clientSummaryChanges) {
+    clientSummaryChanges.textContent = pendingChanges.length
+      ? `${pendingChanges.length} | ${formatCurrency(pendingChangeValue)}`
+      : "None pending";
+  }
+
+  if (clientSummaryPayments) {
+    clientSummaryPayments.textContent = pendingPayments.length
+      ? `${pendingPayments.length} | ${formatCurrency(pendingPaymentValue)}`
+      : "None due";
+  }
+
+  if (clientSummaryDeliverables) {
+    clientSummaryDeliverables.textContent = deliverables.length
+      ? `${approvedDeliverables.length}/${deliverables.length} approved`
+      : "Not shared yet";
   }
 }
 
@@ -776,8 +2432,10 @@ function updateAccessibilityControlState() {
 }
 
 function applyTheme(theme, persist = true) {
-  document.body.classList.remove("theme-dark", "theme-high-contrast");
+  document.body.classList.remove("theme-soft", "theme-dusk", "theme-dark", "theme-high-contrast");
 
+  if (theme === "soft") document.body.classList.add("theme-soft");
+  if (theme === "dusk") document.body.classList.add("theme-dusk");
   if (theme === "dark") document.body.classList.add("theme-dark");
   if (theme === "high-contrast") document.body.classList.add("theme-high-contrast");
 
@@ -826,6 +2484,155 @@ function closeAccessibilityModal() {
   accessibilityModal?.setAttribute("aria-hidden", "true");
 }
 
+function renderLegalDocument(key = "privacy") {
+  const documentKey = LEGAL_DOCUMENTS[key] ? key : "privacy";
+  const doc = LEGAL_DOCUMENTS[documentKey];
+
+  if (legalTitle) legalTitle.textContent = doc.title;
+  if (legalUpdated) legalUpdated.textContent = doc.updated;
+  if (legalReviewNote) legalReviewNote.textContent = doc.status;
+  if (!legalContent) return;
+
+  document.querySelectorAll("[data-legal-doc]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.legalDoc === documentKey);
+  });
+
+  legalContent.innerHTML = "";
+
+  const intro = document.createElement("p");
+  intro.className = "legal-intro";
+  intro.textContent = doc.intro;
+  legalContent.appendChild(intro);
+
+  doc.sections.forEach((section) => {
+    const block = document.createElement("section");
+    block.className = "legal-section";
+
+    const heading = document.createElement("h4");
+    heading.textContent = section.heading;
+    block.appendChild(heading);
+
+    const list = document.createElement("ul");
+    section.body.forEach((item) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = item;
+      list.appendChild(listItem);
+    });
+    block.appendChild(list);
+    legalContent.appendChild(block);
+  });
+}
+
+function openLegalModal(key = "privacy") {
+  renderLegalDocument(key);
+  legalModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeLegalModal() {
+  legalModal?.setAttribute("aria-hidden", "true");
+}
+
+async function openAccountModal() {
+  try {
+    if (!currentBilling && currentUser) {
+      await loadBilling();
+    }
+    renderAccountBilling();
+    accountModal?.setAttribute("aria-hidden", "false");
+  } catch (error) {
+    console.error("Account modal error:", error);
+    showBanner(error.message || "Could not load account details.", "error");
+  }
+}
+
+function closeAccountModal() {
+  accountModal?.setAttribute("aria-hidden", "true");
+}
+
+async function openRightsModal() {
+  try {
+    if (!currentRights && currentUser) {
+      await loadRights();
+    }
+    renderRights();
+    rightsModal?.setAttribute("aria-hidden", "false");
+  } catch (error) {
+    console.error("Rights modal error:", error);
+    showBanner(error.message || "Could not open Scopey Rights.", "error");
+  }
+}
+
+function closeRightsModal() {
+  rightsModal?.setAttribute("aria-hidden", "true");
+}
+
+function getProjectDeleteLabel(project = pendingDeleteProject) {
+  return project?.title ? `"${project.title}"` : "this project";
+}
+
+function openProjectDeleteModal(project = currentProject) {
+  if (!project?.id) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  pendingDeleteProject = project;
+  if (deleteProjectName) deleteProjectName.textContent = getProjectDeleteLabel(project);
+  if (deleteProjectFinalName) deleteProjectFinalName.textContent = getProjectDeleteLabel(project);
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "true");
+  deleteProjectModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeProjectDeleteModals() {
+  deleteProjectModal?.setAttribute("aria-hidden", "true");
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "true");
+  pendingDeleteProject = null;
+  setButtonLoading(confirmDeleteProjectBtn, false, "Permanently delete");
+}
+
+function openProjectDeleteFinalModal() {
+  if (!pendingDeleteProject?.id) return;
+  if (deleteProjectFinalName) {
+    deleteProjectFinalName.textContent = getProjectDeleteLabel(pendingDeleteProject);
+  }
+  deleteProjectModal?.setAttribute("aria-hidden", "true");
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "false");
+}
+
+function openProjectActionModal(config) {
+  pendingProjectAction = config;
+  if (projectActionEyebrow) projectActionEyebrow.textContent = config.eyebrow || "Confirm action";
+  if (projectActionTitle) projectActionTitle.textContent = config.title || "Are you sure?";
+  if (projectActionCopy) projectActionCopy.textContent = config.copy || "This will update the selected project.";
+  if (confirmProjectActionBtn) {
+    confirmProjectActionBtn.textContent = config.confirmText || "Confirm";
+    confirmProjectActionBtn.className = `btn ${config.danger ? "btn-danger" : "btn-primary"}`;
+  }
+  projectActionModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeProjectActionModal() {
+  projectActionModal?.setAttribute("aria-hidden", "true");
+  pendingProjectAction = null;
+  setButtonLoading(confirmProjectActionBtn, false, "Confirm");
+}
+
+async function confirmProjectAction() {
+  if (!pendingProjectAction?.run) return;
+
+  const action = pendingProjectAction;
+  setButtonLoading(confirmProjectActionBtn, true, action.loadingText || "Working...");
+
+  try {
+    await action.run();
+    closeProjectActionModal();
+  } catch (error) {
+    console.error("Project action error:", error);
+    showBanner(error.message || "Could not update project.", "error");
+    setButtonLoading(confirmProjectActionBtn, false, action.confirmText || "Confirm");
+  }
+}
+
 // =======================
 // AUTH UI
 // =======================
@@ -848,6 +2655,8 @@ function updateAuthModeUI() {
     authSubmitBtn.textContent = isSignIn ? "Continue" : "Create account";
   }
 
+  authLegalConsentWrap?.classList.toggle("hidden", isSignIn);
+
   document.querySelectorAll("[data-auth-mode]").forEach((button) => {
     const active = button.dataset.authMode === authMode;
     button.classList.toggle("active", active);
@@ -860,6 +2669,7 @@ function openAuthModal() {
   updateAuthModeUI();
 
   if (authPasswordInput) authPasswordInput.value = "";
+  if (authLegalConsent) authLegalConsent.checked = false;
 
   authModal?.setAttribute("aria-hidden", "false");
 }
@@ -875,6 +2685,7 @@ function updateAuthButtons(isAuthed) {
     signInBtn.classList.add("hidden");
     signOutBtn.classList.add("hidden");
     dashboardBtn.classList.add("hidden");
+    accountBtn?.classList.add("hidden");
     return;
   }
 
@@ -882,10 +2693,12 @@ function updateAuthButtons(isAuthed) {
     signInBtn.classList.add("hidden");
     signOutBtn.classList.remove("hidden");
     dashboardBtn.classList.remove("hidden");
+    accountBtn?.classList.remove("hidden");
   } else {
     signInBtn.classList.remove("hidden");
     signOutBtn.classList.add("hidden");
     dashboardBtn.classList.add("hidden");
+    accountBtn?.classList.add("hidden");
   }
 }
 
@@ -925,12 +2738,31 @@ function withTimeout(promise, timeoutMs, fallbackValue) {
   ]);
 }
 
+async function recordPolicyAcceptance() {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/legal/acceptance`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      termsVersion: POLICY_VERSIONS.terms,
+      privacyVersion: POLICY_VERSIONS.privacy
+    })
+  });
+
+  return readJsonResponse(response, "Could not record policy acceptance.");
+}
+
 async function handlePasswordAuth() {
   const email = authEmailInput?.value.trim();
   const password = authPasswordInput?.value;
 
   if (!email || !password) {
     showBanner("Please enter both email and password.", "error");
+    return;
+  }
+
+  if (authMode === "signup" && !authLegalConsent?.checked) {
+    showBanner("Please agree to the Terms and Privacy Policy before creating an account.", "error");
     return;
   }
 
@@ -958,16 +2790,13 @@ async function handlePasswordAuth() {
       resetAuthLoadingState();
       closeAuthModal();
       updateAuthButtons(true);
+      setView("landing");
       showBanner(
         timedOut
-          ? "Sign-in is still syncing. Use Dashboard in a moment."
-          : "Signed in successfully.",
+          ? "Sign-in is still syncing. The Dashboard button will be ready in a moment."
+          : "Signed in. Use Dashboard when you are ready to manage projects.",
         timedOut ? "warning" : "success"
       );
-
-      if (currentUser) {
-        initOwnerView();
-      }
     } else {
       const { data, error, timedOut } = await withTimeout(
         db.auth.signUp({
@@ -985,9 +2814,20 @@ async function handlePasswordAuth() {
 
       if (data?.user && data?.session) {
         currentUser = data.user;
+        try {
+          await recordPolicyAcceptance();
+        } catch (acceptanceError) {
+          console.error("Policy acceptance record error:", acceptanceError);
+          showBanner(
+            "Account created, but Scopey could not record policy acceptance. Run the latest Supabase schema.",
+            "warning"
+          );
+        }
         updateAuthButtons(true);
-        showBanner("Account created and signed in.", "success");
-        initOwnerView();
+        setView("landing");
+        if (!bannerEl?.textContent?.includes("policy acceptance")) {
+          showBanner("Account created and signed in. Use Dashboard when you are ready.", "success");
+        }
       } else if (timedOut) {
         updateAuthButtons(hasStoredAuthSession());
         showBanner("Account request is still syncing. Try Dashboard in a moment.", "warning");
@@ -1041,12 +2881,20 @@ async function signOut() {
   currentProject = null;
   currentProjectId = null;
   currentProjects = [];
+  currentArchivedProjects = [];
   currentScopeItems = [];
   currentChanges = [];
   currentSuggestions = [];
   currentUpdates = [];
   currentProjectPayments = [];
+  currentActivity = [];
+  currentGallery = [];
+  currentAgreementTemplates = [];
+  currentAgreementVersions = [];
+  currentDeliverables = [];
   currentProfile = null;
+  currentRights = null;
+  currentGuidedAction = null;
   currentProjectTab = "overview";
   isClientView = false;
 
@@ -1109,23 +2957,63 @@ function setCurrentProjectTab(tabName) {
 
   const target = document.getElementById(`project-tab-${tabName}`);
   target?.classList.remove("hidden");
+
+  if (currentProject) {
+    renderHandoffPanel(
+      currentProject,
+      currentScopeItems,
+      currentChanges,
+      currentProjectPayments,
+      currentDeliverables
+    );
+  }
+}
+
+function executeGuidedAction() {
+  if (!currentGuidedAction) return;
+
+  if (currentGuidedAction.type === "create") {
+    setProjectCreateVisible(true, true);
+    return;
+  }
+
+  if (!currentProject && currentGuidedAction.type !== "create") {
+    showBanner("Choose a project first.", "warning");
+    return;
+  }
+
+  if (currentGuidedAction.type === "tab") {
+    setCurrentProjectTab(currentGuidedAction.tab || "overview");
+    return;
+  }
+
+  if (currentGuidedAction.type === "copy") {
+    copyShareLink();
+    return;
+  }
+
+  if (currentGuidedAction.type === "status") {
+    updateProjectStatus(currentGuidedAction.status, guidedActionBtn);
+  }
 }
 
 function renderProjectList() {
   if (!projectListEl) return;
 
   projectListEl.innerHTML = "";
+  archivedProjectListEl.innerHTML = "";
 
   if (!currentProjects.length) {
-    projectListEl.appendChild(buildEmptyState("No projects yet."));
-    return;
-  }
+    projectListEl.appendChild(buildEmptyState("No active projects."));
+  } else {
+    currentProjects.forEach((project) => {
+    const projectCard = document.createElement("div");
+    projectCard.className = "project-list-card";
 
-  currentProjects.forEach((project) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "project-list-item";
-    if (project.id === currentProjectId) {
+    if (!isCreatingProject && project.id === currentProjectId) {
       button.classList.add("active");
     }
 
@@ -1139,6 +3027,70 @@ function renderProjectList() {
       project.client_name,
       project.client_email,
       getProjectCurrency(project),
+      getProjectStatusLabel(project.status),
+      project.archived_at && "Archived"
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    button.appendChild(title);
+    button.appendChild(meta);
+
+    button.addEventListener("click", async () => {
+      currentProjectId = project.id;
+      if (projectCreateCard) projectCreateCard.dataset.userOpened = "false";
+      setProjectCreateVisible(false);
+      try {
+        await loadProject();
+      } catch (error) {
+        console.error("Project open error:", error);
+        showBanner("Could not open this project.", "error");
+      }
+    });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "project-card-delete";
+    deleteBtn.type = "button";
+    deleteBtn.setAttribute("aria-label", `Delete ${project.title}`);
+    deleteBtn.title = "Delete project";
+    deleteBtn.textContent = "×";
+    deleteBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openProjectDeleteModal(project);
+    });
+
+    projectCard.appendChild(button);
+    projectCard.appendChild(deleteBtn);
+      projectListEl.appendChild(projectCard);
+    });
+  }
+
+  if (!currentArchivedProjects.length) {
+    archivedProjectListEl?.appendChild(buildEmptyState("No archived projects."));
+    return;
+  }
+
+  currentArchivedProjects.forEach((project) => {
+    const projectCard = document.createElement("div");
+    projectCard.className = "project-list-card";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "project-list-item project-list-item-archived";
+    if (!isCreatingProject && project.id === currentProjectId) {
+      button.classList.add("active");
+    }
+
+    const title = document.createElement("div");
+    title.className = "project-list-title";
+    title.textContent = project.title;
+
+    const meta = document.createElement("div");
+    meta.className = "project-list-meta";
+    meta.textContent = [
+      project.client_name,
+      getProjectCurrency(project),
       getProjectStatusLabel(project.status)
     ]
       .filter(Boolean)
@@ -1149,15 +3101,18 @@ function renderProjectList() {
 
     button.addEventListener("click", async () => {
       currentProjectId = project.id;
+      if (projectCreateCard) projectCreateCard.dataset.userOpened = "false";
+      setProjectCreateVisible(false);
       try {
         await loadProject();
       } catch (error) {
-        console.error("Project open error:", error);
-        showBanner("Could not open this project.", "error");
+        console.error("Archived project open error:", error);
+        showBanner("Could not open this archived project.", "error");
       }
     });
 
-    projectListEl.appendChild(button);
+    projectCard.appendChild(button);
+    archivedProjectListEl?.appendChild(projectCard);
   });
 }
 
@@ -1167,6 +3122,10 @@ function renderOwnerEmptyWorkspace() {
   currentSuggestions = [];
   currentUpdates = [];
   currentProjectPayments = [];
+  currentActivity = [];
+  currentGallery = [];
+  currentAgreementVersions = [];
+  currentDeliverables = [];
 
   if (metricScopeCount) metricScopeCount.textContent = "0";
   if (metricProjectStatus) metricProjectStatus.textContent = "Draft";
@@ -1174,9 +3133,32 @@ function renderOwnerEmptyWorkspace() {
   if (metricPendingTotal) metricPendingTotal.textContent = formatCurrency(0);
   if (metricApprovedTotal) metricApprovedTotal.textContent = formatCurrency(0);
   if (metricOutstandingTotal) metricOutstandingTotal.textContent = formatCurrency(0);
+  if (projectPhaseName) projectPhaseName.textContent = "Project setup";
+  if (projectClientBrief) projectClientBrief.textContent = "Select a project to see client readiness.";
+  if (projectHealthScore) projectHealthScore.textContent = "0%";
+  if (projectHealthBar) projectHealthBar.style.width = "0%";
+  if (projectRiskLevel) projectRiskLevel.textContent = "Needs setup";
+  renderProjectJourney({ status: "draft" });
+  renderGuidedAction(null, [], [], [], [], []);
+  renderSetupWizard(null, [], []);
+  if (projectMoneyBrief) projectMoneyBrief.textContent = "No project selected";
+  if (projectScopeBrief) projectScopeBrief.textContent = "No scope items yet";
+  if (projectDeliveryBrief) projectDeliveryBrief.textContent = "No deliverables shared";
+  if (projectReadinessList) projectReadinessList.innerHTML = "";
 }
 
-function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], updates = [], payments = []) {
+function renderOwnerWorkspace(
+  project,
+  scopeItems,
+  changes,
+  suggestions = [],
+  updates = [],
+  payments = [],
+  activity = currentActivity,
+  gallery = currentGallery,
+  agreementVersions = currentAgreementVersions,
+  deliverables = currentDeliverables
+) {
   ownerEmptyState?.classList.add("hidden");
   projectWorkspace?.classList.remove("hidden");
 
@@ -1189,6 +3171,19 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
   }
   renderProfilePreview(currentProfile);
   fillAgreementForm(project);
+  setAgreementLocked(false);
+  if (editProjectTitle) editProjectTitle.value = project.title || "";
+  if (editProjectClient) editProjectClient.value = project.client_name || "";
+  if (editProjectClientEmail) editProjectClientEmail.value = project.client_email || "";
+  const projectDetailsLocked = Boolean(project.accepted_at);
+  [editProjectTitle, editProjectClient, editProjectClientEmail, saveProjectDetailsBtn].forEach(
+    (control) => {
+      if (control) control.disabled = projectDetailsLocked;
+    }
+  );
+  if (archiveProjectBtn) {
+    archiveProjectBtn.textContent = project.archived_at ? "Restore project" : "Archive project";
+  }
 
   const pending = changes.filter((change) => change.status === "pending");
   const approved = changes.filter((change) => change.status === "approved");
@@ -1204,6 +3199,8 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
     approved.reduce((sum, change) => sum + Number(change.price || 0), 0)
   );
   if (metricOutstandingTotal) metricOutstandingTotal.textContent = formatCurrency(outstandingTotal);
+  renderProjectCommandCentre(project, scopeItems, changes, suggestions, payments, deliverables);
+  renderSetupWizard(project, scopeItems, payments);
 
   overviewSummaryCopy.textContent =
     `${project.title} is ${getProjectStatusLabel(project.status).toLowerCase()} with ${pending.length} pending change request${pending.length === 1 ? "" : "s"} and ${formatCurrency(outstandingTotal)} outstanding in project payments.`;
@@ -1225,6 +3222,8 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
       ? "Add a priced change request the next time the client asks for extra work."
       : "Review pending changes and send the share link to the client.";
 
+  renderHandoffPanel(project, scopeItems, changes, payments, deliverables);
+
   overviewAttentionList.innerHTML = "";
   const attentionItems = [];
   if (!projectHasAgreement(project)) attentionItems.push(["Agreement needed", "Write project terms before sending the client link."]);
@@ -1232,7 +3231,9 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
   if (suggestions.some((suggestion) => suggestion.status === "suggested")) attentionItems.push(["Suggestions pending", "Review new client suggestions before they become scope."]);
   if (pending.length) attentionItems.push(["Change payments pending", `${pending.length} change request${pending.length === 1 ? "" : "s"} awaiting payment.`]);
   if (outstandingTotal > 0) attentionItems.push(["Project payments outstanding", `${formatCurrency(outstandingTotal)} is still pending.`]);
+  if (payments.some(isPaymentOverdue)) attentionItems.push(["Overdue payment", "At least one project payment is past its due date."]);
   if (project.status === "awaiting_final_approval") attentionItems.push(["Final approval", "The client needs to approve completion."]);
+  if (deliverables.some((item) => item.status !== "approved")) attentionItems.push(["Deliverables awaiting approval", "Final files have been shared but not all are approved."]);
   if (!attentionItems.length) attentionItems.push(["All clear", "No urgent project actions right now."]);
   attentionItems.forEach(([title, subtitle]) => overviewAttentionList.appendChild(buildListRow(title, subtitle)));
 
@@ -1255,10 +3256,10 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
     ownerClientScopeList.appendChild(buildEmptyState("No scope items available."));
   } else {
     scopeItems.forEach((item) => {
-      const row = buildListRow(item.title, `Included · ${formatCurrency(item.price)}`);
+      const row = buildListRow(item.title, `Included | ${formatCurrency(item.price)}`);
       scopeList.appendChild(row);
       ownerClientScopeList.appendChild(
-        buildListRow(item.title, `Included · ${formatCurrency(item.price)}`)
+        buildListRow(item.title, `Included | ${formatCurrency(item.price)}`)
       );
     });
   }
@@ -1271,13 +3272,13 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
       const ownerLabel = document.createElement("span");
       ownerLabel.textContent = "Awaiting payment";
       pendingList.appendChild(
-        buildListRow(change.title, `Change · ${formatCurrency(change.price)}`, ownerLabel)
+        buildListRow(change.title, `Change | ${formatCurrency(change.price)}`, ownerLabel)
       );
 
       const previewLabel = document.createElement("span");
       previewLabel.textContent = "Pay required";
       ownerClientPendingList.appendChild(
-        buildListRow(change.title, `Pending · ${formatCurrency(change.price)}`, previewLabel)
+        buildListRow(change.title, `Pending | ${formatCurrency(change.price)}`, previewLabel)
       );
     });
   }
@@ -1291,24 +3292,46 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
       ownerLabel.textContent = change.paid ? "Paid & approved" : "Approved";
 
       const subtitle = change.paid_at
-        ? `Approved · ${formatCurrency(change.price)} · Paid ${new Date(change.paid_at).toLocaleString()}`
-        : `Approved · ${formatCurrency(change.price)}`;
+        ? `Approved | ${formatCurrency(change.price)} | Paid ${new Date(change.paid_at).toLocaleString()}`
+        : `Approved | ${formatCurrency(change.price)}`;
 
       approvedList.appendChild(buildListRow(change.title, subtitle, ownerLabel));
 
       const previewLabel = document.createElement("span");
       previewLabel.textContent = "Approved";
       ownerClientApprovedList.appendChild(
-        buildListRow(change.title, `Approved · ${formatCurrency(change.price)}`, previewLabel)
+        buildListRow(change.title, `Approved | ${formatCurrency(change.price)}`, previewLabel)
       );
     });
   }
 
   renderAgreementPreview(agreementAcceptedCopy, project);
   renderAgreementPreview(ownerClientAgreementPreview, project);
+  if (agreementVersionList) {
+    agreementVersionList.innerHTML = "";
+    if (!agreementVersions.length) {
+      agreementVersionList.appendChild(buildEmptyState("No agreement versions yet."));
+    } else {
+      agreementVersions.forEach((version) => {
+        agreementVersionList.appendChild(
+          buildListRow(
+            `Version ${version.version_number}`,
+            [
+              version.status,
+              version.accepted_by_name && `Accepted by ${version.accepted_by_name}`,
+              formatDateTime(version.accepted_at || version.sent_at || version.created_at)
+            ]
+              .filter(Boolean)
+              .join(" | "),
+            buildStatusPill(version.status, version.status === "accepted" ? "success" : "neutral")
+          )
+        );
+      });
+    }
+  }
   if (agreementStatusCopy) {
     agreementStatusCopy.textContent = project.accepted_at
-      ? `Accepted by ${project.accepted_by_name || "client"} on ${formatDateTime(project.accepted_at)}.`
+      ? `Accepted by ${project.accepted_by_name || "client"} on ${formatDateTime(project.accepted_at)}. Saving changes will create a new draft revision.`
       : project.status === "sent"
       ? "Sent for client acceptance. The client can accept from the shared project page."
       : "Save the agreement, then send the client share link for acceptance.";
@@ -1425,7 +3448,7 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
   }
 
   projectTimelineList.innerHTML = "";
-  const timelineItems = [
+  const milestoneItems = [
     ["Created", project.created_at],
     ["Sent to client", project.sent_at],
     ["Agreement accepted", project.accepted_at],
@@ -1433,12 +3456,30 @@ function renderOwnerWorkspace(project, scopeItems, changes, suggestions = [], up
     ["Completed", project.completed_at],
     ["Cancelled", project.cancelled_at]
   ].filter(([, value]) => value);
-  timelineItems.forEach(([title, value]) => {
-    projectTimelineList.appendChild(buildListRow(title, formatDateTime(value)));
+  const activityItems = activity.map((item) => [
+    item.title,
+    [item.detail, formatDateTime(item.created_at)].filter(Boolean).join(" | ")
+  ]);
+  const timelineItems = [...activityItems, ...milestoneItems.map(([title, value]) => [title, formatDateTime(value)])];
+  timelineItems.forEach(([title, subtitle]) => {
+    projectTimelineList.appendChild(buildListRow(title, subtitle));
   });
   if (!timelineItems.length) {
     projectTimelineList.appendChild(buildEmptyState("No project milestones yet."));
   }
+
+  if (deliverableList) {
+    deliverableList.innerHTML = "";
+    if (!deliverables.length) {
+      deliverableList.appendChild(buildEmptyState("No final deliverables yet."));
+    } else {
+      deliverables.forEach((deliverable) => {
+        deliverableList.appendChild(buildDeliverableRow(deliverable));
+      });
+    }
+  }
+
+  renderGallery(projectGalleryList, gallery);
 
   setCurrentProjectTab(currentProjectTab);
 }
@@ -1450,15 +3491,214 @@ async function loadProfile() {
 
   currentProfile = data.profile;
   renderProfilePreview(currentProfile);
+  if (newProjectCurrency) {
+    newProjectCurrency.value = currentProfile?.default_currency || "GBP";
+  }
   return currentProfile;
+}
+
+async function loadBilling() {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/billing`, { headers });
+  currentBilling = await readJsonResponse(response, "Could not load billing.");
+  renderBilling();
+  return currentBilling;
+}
+
+async function loadRights() {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/rights`, { headers });
+    currentRights = await readJsonResponse(response, "Could not load Scopey Rights.");
+  } catch (error) {
+    console.error("Rights load error:", error);
+    currentRights = null;
+    showBanner(error.message || "Scopey Rights is not ready yet.", "warning");
+  }
+
+  renderRights();
+  return currentRights;
+}
+
+async function createRightsArtwork() {
+  const title = rightsArtworkTitle?.value.trim();
+  const description = rightsArtworkDescription?.value.trim();
+
+  if (!title) {
+    showBanner("Add an artwork title first.", "error");
+    return;
+  }
+
+  setButtonLoading(rightsCreateArtworkBtn, true, "Adding...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/rights/artworks`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title,
+        description
+      })
+    });
+
+    await readJsonResponse(response, "Could not add artwork.");
+    if (rightsArtworkTitle) rightsArtworkTitle.value = "";
+    if (rightsArtworkDescription) rightsArtworkDescription.value = "";
+    await loadRights();
+    showBanner("Artwork added to Scopey Rights.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not add artwork.", "error");
+  } finally {
+    setButtonLoading(rightsCreateArtworkBtn, false, "Add artwork");
+  }
+}
+
+async function exportRightsReport() {
+  if (!currentRights?.plan?.reportingEnabled) {
+    showUpgradePrompt("Rights CSV export is available on Pro.", "pro");
+    return;
+  }
+
+  setButtonLoading(rightsExportBtn, true, "Exporting...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/rights/report.csv`, { headers });
+
+    if (!response.ok) {
+      await readJsonResponse(response, "Could not export rights report.");
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "scopey-rights-report.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showBanner("Rights report exported.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not export rights report.", "error");
+  } finally {
+    setButtonLoading(rightsExportBtn, false, currentRights?.plan?.reportingEnabled ? "Export CSV" : "Export CSV on Pro");
+  }
+}
+
+async function startUpgradeCheckout(plan = "pro", button = null) {
+  if (!currentUser && !hasStoredAuthSession()) {
+    openAuthModal();
+    showBanner("Create your free account first, then choose a plan from the dashboard.", "info");
+    return;
+  }
+
+  const defaultText =
+    button === billingPlanCtaBtn
+      ? `Get ${plan === "business" ? "Business" : "Pro"}`
+      : plan === "business"
+      ? "Business"
+      : "Upgrade to Pro";
+  setButtonLoading(button, true, plan === "business" ? "Opening Business..." : "Opening Pro...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/billing/checkout`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ plan })
+    });
+    const data = await readJsonResponse(response, "Could not start upgrade checkout.");
+
+    if (!data.url) throw new Error("Checkout did not return a URL.");
+    window.location.href = data.url;
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not start upgrade checkout.", "error");
+  } finally {
+    setButtonLoading(button, false, defaultText);
+    renderBilling();
+  }
+}
+
+async function loadAgreementTemplates() {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/agreement-templates`, { headers });
+    const data = await readJsonResponse(response, "Could not load templates.");
+    currentAgreementTemplates = data.templates || [];
+    renderTemplateOptions();
+  } catch (error) {
+    console.error("Template load error:", error);
+    currentAgreementTemplates = [];
+    renderTemplateOptions();
+  }
+}
+
+async function saveAgreementTemplate() {
+  if (!requirePlan("pro", "Agreement templates")) return;
+
+  const name = agreementTemplateName?.value.trim();
+
+  if (!name) {
+    showBanner("Add a template name first.", "error");
+    return;
+  }
+
+  setButtonLoading(saveTemplateBtn, true, "Saving...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/agreement-templates`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name,
+        ...getAgreementFormPayload()
+      })
+    });
+
+    await readJsonResponse(response, "Could not save template.");
+    if (agreementTemplateName) agreementTemplateName.value = "";
+    await loadAgreementTemplates();
+    showBanner("Agreement template saved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not save template.", "error");
+  } finally {
+    setButtonLoading(saveTemplateBtn, false, "Save template");
+  }
+}
+
+function applySelectedTemplate() {
+  const template = currentAgreementTemplates.find(
+    (item) => item.id === agreementTemplateSelect?.value
+  );
+
+  if (!template) {
+    showBanner("Choose a template first.", "error");
+    return;
+  }
+
+  applyTemplateToAgreement(template);
+  showBanner("Template applied. Save the agreement when ready.", "success");
 }
 
 async function saveProfile() {
   const brandName = profileBrandName?.value.trim();
   const bio = profileBio?.value.trim();
+  const contactEmail = profileContactEmail?.value.trim();
 
   if (!brandName) {
     showBanner("Add a brand name first.", "error");
+    return;
+  }
+
+  if (contactEmail && !isValidEmail(contactEmail)) {
+    showBanner("Please enter a valid contact email.", "error");
     return;
   }
 
@@ -1470,7 +3710,13 @@ async function saveProfile() {
     const response = await fetch(`${API_URL}/profile`, {
       method: "PUT",
       headers,
-      body: JSON.stringify({ brandName, bio, image })
+      body: JSON.stringify({
+        brandName,
+        bio,
+        contactEmail,
+        defaultCurrency: profileDefaultCurrency?.value || "GBP",
+        image
+      })
     });
     const data = await readJsonResponse(response, "Could not save profile.");
 
@@ -1484,7 +3730,9 @@ async function saveProfile() {
         currentChanges,
         currentSuggestions,
         currentUpdates,
-        currentProjectPayments
+        currentProjectPayments,
+        currentActivity,
+        currentGallery
       );
     }
     setBusinessProfileEditing(false);
@@ -1505,24 +3753,35 @@ async function loadProjects() {
 
   const { data, error } = await db
     .from("projects")
-    .select("id,title,client_name,client_email,currency,share_id,status,created_at")
+    .select("id,title,client_name,client_email,currency,share_id,status,archived_at,created_at")
     .eq("user_id", currentUser.id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (error) throw error;
 
-  currentProjects = data || [];
+  const projects = data || [];
+  currentProjects = projects.filter(
+    (project) =>
+      !project.archived_at && !["cancelled", "complete"].includes(project.status)
+  );
+  currentArchivedProjects = projects.filter(
+    (project) =>
+      project.archived_at || ["cancelled", "complete"].includes(project.status)
+  );
   renderProjectList();
+  renderBilling();
+  syncProjectCreateVisibility();
 
-  if (!currentProjects.length) {
+  if (!currentProjects.length && !currentArchivedProjects.some((project) => project.id === currentProjectId)) {
     currentProjectId = null;
     currentProject = null;
     renderOwnerEmptyWorkspace();
     return;
   }
 
-  if (!currentProjectId || !currentProjects.some((project) => project.id === currentProjectId)) {
-    currentProjectId = currentProjects[0].id;
+  const allProjects = [...currentProjects, ...currentArchivedProjects];
+  if (!currentProjectId || !allProjects.some((project) => project.id === currentProjectId)) {
+    currentProjectId = (currentProjects[0] || currentArchivedProjects[0]).id;
   }
 }
 
@@ -1534,7 +3793,7 @@ async function loadProject() {
 
   const { data: project, error: projectError } = await db
     .from("projects")
-    .select("id,title,client_name,client_email,currency,share_id,status,agreement_summary,agreement_scope,agreement_exclusions,agreement_timeline,agreement_payment_terms,agreement_revision_terms,agreement_cancellation_terms,agreement_snapshot,sent_at,accepted_at,accepted_by_name,accepted_by_email,final_approval_requested_at,completed_at,completed_by_name,completed_by_email,cancelled_at,created_at")
+    .select("id,title,client_name,client_email,currency,share_id,status,agreement_summary,agreement_scope,agreement_exclusions,agreement_timeline,agreement_payment_terms,agreement_revision_terms,agreement_cancellation_terms,agreement_snapshot,sent_at,accepted_at,accepted_by_name,accepted_by_email,final_approval_requested_at,completed_at,completed_by_name,completed_by_email,cancelled_at,archived_at,created_at")
     .eq("id", currentProjectId)
     .single();
 
@@ -1555,7 +3814,7 @@ async function loadProject() {
 
   if (changesError) throw changesError;
 
-  let collaboration = { suggestions: [], updates: [] };
+  let collaboration = { suggestions: [], updates: [], activity: [], gallery: [] };
 
   try {
     const headers = await getAuthHeaders();
@@ -1581,6 +3840,10 @@ async function loadProject() {
   currentSuggestions = collaboration.suggestions || [];
   currentUpdates = collaboration.updates || [];
   currentProjectPayments = collaboration.projectPayments || [];
+  currentActivity = collaboration.activity || [];
+  currentGallery = collaboration.gallery || [];
+  currentAgreementVersions = collaboration.agreementVersions || [];
+  currentDeliverables = collaboration.deliverables || [];
 
   renderProjectList();
   renderOwnerWorkspace(
@@ -1589,7 +3852,11 @@ async function loadProject() {
     currentChanges,
     currentSuggestions,
     currentUpdates,
-    currentProjectPayments
+    currentProjectPayments,
+    currentActivity,
+    currentGallery,
+    currentAgreementVersions,
+    currentDeliverables
   );
 }
 
@@ -1597,7 +3864,7 @@ async function createProject() {
   const title = newProjectTitle?.value.trim();
   const clientName = newProjectClient?.value.trim();
   const clientEmail = newProjectClientEmail?.value.trim();
-  const currency = newProjectCurrency?.value || "GBP";
+  const currency = newProjectCurrency?.value || currentProfile?.default_currency || "GBP";
 
   if (!title || !clientName || !clientEmail) {
     showBanner("Please enter project name, client name and client email.", "error");
@@ -1609,32 +3876,36 @@ async function createProject() {
     return;
   }
 
+  if (isActiveProjectLimitReached()) {
+    showUpgradePrompt("Free includes one active project.", "pro");
+    return;
+  }
+
   setButtonLoading(createProjectBtn, true, "Creating...");
 
   try {
-    const { data, error } = await db
-      .from("projects")
-      .insert([
-        {
-          title,
-          client_name: clientName,
-          client_email: clientEmail,
-          currency,
-          user_id: currentUser.id,
-          share_id: crypto.randomUUID()
-        }
-      ])
-      .select("id")
-      .single();
-
-    if (error) throw error;
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/projects`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title,
+        clientName,
+        clientEmail,
+        currency
+      })
+    });
+    const data = await readJsonResponse(response, "Could not create project.");
 
     newProjectTitle.value = "";
     newProjectClient.value = "";
     newProjectClientEmail.value = "";
-    if (newProjectCurrency) newProjectCurrency.value = "GBP";
-    currentProjectId = data.id;
+    if (newProjectCurrency) newProjectCurrency.value = currentProfile?.default_currency || "GBP";
+    currentProjectId = data.project.id;
+    if (projectCreateCard) projectCreateCard.dataset.userOpened = "false";
+    setProjectCreateVisible(false);
 
+    await loadBilling();
     await loadProjects();
 
     try {
@@ -1646,9 +3917,10 @@ async function createProject() {
     }
   } catch (error) {
     console.error(error);
-    showBanner("Could not create project.", "error");
+    showBanner(error.message || "Could not create project.", "error");
   } finally {
     setButtonLoading(createProjectBtn, false, "Create project");
+    renderBilling();
   }
 }
 
@@ -1747,16 +4019,7 @@ async function saveAgreement() {
     const response = await fetch(`${API_URL}/project/${encodeURIComponent(currentProjectId)}/agreement`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify({
-        agreementSummary: agreementSummary?.value,
-        currency: projectCurrency?.value || getProjectCurrency(),
-        agreementScope: agreementScope?.value,
-        agreementExclusions: agreementExclusions?.value,
-        agreementTimeline: agreementTimeline?.value,
-        agreementPaymentTerms: agreementPaymentTerms?.value,
-        agreementRevisionTerms: agreementRevisionTerms?.value,
-        agreementCancellationTerms: agreementCancellationTerms?.value
-      })
+      body: JSON.stringify(getAgreementFormPayload())
     });
 
     await readJsonResponse(response, "Could not save agreement.");
@@ -1770,7 +4033,7 @@ async function saveAgreement() {
   }
 }
 
-async function updateProjectStatus(status, button = null) {
+async function performProjectStatusUpdate(status, button = null) {
   if (!currentProjectId) {
     showBanner("Select a project first.", "error");
     return;
@@ -1781,7 +4044,9 @@ async function updateProjectStatus(status, button = null) {
     return;
   }
 
-  setButtonLoading(button, true, "Saving...");
+  const statusLabel = getProjectStatusLabel(status);
+  setButtonLoading(button, true, `Marking ${statusLabel.toLowerCase()}...`);
+  showBanner(`Updating project to ${statusLabel.toLowerCase()}...`, "info");
 
   try {
     const headers = await getAuthHeaders();
@@ -1792,11 +4057,21 @@ async function updateProjectStatus(status, button = null) {
     });
 
     await readJsonResponse(response, "Could not update project status.");
+    if (["complete", "cancelled"].includes(status)) {
+      await loadBilling();
+      await loadProjects();
+    } else {
+      await loadProjects();
+    }
     await loadProject();
     showBanner(
       status === "sent"
         ? "Project marked sent. Use Email client to send the review link."
-        : "Project status updated.",
+        : status === "complete"
+        ? "Project marked complete and moved to archived projects."
+        : status === "cancelled"
+        ? "Project cancelled and moved to archived projects."
+        : `Project marked ${statusLabel.toLowerCase()}.`,
       "success"
     );
   } catch (error) {
@@ -1804,6 +4079,163 @@ async function updateProjectStatus(status, button = null) {
     showBanner(error.message || "Could not update project status.", "error");
   } finally {
     setButtonLoading(button, false);
+  }
+}
+
+function updateProjectStatus(status, button = null) {
+  if (status === "complete") {
+    openProjectActionModal({
+      eyebrow: "Complete project",
+      title: "Mark this project complete?",
+      copy: "This will mark the project complete and move it into archived projects.",
+      confirmText: "Mark complete",
+      loadingText: "Completing...",
+      danger: false,
+      run: () => performProjectStatusUpdate(status, button)
+    });
+    return;
+  }
+
+  if (status === "cancelled") {
+    openProjectActionModal({
+      eyebrow: "Cancel project",
+      title: "Cancel this project?",
+      copy: "This will mark the project cancelled and remove it from your active project list.",
+      confirmText: "Cancel project",
+      loadingText: "Cancelling...",
+      danger: true,
+      run: () => performProjectStatusUpdate(status, button)
+    });
+    return;
+  }
+
+  performProjectStatusUpdate(status, button);
+}
+
+async function saveProjectDetails() {
+  if (!currentProjectId) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  const title = editProjectTitle?.value.trim();
+  const clientName = editProjectClient?.value.trim();
+  const clientEmail = editProjectClientEmail?.value.trim();
+
+  if (!title || !clientName || !clientEmail) {
+    showBanner("Project name, client name and client email are required.", "error");
+    return;
+  }
+
+  if (!isValidEmail(clientEmail)) {
+    showBanner("Please enter a valid client email.", "error");
+    return;
+  }
+
+  setButtonLoading(saveProjectDetailsBtn, true, "Saving...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/project/${encodeURIComponent(currentProjectId)}/details`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        title,
+        clientName,
+        clientEmail,
+        currency: projectCurrency?.value || getProjectCurrency()
+      })
+    });
+
+    await readJsonResponse(response, "Could not save project details.");
+    await loadBilling();
+    await loadProjects();
+    await loadProject();
+    showBanner("Project details saved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not save project details.", "error");
+  } finally {
+    setButtonLoading(saveProjectDetailsBtn, false, "Save details");
+  }
+}
+
+async function performProjectArchiveToggle() {
+  if (!currentProjectId) return;
+
+  const archived = !currentProject?.archived_at;
+  setButtonLoading(archiveProjectBtn, true, archived ? "Archiving..." : "Restoring...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/project/${encodeURIComponent(currentProjectId)}/archive`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ archived })
+    });
+
+    await readJsonResponse(response, "Could not update archive state.");
+    await loadBilling();
+    await loadProjects();
+    await loadProject();
+    showBanner(archived ? "Project archived." : "Project restored.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not update archive state.", "error");
+  } finally {
+    setButtonLoading(archiveProjectBtn, false, archived ? "Archive project" : "Restore project");
+  }
+}
+
+function toggleProjectArchive() {
+  if (!currentProjectId) return;
+
+  const archived = !currentProject?.archived_at;
+
+  if (!archived) {
+    performProjectArchiveToggle();
+    return;
+  }
+
+  openProjectActionModal({
+    eyebrow: "Archive project",
+    title: "Archive this project?",
+    copy: "This removes the project from your active list. You can still open it from Archived projects.",
+    confirmText: "Archive project",
+    loadingText: "Archiving...",
+    danger: false,
+    run: performProjectArchiveToggle
+  });
+}
+
+async function deleteProject() {
+  const projectToDelete = pendingDeleteProject || currentProject;
+  if (!projectToDelete?.id) return;
+
+  setButtonLoading(confirmDeleteProjectBtn, true, "Deleting...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/project/${encodeURIComponent(projectToDelete.id)}`, {
+      method: "DELETE",
+      headers
+    });
+
+    await readJsonResponse(response, "Could not delete project.");
+    if (currentProjectId === projectToDelete.id) {
+      currentProjectId = null;
+      currentProject = null;
+    }
+    closeProjectDeleteModals();
+    await loadBilling();
+    await loadProjects();
+    if (currentProjectId) await loadProject();
+    showBanner("Project deleted.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not delete project.", "error");
+  } finally {
+    setButtonLoading(confirmDeleteProjectBtn, false, "Permanently delete");
   }
 }
 
@@ -1833,13 +4265,15 @@ async function addProjectPayment() {
         amount,
         paymentType: paymentType?.value || "custom",
         status: paymentStatus?.value || "pending",
-        paymentMethod: paymentStatus?.value === "paid" ? "manual" : "stripe"
+        paymentMethod: paymentStatus?.value === "paid" ? "manual" : "stripe",
+        dueDate: paymentDueDate?.value || null
       })
     });
 
     await readJsonResponse(response, "Could not add payment.");
     if (paymentLabel) paymentLabel.value = "";
     if (paymentAmount) paymentAmount.value = "";
+    if (paymentDueDate) paymentDueDate.value = "";
     await loadProject();
     showBanner("Payment added.", "success");
   } catch (error) {
@@ -1872,6 +4306,48 @@ async function updateProjectPayment(payment, status, button) {
   }
 }
 
+async function exportPaymentInvoice(payment, button) {
+  setButtonLoading(button, true, "Exporting...");
+
+  try {
+    await downloadFileWithAuth(
+      `${API_URL}/project-payments/${encodeURIComponent(payment.id)}/invoice`,
+      `${payment.invoice_number || `scopey-payment-${payment.id}`}.pdf`
+    );
+    await loadProject();
+    showBanner("Invoice exported.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not export invoice.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function exportAgreement() {
+  if (!currentProjectId) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  if (!requirePlan("pro", "Agreement PDF exports")) return;
+
+  setButtonLoading(exportAgreementBtn, true, "Exporting...");
+
+  try {
+    await downloadFileWithAuth(
+      `${API_URL}/project/${encodeURIComponent(currentProjectId)}/agreement-export`,
+      `${currentProject?.title || "scopey"}-agreement.pdf`
+    );
+    showBanner("Agreement exported.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not export agreement.", "error");
+  } finally {
+    setButtonLoading(exportAgreementBtn, false, "Export agreement");
+  }
+}
+
 async function copyShareLink() {
   if (!currentProject?.share_id) {
     showBanner("Select a project first.", "error");
@@ -1880,7 +4356,24 @@ async function copyShareLink() {
 
   try {
     const section = getShareSectionForTab();
-    const link = getProjectShareLink(currentProject, section);
+    let link = getProjectShareLink(currentProject, section);
+
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_URL}/project/${encodeURIComponent(currentProject.id)}/share-links`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ section })
+        }
+      );
+      const data = await readJsonResponse(response, "Could not create scoped link.");
+      link = data.link || link;
+    } catch (linkError) {
+      console.warn("Scoped link fallback:", linkError);
+    }
+
     await navigator.clipboard.writeText(link);
     showBanner(`${getClientSectionLabel(section)} link copied.`, "success");
   } catch (error) {
@@ -1889,40 +4382,87 @@ async function copyShareLink() {
   }
 }
 
-function emailClientProject() {
+function previewClientProject(event = null) {
   if (!currentProject?.share_id) {
     showBanner("Select a project first.", "error");
     return;
   }
+
+  const button = event?.target?.closest?.("button") || null;
+  const section = getShareSectionForTab();
+  const link = getProjectShareLink(currentProject, section);
+
+  if (!link) {
+    showBanner("Could not prepare the client preview link.", "error");
+    return;
+  }
+
+  window.open(link, "_blank", "noopener,noreferrer");
+  showBanner(`Opened ${getClientSectionLabel(section)} preview in a new tab.`, "success");
+
+  if (button) button.blur();
+}
+
+async function emailClientProject(event = null) {
+  if (!currentProject?.share_id) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  if (!requirePlan("pro", "Automated client emails")) return;
 
   if (!currentProject.client_email) {
     showBanner("Add a client email address before sending the project.", "error");
     return;
   }
 
-  const section = getShareSectionForTab();
-  const sectionLabel = getClientSectionLabel(section);
-  const link = getProjectShareLink(currentProject, section);
-  const subject = `Scopey ${sectionLabel} review: ${currentProject.title}`;
-  const body = [
-    `Hi ${currentProject.client_name || "there"},`,
-    "",
-    `I've shared the Scopey ${sectionLabel} for ${currentProject.title}.`,
-    "",
-    `Open it here: ${link}`,
-    "",
-    `Current status: ${getProjectStatusLabel(currentProject.status)}`,
-    "",
-    section === "all"
-      ? "You can review the agreement, scope, payments, changes, updates and final approval from that page."
-      : `This link opens the ${sectionLabel} section for this project.`,
-    "",
-    "Thanks"
-  ].join("\n");
+  const button = event?.target?.closest?.("button") || null;
+  setButtonLoading(button, true, "Preparing...");
 
-  const mailto = `mailto:${encodeURIComponent(currentProject.client_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailto;
-  showBanner("Opening email draft for the client.", "success");
+  try {
+    const section = getShareSectionForTab();
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/project/${encodeURIComponent(currentProject.id)}/send-email`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ section })
+      }
+    );
+    const data = await readJsonResponse(response, "Could not prepare client email.");
+
+    if (data.sent) {
+      await loadProject();
+      showBanner(`Client email sent to ${currentProject.client_email}.`, "success");
+    } else {
+      let copied = false;
+      if (data.link && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(data.link);
+          copied = true;
+        } catch (clipboardError) {
+          console.warn("Client link copy fallback failed:", clipboardError);
+        }
+      }
+      await loadProject();
+      showBanner(
+        data.provider === "not_configured"
+          ? copied
+            ? "Automatic email sending is not configured yet. Client review link copied instead."
+            : "Automatic email sending is not configured yet. Copy the client link manually from Client review."
+          : copied
+          ? "Client email was not sent. Client review link copied instead."
+          : "Client email was not sent. Copy the client link manually from Client review.",
+        "warning"
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not prepare client email.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 async function updateSuggestionStatus(suggestion, status, button) {
@@ -2034,14 +4574,70 @@ async function addOwnerUpdate() {
   }
 }
 
+async function addDeliverable() {
+  if (!currentProjectId) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  const title = deliverableTitle?.value.trim();
+  const note = deliverableNote?.value.trim();
+
+  if (!title) {
+    showBanner("Add a deliverable title first.", "error");
+    return;
+  }
+
+  setButtonLoading(addDeliverableBtn, true, "Adding...");
+
+  try {
+    const image = await fileToDataUrl(deliverableImage);
+
+    if (!image) {
+      showBanner("Upload a deliverable file first.", "error");
+      return;
+    }
+
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/project/${encodeURIComponent(currentProjectId)}/deliverables`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ title, note, image })
+      }
+    );
+
+    await readJsonResponse(response, "Could not add deliverable.");
+    if (deliverableTitle) deliverableTitle.value = "";
+    if (deliverableNote) deliverableNote.value = "";
+    if (deliverableImage) deliverableImage.value = "";
+    await loadProject();
+    showBanner("Deliverable added.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not add deliverable.", "error");
+  } finally {
+    setButtonLoading(addDeliverableBtn, false, "Add deliverable");
+  }
+}
+
 // =======================
 // CLIENT VIEW
 // =======================
 async function loadSharedProject() {
-  const response = await fetch(`${API_URL}/public/project/${encodeURIComponent(shareId)}`);
+  const response = await fetch(
+    `${API_URL}/public/project/${encodeURIComponent(shareId)}${getShareTokenQuery()}`
+  );
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    if (response.status === 401 && data?.requiresVerification) {
+      renderClientVerification(data.project || {});
+      showBanner("Enter the access code from your Scopey email to open this project.", "warning");
+      return;
+    }
+
     throw new Error(data?.error || "Could not load shared project.");
   }
 
@@ -2051,6 +4647,10 @@ async function loadSharedProject() {
   currentSuggestions = data.suggestions || [];
   currentUpdates = data.updates || [];
   currentProjectPayments = data.projectPayments || [];
+  currentActivity = data.activity || [];
+  currentGallery = data.gallery || [];
+  currentAgreementVersions = data.agreementVersions || [];
+  currentDeliverables = data.deliverables || [];
   renderClient(
     data.project,
     data.scopeItems,
@@ -2058,7 +4658,9 @@ async function loadSharedProject() {
     currentSuggestions,
     currentUpdates,
     currentProfile,
-    currentProjectPayments
+    currentProjectPayments,
+    currentGallery,
+    currentDeliverables
   );
   applyClientSectionScope(clientSection);
 
@@ -2077,11 +4679,15 @@ function renderClient(
   suggestions = [],
   updates = [],
   profile = currentProfile,
-  payments = []
+  payments = [],
+  gallery = currentGallery,
+  deliverables = currentDeliverables
 ) {
+  setClientVerificationMode(false);
   renderClientProfile(profile);
   clientProjectTitle.textContent = project.title;
   clientProjectSubtitle.textContent = `Client: ${project.client_name} | ${getProjectStatusLabel(project.status)} | Managed by ${getProfileName(profile)}`;
+  renderClientSummary(project, scopeItems, changes, payments, deliverables);
   renderAgreementPreview(clientAgreementPreview, project);
 
   if (clientAcceptancePanel) {
@@ -2110,13 +4716,15 @@ function renderClient(
   clientSuggestionList.innerHTML = "";
   clientUpdateList.innerHTML = "";
   clientPaymentList.innerHTML = "";
+  if (clientDeliverableList) clientDeliverableList.innerHTML = "";
+  renderGallery(clientGalleryList, gallery);
 
   if (scopeItems.length === 0) {
-    clientScopeList.appendChild(buildEmptyState("No scope items available."));
+    clientScopeList.appendChild(buildEmptyState("The original scope has not been added yet."));
   } else {
     scopeItems.forEach((item) => {
       clientScopeList.appendChild(
-        buildListRow(item.title, `Included · ${formatCurrency(item.price)}`)
+        buildListRow(item.title, `Included | ${formatCurrency(item.price)}`)
       );
     });
   }
@@ -2125,7 +4733,7 @@ function renderClient(
   const approved = changes.filter((change) => change.status === "approved");
 
   if (pending.length === 0) {
-    clientPendingList.appendChild(buildEmptyState("There are no pending changes."));
+    clientPendingList.appendChild(buildEmptyState("No paid changes are waiting for approval."));
   } else {
     pending.forEach((change) => {
       const payBtn = document.createElement("button");
@@ -2134,13 +4742,13 @@ function renderClient(
       payBtn.onclick = (event) => startPublicPayment(change, event);
 
       clientPendingList.appendChild(
-        buildListRow(change.title, `Pending · ${formatCurrency(change.price)}`, payBtn)
+        buildListRow(change.title, `Pending | ${formatCurrency(change.price)}`, payBtn)
       );
     });
   }
 
   if (payments.length === 0) {
-    clientPaymentList.appendChild(buildEmptyState("No project payments are due right now."));
+    clientPaymentList.appendChild(buildEmptyState("No deposits, milestones or balances are due right now."));
   } else {
     payments.forEach((payment) => {
       clientPaymentList.appendChild(buildPaymentRow(payment, { clientPay: true }));
@@ -2148,22 +4756,22 @@ function renderClient(
   }
 
   if (approved.length === 0) {
-    clientApprovedList.appendChild(buildEmptyState("No approved changes yet."));
+    clientApprovedList.appendChild(buildEmptyState("Approved paid changes will be recorded here."));
   } else {
     approved.forEach((change) => {
       const label = document.createElement("span");
       label.textContent = "Approved";
 
       const subtitle = change.paid_at
-        ? `Approved · ${formatCurrency(change.price)} · Paid ${new Date(change.paid_at).toLocaleString()}`
-        : `Approved · ${formatCurrency(change.price)}`;
+        ? `Approved | ${formatCurrency(change.price)} | Paid ${new Date(change.paid_at).toLocaleString()}`
+        : `Approved | ${formatCurrency(change.price)}`;
 
       clientApprovedList.appendChild(buildListRow(change.title, subtitle, label));
     });
   }
 
   if (suggestions.length === 0) {
-    clientSuggestionList.appendChild(buildEmptyState("No suggestions have been sent yet."));
+    clientSuggestionList.appendChild(buildEmptyState("Client ideas and freelancer responses will appear here."));
   } else {
     suggestions.forEach((suggestion) => {
       const details = [suggestion.details, suggestion.response_note && `Response: ${suggestion.response_note}`]
@@ -2183,7 +4791,7 @@ function renderClient(
   }
 
   if (updates.length === 0) {
-    clientUpdateList.appendChild(buildEmptyState("No shared updates yet."));
+    clientUpdateList.appendChild(buildEmptyState("Progress notes, reference images and decision updates will appear here."));
   } else {
     updates.forEach((update) => {
       const title = getUpdateTitle(update, profile);
@@ -2208,6 +4816,47 @@ function renderClient(
         : "Final approval will appear here when the project is ready for sign-off.";
   }
   clientCompletionPanel?.classList.toggle("hidden", project.status !== "awaiting_final_approval");
+
+  if (clientDeliverableList) {
+    if (!deliverables.length) {
+      clientDeliverableList.appendChild(buildEmptyState("Final files will appear here when they are ready for approval."));
+    } else {
+      deliverables.forEach((deliverable) => {
+        clientDeliverableList.appendChild(
+          buildDeliverableRow(deliverable, { clientApprove: true })
+        );
+      });
+    }
+  }
+}
+
+async function verifyClientAccess() {
+  const accessCode = clientAccessCode?.value.trim();
+
+  if (!accessCode) {
+    showBanner("Enter the access code from your email first.", "error");
+    return;
+  }
+
+  clientAccessCodeValue = accessCode;
+  if (clientToken) {
+    sessionStorage.setItem(`scopey-access-${clientToken}`, accessCode);
+  }
+
+  setButtonLoading(clientVerifyBtn, true, "Verifying...");
+
+  try {
+    await loadSharedProject();
+    showBanner("Project unlocked.", "success");
+  } catch (error) {
+    if (clientToken) sessionStorage.removeItem(`scopey-access-${clientToken}`);
+    clientAccessCodeValue = "";
+    console.error(error);
+    renderClientVerification(currentProject || {});
+    showBanner(error.message || "Could not verify this access code.", "error");
+  } finally {
+    setButtonLoading(clientVerifyBtn, false, "Verify");
+  }
 }
 
 async function startPublicPayment(change, event) {
@@ -2225,7 +4874,9 @@ async function startPublicPayment(change, event) {
       },
       body: JSON.stringify({
         shareId,
-        changeId: change.id
+        changeId: change.id,
+        section: clientSection,
+        token: clientToken
       })
     });
 
@@ -2259,7 +4910,9 @@ async function startProjectPayment(payment, event) {
       },
       body: JSON.stringify({
         shareId,
-        paymentId: payment.id
+        paymentId: payment.id,
+        section: clientSection,
+        token: clientToken
       })
     });
 
@@ -2343,6 +4996,40 @@ async function approveCompletion() {
     showBanner(error.message || "Could not approve completion.", "error");
   } finally {
     setButtonLoading(clientApproveCompletionBtn, false, "Approve completion");
+  }
+}
+
+async function approveDeliverable(deliverable, button) {
+  const clientName = clientCompleteName?.value.trim() || clientAcceptName?.value.trim();
+  const clientEmail = clientCompleteEmail?.value.trim() || clientAcceptEmail?.value.trim();
+
+  if (!clientName) {
+    showBanner("Add your name in the final approval section before approving deliverables.", "error");
+    return;
+  }
+
+  setButtonLoading(button, true, "Approving...");
+
+  try {
+    const response = await fetch(
+      `${API_URL}/public/project/${encodeURIComponent(shareId)}/deliverables/${encodeURIComponent(deliverable.id)}/approve`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ clientName, clientEmail })
+      }
+    );
+
+    await readJsonResponse(response, "Could not approve deliverable.");
+    await loadSharedProject();
+    showBanner("Deliverable approved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not approve deliverable.", "error");
+  } finally {
+    setButtonLoading(button, false, "Approve");
   }
 }
 
@@ -2437,7 +5124,10 @@ async function initOwnerView() {
     setView("owner");
     renderOwnerEmptyWorkspace();
 
+    await loadBilling();
     await loadProfile();
+    await loadRights();
+    await loadAgreementTemplates();
     await loadProjects();
 
     if (currentProjectId) {
@@ -2516,6 +5206,11 @@ async function init() {
 // =======================
 signInBtn?.addEventListener("click", openAuthModal);
 heroStartBtn?.addEventListener("click", openAuthModal);
+landingFreeBtn?.addEventListener("click", openAuthModal);
+landingProBtn?.addEventListener("click", () => startUpgradeCheckout("pro", landingProBtn));
+landingBusinessBtn?.addEventListener("click", () =>
+  startUpgradeCheckout("business", landingBusinessBtn)
+);
 closeAuthBtn?.addEventListener("click", closeAuthModal);
 
 authSubmitBtn?.addEventListener("click", handlePasswordAuth);
@@ -2523,6 +5218,7 @@ authMagicLinkBtn?.addEventListener("click", sendMagicLink);
 
 signOutBtn?.addEventListener("click", signOut);
 dashboardBtn?.addEventListener("click", openDashboard);
+accountBtn?.addEventListener("click", openAccountModal);
 
 if (signOutBtn) signOutBtn.onclick = signOut;
 if (dashboardBtn) dashboardBtn.onclick = openDashboard;
@@ -2545,15 +5241,38 @@ document.addEventListener("click", (event) => {
 accessibilityButton?.addEventListener("click", openAccessibilityModal);
 closeAccessibilityBtn?.addEventListener("click", closeAccessibilityModal);
 resetAccessibilityBtn?.addEventListener("click", resetAccessibilitySettings);
+closeLegalBtn?.addEventListener("click", closeLegalModal);
+closeAccountBtn?.addEventListener("click", closeAccountModal);
+openRightsBtn?.addEventListener("click", openRightsModal);
+closeRightsBtn?.addEventListener("click", closeRightsModal);
+
+document.querySelectorAll("[data-legal-open]").forEach((button) => {
+  button.addEventListener("click", () => openLegalModal(button.dataset.legalOpen));
+});
+
+document.querySelectorAll("[data-legal-doc]").forEach((button) => {
+  button.addEventListener("click", () => renderLegalDocument(button.dataset.legalDoc));
+});
 
 toggleProjectCreateBtn?.addEventListener("click", () => {
-  projectCreateCard?.classList.toggle("hidden");
+  const shouldShow = projectCreateCard?.classList.contains("hidden");
+  setProjectCreateVisible(Boolean(shouldShow), true);
 });
 
 copyLinkBtn?.addEventListener("click", copyShareLink);
-copyLinkBtnSecondary?.addEventListener("click", copyShareLink);
+handoffCopyLinkBtn?.addEventListener("click", copyShareLink);
+clientReviewCopyLinkBtn?.addEventListener("click", copyShareLink);
+previewClientBtn?.addEventListener("click", previewClientProject);
+clientPreviewBtn?.addEventListener("click", previewClientProject);
+clientPreviewBtnSecondary?.addEventListener("click", previewClientProject);
 emailClientBtn?.addEventListener("click", emailClientProject);
-emailClientBtnSecondary?.addEventListener("click", emailClientProject);
+handoffEmailClientBtn?.addEventListener("click", emailClientProject);
+clientReviewEmailClientBtn?.addEventListener("click", emailClientProject);
+guidedActionBtn?.addEventListener("click", executeGuidedAction);
+
+document.querySelectorAll("[data-setup-tab]").forEach((button) => {
+  button.addEventListener("click", () => setCurrentProjectTab(button.dataset.setupTab));
+});
 
 document.querySelectorAll("[data-theme-option]").forEach((button) => {
   button.addEventListener("click", () => applyTheme(button.dataset.themeOption));
@@ -2580,12 +5299,40 @@ createProjectBtn?.addEventListener("click", createProject);
 customiseProfileBtn?.addEventListener("click", () => setBusinessProfileEditing(true));
 cancelProfileBtn?.addEventListener("click", () => setBusinessProfileEditing(false));
 saveProfileBtn?.addEventListener("click", saveProfile);
+billingPlanCtaBtn?.addEventListener("click", () => {
+  const selectedPlanKey = getSelectedBillingPlanKey();
+  if (selectedPlanKey === "free" || selectedPlanKey === getCurrentPlanKey()) return;
+  startUpgradeCheckout(selectedPlanKey, billingPlanCtaBtn);
+});
+upgradeProBtn?.addEventListener("click", () => selectBillingPlan("pro"));
+upgradeBusinessBtn?.addEventListener("click", () => selectBillingPlan("business"));
+rightsCreateArtworkBtn?.addEventListener("click", createRightsArtwork);
+rightsExportBtn?.addEventListener("click", exportRightsReport);
 saveAgreementBtn?.addEventListener("click", saveAgreement);
 sendAgreementBtn?.addEventListener("click", () => updateProjectStatus("sent", sendAgreementBtn));
+applyTemplateBtn?.addEventListener("click", applySelectedTemplate);
+saveTemplateBtn?.addEventListener("click", saveAgreementTemplate);
+exportAgreementBtn?.addEventListener("click", exportAgreement);
+saveProjectDetailsBtn?.addEventListener("click", saveProjectDetails);
+archiveProjectBtn?.addEventListener("click", toggleProjectArchive);
+deleteProjectBtn?.addEventListener("click", () => openProjectDeleteModal(currentProject));
+closeDeleteProjectBtn?.addEventListener("click", closeProjectDeleteModals);
+closeDeleteProjectFinalBtn?.addEventListener("click", closeProjectDeleteModals);
+cancelDeleteProjectBtn?.addEventListener("click", closeProjectDeleteModals);
+continueDeleteProjectBtn?.addEventListener("click", openProjectDeleteFinalModal);
+closeProjectActionBtn?.addEventListener("click", closeProjectActionModal);
+cancelProjectActionBtn?.addEventListener("click", closeProjectActionModal);
+confirmProjectActionBtn?.addEventListener("click", confirmProjectAction);
+backDeleteProjectBtn?.addEventListener("click", () => {
+  deleteProjectFinalModal?.setAttribute("aria-hidden", "true");
+  deleteProjectModal?.setAttribute("aria-hidden", "false");
+});
+confirmDeleteProjectBtn?.addEventListener("click", deleteProject);
 addScopeBtn?.addEventListener("click", addScopeItem);
 addChangeBtn?.addEventListener("click", addChange);
 addPaymentBtn?.addEventListener("click", addProjectPayment);
 ownerAddUpdateBtn?.addEventListener("click", addOwnerUpdate);
+addDeliverableBtn?.addEventListener("click", addDeliverable);
 startWorkBtn?.addEventListener("click", () => updateProjectStatus("in_progress", startWorkBtn));
 requestFinalBtn?.addEventListener("click", () =>
   updateProjectStatus("awaiting_final_approval", requestFinalBtn)
@@ -2600,6 +5347,7 @@ clientAddSuggestionBtn?.addEventListener("click", submitClientSuggestion);
 clientAddUpdateBtn?.addEventListener("click", submitClientUpdate);
 clientAcceptAgreementBtn?.addEventListener("click", acceptAgreement);
 clientApproveCompletionBtn?.addEventListener("click", approveCompletion);
+clientVerifyBtn?.addEventListener("click", verifyClientAccess);
 
 db.auth.onAuthStateChange(async (event, session) => {
   currentUser = session?.user || null;
@@ -2610,10 +5358,6 @@ db.auth.onAuthStateChange(async (event, session) => {
     resetAuthLoadingState();
     closeAuthModal();
     updateAuthButtons(true);
-
-    if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
-      initOwnerView();
-    }
   } else {
     updateAuthButtons(false);
     setView("landing");
@@ -2623,6 +5367,13 @@ db.auth.onAuthStateChange(async (event, session) => {
 window.addEventListener("click", (event) => {
   if (event.target === authModal) closeAuthModal();
   if (event.target === accessibilityModal) closeAccessibilityModal();
+  if (event.target === legalModal) closeLegalModal();
+  if (event.target === accountModal) closeAccountModal();
+  if (event.target === rightsModal) closeRightsModal();
+  if (event.target === deleteProjectModal || event.target === deleteProjectFinalModal) {
+    closeProjectDeleteModals();
+  }
+  if (event.target === projectActionModal) closeProjectActionModal();
 });
 
 window.ScopeyActions = {

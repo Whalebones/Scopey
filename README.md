@@ -14,12 +14,18 @@ Required values:
 - `STRIPE_SECRET`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PRICE_ID_PRO`
-- `STRIPE_PRICE_ID_PRO_PLUS`
+- `STRIPE_PRICE_ID_BUSINESS` (or legacy `STRIPE_PRICE_ID_PRO_PLUS`)
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
 - `SUPABASE_STORAGE_BUCKET` (optional, defaults to `scopey-uploads`)
 - `FRONTEND_URL`
 - `PORT` (optional, defaults to `3000`)
+
+Optional email delivery:
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
+
+If `RESEND_API_KEY` is not set, Scopey cannot send automatic client emails. The Email client button will prepare a secure review link and copy it where browser permissions allow, but no email is sent until Resend is configured.
 
 ### 3. Add collaboration tables
 Run `supabase-schema.sql` in the Supabase SQL editor to add:
@@ -30,6 +36,10 @@ Run `supabase-schema.sql` in the Supabase SQL editor to add:
 - `project_payments` for deposits, milestones, final balances and manual/Stripe payment tracking
 - `suggestions` for client-submitted changes, inspiration and alteration requests
 - `project_updates` for freelancer progress updates and client notes
+- `agreement_templates` for reusable agreement terms
+- `project_activity` for the project timeline
+- `project_share_links` for scoped client links and revocable token foundations
+- `user_plans` for Free, Pro and Business subscription state
 
 Create a public Supabase Storage bucket named `scopey-uploads`, or set
 `SUPABASE_STORAGE_BUCKET` to another bucket name.
@@ -67,14 +77,33 @@ stripe listen --forward-to localhost:3000/webhook
 - Auth with Supabase
 - Commission tracking
 - Project lifecycle states from draft through client acceptance, final approval and completion
-- Client email capture with mail-ready project handoff links
+- Client email capture with optional provider-backed sending and mail-ready fallback links
+- Access-code protected email links for client project review
+- Project edit, archive and delete controls
 - Project agreement drafting with client acceptance snapshots
+- Locked accepted agreement snapshots with binary PDF agreement export
+- Agreement version history when accepted terms are revised
+- Reusable agreement templates
 - Project payment tracking for deposits, milestones, final balances and manual payments
+- Due-date and overdue payment indicators
+- Binary PDF invoice/receipt export for project payments
 - Client-submitted suggestions with accept, decline and revised-value flows
 - Business profiles with client-facing brand names and profile images
 - Project-level currency selection for values and Stripe checkout sessions
 - Scoped client links for agreement, scope, payments, changes, suggestions, updates or final approval
 - Shared progress/inspiration updates with image uploads
+- Final deliverables upload and client approval
+- Activity timeline and project image gallery
 - Free and paid plans with upgrade flow
 - Stripe checkout with trial support
 - Webhook-driven plan updates
+
+## Plans
+
+Scopey currently supports three plan keys:
+
+- `free`: 1 active project, basic scope/suggestions/updates and client review links
+- `pro`: unlimited active projects, automated client emails, agreement templates, PDF exports and Stripe checkout
+- `business`: Pro plus higher storage limits and room for future team/business controls
+
+Free users can still experience the core project workflow. Pro is the main solo-freelancer upgrade and is enforced by the backend for project limits, reusable templates, automated emails, PDF exports and Stripe checkout.
