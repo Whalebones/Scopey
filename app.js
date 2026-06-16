@@ -61,6 +61,8 @@ let clientAccessCodeValue =
 
 const ACCESSIBILITY_KEY = "scopey-accessibility";
 const SUPABASE_AUTH_KEY_PARTS = ["supabase", "auth", "token"];
+const API_FETCH_TIMEOUT_MS = 8000;
+const BACKGROUND_FETCH_TIMEOUT_MS = 3500;
 const SUPPORTED_CURRENCIES = [
   "GBP",
   "USD",
@@ -864,6 +866,29 @@ function getCurrentPlanName() {
   return currentBilling?.plan?.name || "Free";
 }
 
+function getFallbackBillingOverview() {
+  return {
+    plan: {
+      key: "free",
+      plan: "free",
+      name: "Free",
+      summary: "Free includes one active client project.",
+      priceLabel: "Free"
+    },
+    usage: {
+      activeProjects: getActiveProjectUsage()
+    },
+    plans: [
+      {
+        key: "free",
+        name: "Free",
+        summary: "Free includes one active client project.",
+        priceLabel: "Free"
+      }
+    ]
+  };
+}
+
 function getActiveProjectUsage() {
   return currentBilling?.usage?.activeProjects || {
     used: currentProjects.filter(
@@ -1300,7 +1325,14 @@ function getSuggestionStatusKind(status) {
 }
 
 async function getAuthHeaders() {
-  const { data, error } = await db.auth.getSession();
+  const { data, error, timedOut } = await withTimeout(
+    db.auth.getSession(),
+    2500,
+    { data: null, error: null, timedOut: true }
+  );
+  if (timedOut) {
+    throw new Error("Your session is still syncing. Please try again in a moment.");
+  }
   if (error || !data?.session?.access_token) {
     throw new Error("Your session has expired. Please sign in again.");
   }
@@ -1455,6 +1487,25 @@ async function readJsonResponse(response, fallbackMessage) {
   return data;
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = API_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: options.signal || controller.signal
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 function getProfileName(profile = currentProfile) {
   return profile?.brand_name?.trim() || "Freelancer";
 }
@@ -1495,7 +1546,8 @@ function renderProfilePreview(profile = currentProfile) {
 }
 
 function getBillingPlanDefinition(planKey) {
-  return (currentBilling?.plans || []).find((plan) => plan.key === planKey);
+  const billing = currentBilling || getFallbackBillingOverview();
+  return (billing.plans || []).find((plan) => plan.key === planKey);
 }
 
 function getSelectedBillingPlanKey() {
@@ -1518,10 +1570,11 @@ function selectBillingPlan(planKey) {
 }
 
 function renderBilling() {
+  const billing = currentBilling || getFallbackBillingOverview();
   const planKey = getCurrentPlanKey();
   const selectedPlanKey = PUBLIC_BETA_FREE_ONLY ? "free" : getSelectedBillingPlanKey();
   if (PUBLIC_BETA_FREE_ONLY) selectedBillingPlanKey = "free";
-  const selectedPlan = getBillingPlanDefinition(selectedPlanKey) || currentBilling?.plan;
+  const selectedPlan = getBillingPlanDefinition(selectedPlanKey) || billing.plan;
   const planName = selectedPlan?.name || getCurrentPlanName();
   const usage = getActiveProjectUsage();
   const limitLabel = usage.limit === null ? "Unlimited" : usage.limit;
@@ -1901,8 +1954,9 @@ function renderLaunchReadiness(setup = {}) {
 }
 
 function renderAccountBilling() {
-  if (!accountModal || !currentBilling) return;
+  if (!accountModal) return;
 
+  const billing = currentBilling || getFallbackBillingOverview();
   const planKey = getCurrentPlanKey();
   const planName = getCurrentPlanName();
   const usage = getActiveProjectUsage();
@@ -1911,7 +1965,7 @@ function renderAccountBilling() {
   if (accountPlanName) accountPlanName.textContent = planName;
   if (accountPlanCopy) {
     accountPlanCopy.textContent =
-      currentBilling.plan?.summary || "Free includes one active client project.";
+      billing.plan?.summary || "Free includes one active client project.";
   }
   if (accountProjectUsage) accountProjectUsage.textContent = `${usage.used} / ${limitLabel}`;
   if (accountProjectNote) {
@@ -1925,8 +1979,8 @@ function renderAccountBilling() {
 
   accountPlanGrid.innerHTML = "";
   const plans = PUBLIC_BETA_FREE_ONLY
-    ? (currentBilling.plans || []).filter((plan) => plan.key === "free")
-    : currentBilling.plans || [];
+    ? (billing.plans || []).filter((plan) => plan.key === "free")
+    : billing.plans || [];
 
   plans.forEach((plan) => {
     const card = document.createElement("section");
@@ -3635,12 +3689,14 @@ function closeLegalModal() {
 }
 
 async function openAccountModal() {
+  renderAccountBilling();
+  accountModal?.setAttribute("aria-hidden", "false");
+
   try {
     if (!currentBilling && currentUser) {
       await loadBilling();
     }
     renderAccountBilling();
-    accountModal?.setAttribute("aria-hidden", "false");
   } catch (error) {
     console.error("Account modal error:", error);
     showBanner(error.message || "Could not load account details.", "error");
@@ -4972,7 +5028,7 @@ function renderOwnerWorkspace(
 
 async function loadProfile() {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_URL}/profile`, { headers });
+  const response = await fetchWithTimeout(`${API_URL}/profile`, { headers });
   const data = await readJsonResponse(response, "Could not load profile.");
 
   currentProfile = data.profile;
@@ -4985,7 +5041,7 @@ async function loadProfile() {
 
 async function loadBilling() {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_URL}/billing`, { headers });
+  const response = await fetchWithTimeout(`${API_URL}/billing`, { headers });
   currentBilling = await readJsonResponse(response, "Could not load billing.");
   renderBilling();
   return currentBilling;
@@ -5000,7 +5056,11 @@ async function loadAdminReadiness({ silent = false } = {}) {
 
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/admin/readiness`, { headers });
+    const response = await fetchWithTimeout(
+      `${API_URL}/admin/readiness`,
+      { headers },
+      BACKGROUND_FETCH_TIMEOUT_MS
+    );
 
     if (response.status === 403 || response.status === 404) {
       currentAdminReadiness = null;
@@ -5025,7 +5085,11 @@ async function loadAdminReadiness({ silent = false } = {}) {
 async function loadRights() {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/rights`, { headers });
+    const response = await fetchWithTimeout(
+      `${API_URL}/rights`,
+      { headers },
+      BACKGROUND_FETCH_TIMEOUT_MS
+    );
     currentRights = await readJsonResponse(response, "Could not load Scopey Rights.");
   } catch (error) {
     console.error("Rights load error:", error);
@@ -5223,7 +5287,11 @@ async function startUpgradeCheckout(plan = "pro", button = null) {
 async function loadAgreementTemplates() {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/agreement-templates`, { headers });
+    const response = await fetchWithTimeout(
+      `${API_URL}/agreement-templates`,
+      { headers },
+      BACKGROUND_FETCH_TIMEOUT_MS
+    );
     const data = await readJsonResponse(response, "Could not load templates.");
     currentAgreementTemplates = data.templates || [];
     renderTemplateOptions();
@@ -5414,9 +5482,10 @@ async function loadProject() {
 
   try {
     const headers = await getAuthHeaders();
-    const collaborationResponse = await fetch(
+    const collaborationResponse = await fetchWithTimeout(
       `${API_URL}/project/${encodeURIComponent(currentProjectId)}/collaboration`,
-      { headers }
+      { headers },
+      BACKGROUND_FETCH_TIMEOUT_MS
     );
     collaboration = await readJsonResponse(
       collaborationResponse,
@@ -6845,12 +6914,36 @@ async function initOwnerView() {
     setView("owner");
     renderOwnerEmptyWorkspace();
 
-    await loadBilling();
-    await loadAdminReadiness({ silent: true });
-    await loadProfile();
-    await loadRights();
-    await loadAgreementTemplates();
-    await loadProjects();
+    const [billingResult, profileResult, templatesResult, projectsResult] =
+      await Promise.allSettled([
+        loadBilling(),
+        loadProfile(),
+        loadAgreementTemplates(),
+        loadProjects()
+      ]);
+
+    if (billingResult.status === "rejected") {
+      console.error("Billing load error:", billingResult.reason);
+      renderBilling();
+    }
+
+    if (profileResult.status === "rejected") {
+      console.error("Profile load error:", profileResult.reason);
+      renderProfilePreview(currentProfile);
+    }
+
+    if (templatesResult.status === "rejected") {
+      console.error("Template load error:", templatesResult.reason);
+      currentAgreementTemplates = [];
+      renderTemplateOptions();
+    }
+
+    if (projectsResult.status === "rejected") {
+      throw projectsResult.reason;
+    }
+
+    void loadAdminReadiness({ silent: true });
+    void loadRights();
 
     if (currentProjectId) {
       await loadProject();
@@ -6920,7 +7013,7 @@ async function init() {
   }
 
   currentUser = data.session.user;
-  await loadAdminReadiness({ silent: true });
+  void loadAdminReadiness({ silent: true });
   updateAuthButtons(true);
   setView("landing");
 }
@@ -7097,7 +7190,7 @@ db.auth.onAuthStateChange(async (event, session) => {
   if (currentUser) {
     resetAuthLoadingState();
     closeAuthModal();
-    await loadAdminReadiness({ silent: true });
+    void loadAdminReadiness({ silent: true });
     updateAuthButtons(true);
   } else {
     currentAdminReadiness = null;
