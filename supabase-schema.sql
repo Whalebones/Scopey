@@ -213,6 +213,22 @@ alter table public.content_reports
   add column if not exists reviewed_at timestamptz,
   add column if not exists updated_at timestamptz not null default now();
 
+create table if not exists public.beta_feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  project_id uuid references public.projects(id) on delete set null,
+  share_id text,
+  reporter_role text not null default 'visitor'
+    check (reporter_role in ('freelancer', 'client', 'visitor')),
+  reporter_email text,
+  category text not null default 'general'
+    check (category in ('general', 'confusing', 'bug', 'client_flow', 'feature', 'pricing')),
+  message text not null,
+  page_url text,
+  context jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.project_payments (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects(id) on delete cascade,
@@ -489,6 +505,15 @@ create index if not exists content_reports_project_id_created_at_idx
 create index if not exists content_reports_project_id_status_idx
   on public.content_reports(project_id, status);
 
+create index if not exists beta_feedback_created_at_idx
+  on public.beta_feedback(created_at desc);
+
+create index if not exists beta_feedback_project_id_created_at_idx
+  on public.beta_feedback(project_id, created_at desc);
+
+create index if not exists beta_feedback_user_id_created_at_idx
+  on public.beta_feedback(user_id, created_at desc);
+
 create index if not exists project_payments_project_id_created_at_idx
   on public.project_payments(project_id, created_at desc);
 
@@ -549,6 +574,7 @@ alter table public.project_share_links enable row level security;
 alter table public.project_agreement_versions enable row level security;
 alter table public.project_deliverables enable row level security;
 alter table public.content_reports enable row level security;
+alter table public.beta_feedback enable row level security;
 alter table public.rights_artworks enable row level security;
 alter table public.rights_licenses enable row level security;
 

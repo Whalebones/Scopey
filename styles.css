@@ -1549,6 +1549,39 @@ body.theme-dark .profile-avatar{
   line-height:1.15;
 }
 
+.client-attention-list{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:16px;
+}
+
+.client-attention-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  padding:8px 10px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:rgba(255,255,255,0.72);
+}
+
+.client-attention-item span{
+  color:var(--accent-600);
+  font-size:.72rem;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+.client-attention-item strong{
+  margin:0;
+  font-size:.86rem;
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+
 .client-guidance-grid{
   grid-template-columns:repeat(3,minmax(0,1fr));
 }
@@ -1567,7 +1600,8 @@ body.theme-dark .profile-avatar{
 
 body.theme-dark .handoff-grid div,
 body.theme-dark .client-summary-grid div,
-body.theme-dark .client-guidance-grid div{
+body.theme-dark .client-guidance-grid div,
+body.theme-dark .client-attention-item{
   background:#191a1d;
   border-color:rgba(255,255,255,0.08);
 }
@@ -1654,6 +1688,54 @@ body.theme-dark .status-chip{
   margin:0;
   font-size:2rem;
   line-height:1.1;
+}
+
+.first-run-steps{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  width:100%;
+  margin-top:22px;
+}
+
+.first-run-steps div{
+  min-width:0;
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface);
+  text-align:left;
+}
+
+.first-run-steps span{
+  width:30px;
+  height:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+  background:var(--accent);
+  color:#fff;
+  font-weight:800;
+  margin-bottom:10px;
+}
+
+.first-run-steps strong{
+  display:block;
+  color:var(--text);
+  line-height:1.25;
+}
+
+.first-run-steps p{
+  margin:7px 0 0;
+  color:var(--muted);
+  font-size:.9rem;
+  line-height:1.45;
+}
+
+body.theme-dark .first-run-steps div{
+  background:#191a1d;
+  border-color:rgba(255,255,255,0.08);
 }
 
 /* =========================
@@ -3016,6 +3098,10 @@ body.theme-dark .danger-panel h3{
   max-width:980px;
 }
 
+.feedback-panel{
+  max-width:680px;
+}
+
 .developer-diagnostics-readiness{
   display:grid;
   gap:16px;
@@ -3328,6 +3414,8 @@ body.theme-soft .guided-action,
 body.theme-soft .handoff-grid div,
 body.theme-soft .client-summary-grid div,
 body.theme-soft .client-guidance-grid div,
+body.theme-soft .client-attention-item,
+body.theme-soft .first-run-steps div,
 body.theme-soft .account-summary-tile,
 body.theme-soft .developer-diagnostics-readiness,
 body.theme-soft .account-plan-card{
@@ -3454,6 +3542,8 @@ body.theme-dusk .guided-action,
 body.theme-dusk .handoff-grid div,
 body.theme-dusk .client-summary-grid div,
 body.theme-dusk .client-guidance-grid div,
+body.theme-dusk .client-attention-item,
+body.theme-dusk .first-run-steps div,
 body.theme-dusk .list-item,
 body.theme-dusk .agreement-row,
 body.theme-dusk .project-list-item,
@@ -3586,6 +3676,10 @@ body.theme-dusk .footer-links button:hover{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 
+  .first-run-steps{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
   .guided-action{
     grid-template-columns:1fr;
   }
@@ -3701,6 +3795,7 @@ body.theme-dusk .footer-links button:hover{
   .handoff-readiness-list,
   .client-summary-grid,
   .client-guidance-grid,
+  .first-run-steps,
   .client-action-card{
     grid-template-columns:1fr;
   }

@@ -46,6 +46,7 @@ It includes:
 - `agreement_templates` for reusable agreement terms
 - `project_activity` for the project timeline
 - `project_share_links` for scoped client links and revocable token foundations
+- `content_reports` and `beta_feedback` for policy reports and public beta feedback
 - `user_plans` for Free, Pro and Business subscription state
 
 Create a public Supabase Storage bucket named `scopey-uploads`, or set
@@ -91,6 +92,7 @@ stripe listen --forward-to localhost:3000/webhook
 - Project lifecycle states from draft through client acceptance, final approval and completion
 - Client email capture with optional provider-backed sending and mail-ready fallback links
 - Access-code protected email links for client project review
+- Public beta feedback capture from the landing page, dashboard and client view
 - Project edit, archive and delete controls
 - Project agreement drafting with client acceptance snapshots
 - Locked accepted agreement snapshots with binary PDF agreement export
