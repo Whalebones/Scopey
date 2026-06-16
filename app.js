@@ -5,6 +5,7 @@ const SUPABASE_KEY = "sb_publishable_TVcQqAhasEthm_LoHFjmYw_OUbo3i5v";
 const API_URL =
   window.SCOPEY_API_URL ||
   (window.location.port === "5500" ? "http://localhost:3000" : window.location.origin);
+const APP_URL = window.SCOPEY_PUBLIC_URL || window.location.origin;
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -769,6 +770,10 @@ function startHeroRotator() {
 // =======================
 function getProjectCurrency(project = currentProject) {
   return SUPPORTED_CURRENCIES.includes(project?.currency) ? project.currency : "GBP";
+}
+
+function getAppUrl(path = "/") {
+  return new URL(path, APP_URL).toString();
 }
 
 function formatCurrency(value, currency = getProjectCurrency()) {
@@ -2066,7 +2071,7 @@ function getClientSectionLabel(section = getShareSectionForTab()) {
 
 function getProjectShareLink(project = currentProject, section = getShareSectionForTab()) {
   if (!project?.share_id) return "";
-  const url = new URL(API_URL);
+  const url = new URL(getAppUrl());
   url.searchParams.set("share", project.share_id);
   if (section && section !== "all") url.searchParams.set("section", section);
   return url.toString();
@@ -4012,7 +4017,7 @@ async function sendMagicLink() {
     const { error } = await db.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin
+        emailRedirectTo: getAppUrl()
       }
     });
 
@@ -4058,7 +4063,7 @@ async function signOut() {
   updateAuthButtons(false);
   setView("landing");
   showBanner("Signed out.", "success");
-  window.history.replaceState({}, "", window.location.origin);
+  window.history.replaceState({}, "", getAppUrl());
 
   try {
     const { error } = await Promise.race([

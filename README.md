@@ -11,10 +11,11 @@ npm install
 Copy `.env.example` to `.env` and update the values with your keys.
 
 Required values:
-- `STRIPE_SECRET`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_ID_PRO`
-- `STRIPE_PRICE_ID_BUSINESS` (or legacy `STRIPE_PRICE_ID_PRO_PLUS`)
+- `PAID_PLANS_ENABLED` (`false` while Scopey is in public beta)
+- `STRIPE_SECRET` (required when `PAID_PLANS_ENABLED=true`)
+- `STRIPE_WEBHOOK_SECRET` (required when `PAID_PLANS_ENABLED=true`)
+- `STRIPE_PRICE_ID_PRO` (required when `PAID_PLANS_ENABLED=true`)
+- `STRIPE_PRICE_ID_BUSINESS` (or legacy `STRIPE_PRICE_ID_PRO_PLUS`, required when `PAID_PLANS_ENABLED=true`)
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
 - `SUPABASE_STORAGE_BUCKET` (optional, defaults to `scopey-uploads`)
@@ -74,8 +75,12 @@ stripe listen --forward-to localhost:3000/webhook
 
 ## Production tips
 
-- Deploy the frontend on HTTPS.
-- Set `FRONTEND_URL` to your production domain.
+- Set `FRONTEND_URL=http://www.scopey.co.uk` so generated client links, email links and checkout redirects use the public site.
+- Add `http://www.scopey.co.uk`, `http://scopey.co.uk`, `https://www.scopey.co.uk` and `https://scopey.co.uk` to Supabase Auth URL settings while DNS/SSL settles.
+- In Supabase, set the Site URL to `http://www.scopey.co.uk` and add the same variants as redirect URLs.
+- Keep `PAID_PLANS_ENABLED=false` until Pro and Business checkout is ready to sell publicly.
+- Point the bare domain to the same app or redirect it to `www.scopey.co.uk` in your hosting/DNS provider.
+- Deploy HTTPS when available, then update `FRONTEND_URL` to `https://www.scopey.co.uk`.
 - Keep `SUPABASE_SERVICE_KEY` and Stripe secrets out of source control.
 
 ## Features

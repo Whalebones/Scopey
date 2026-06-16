@@ -50,7 +50,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const FRONTEND_URL = process.env.FRONTEND_URL;
+const PRODUCTION_FRONTEND_ORIGINS = [
+  "http://www.scopey.co.uk",
+  "http://scopey.co.uk",
+  "https://www.scopey.co.uk",
+  "https://scopey.co.uk"
+];
+const LOCAL_FRONTEND_ORIGINS = [
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080"
+];
+const FRONTEND_URL = normalisePublicUrl(process.env.FRONTEND_URL);
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "scopey-uploads";
 const PORT = Number(process.env.PORT || 3000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 600);
@@ -66,20 +80,14 @@ const FRONTEND_ASSETS = new Set([
   "scopey-logo.svg",
   "scopey-logo-dark.svg"
 ]);
-const ALLOWED_ORIGINS = [
-  FRONTEND_URL,
-  "http://localhost:5500",
-  "http://127.0.0.1:5500",
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-  "http://localhost:8080",
-  "http://127.0.0.1:8080"
-].concat(
-  (process.env.ADDITIONAL_CORS_ORIGINS || "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-);
+const ALLOWED_ORIGINS = Array.from(
+  new Set([
+    getUrlOrigin(FRONTEND_URL),
+    ...PRODUCTION_FRONTEND_ORIGINS,
+    ...LOCAL_FRONTEND_ORIGINS,
+    ...parseCorsOrigins(process.env.ADDITIONAL_CORS_ORIGINS)
+  ])
+).filter(Boolean);
 
 const PROJECT_SELECT = [
   "id",
@@ -291,6 +299,29 @@ app.use(
 // =======================
 // HELPERS
 // =======================
+function normalisePublicUrl(value) {
+  const url = new URL(value);
+  url.hash = "";
+  url.search = "";
+  url.pathname = url.pathname.replace(/\/+$/, "");
+  return url.pathname ? url.toString().replace(/\/$/, "") : url.origin;
+}
+
+function getUrlOrigin(value) {
+  try {
+    return new URL(value).origin;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function parseCorsOrigins(value = "") {
+  return value
+    .split(",")
+    .map((origin) => getUrlOrigin(origin.trim()))
+    .filter(Boolean);
+}
+
 async function getUserFromRequest(req) {
   const token = req.headers.authorization?.replace("Bearer ", "");
 
