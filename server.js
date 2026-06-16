@@ -22,13 +22,16 @@ import {
 // =======================
 // ENV CHECK
 // =======================
+const PAID_PLANS_ENABLED = process.env.PAID_PLANS_ENABLED === "true";
 const requiredEnv = [
-  "STRIPE_SECRET",
-  "STRIPE_WEBHOOK_SECRET",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_KEY",
   "FRONTEND_URL"
 ];
+
+if (PAID_PLANS_ENABLED) {
+  requiredEnv.push("STRIPE_SECRET", "STRIPE_WEBHOOK_SECRET");
+}
 
 const missing = requiredEnv.filter((key) => !process.env[key]);
 if (missing.length) {
@@ -39,8 +42,9 @@ if (missing.length) {
 // SETUP
 // =======================
 const app = express();
+app.disable("x-powered-by");
 
-const stripe = new Stripe(process.env.STRIPE_SECRET);
+const stripe = new Stripe(process.env.STRIPE_SECRET || "sk_test_placeholder");
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -51,6 +55,7 @@ const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "scopey-uploads";
 const PORT = Number(process.env.PORT || 3000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 600);
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const FRONTEND_ASSETS = new Set([
   "app.js",
   "styles.css",
@@ -69,7 +74,12 @@ const ALLOWED_ORIGINS = [
   "http://127.0.0.1:3000",
   "http://localhost:8080",
   "http://127.0.0.1:8080"
-];
+].concat(
+  (process.env.ADDITIONAL_CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 const PROJECT_SELECT = [
   "id",
@@ -146,6 +156,8 @@ const RIGHTS_ARTWORK_SELECT =
   "id,owner_id,title,description,image_ref,source_commission_id,created_at,updated_at";
 const RIGHTS_LICENSE_SELECT =
   "id,artwork_id,client_name,usage_type,territory,exclusive,fee,currency,start_date,end_date,notes,acknowledged_conflict,conflict_snapshot,created_at,updated_at";
+const CONTENT_REPORT_SELECT =
+  "id,project_id,source_type,source_id,reporter_role,reporter_email,reason,details,status,reviewer_note,reviewed_by,created_at,reviewed_at,updated_at";
 const EMAIL_FROM = process.env.EMAIL_FROM || "Scopey <hello@scopey.local>";
 const SUPPORTED_CURRENCIES = new Set([
   "GBP",
@@ -177,7 +189,7 @@ const PLAN_DEFINITIONS = {
       unlimitedProjects: false,
       agreementTemplates: false,
       brandedExports: false,
-      automatedClientEmails: false,
+      automatedClientEmails: true,
       stripeCheckout: false,
       removeScopeyBranding: false
     }
@@ -237,6 +249,14 @@ const POLICY_VERSIONS = {
 // =======================
 app.use("/webhook", bodyParser.raw({ type: "application/json" }));
 app.use(express.json({ limit: "8mb" }));
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  next();
+});
 
 app.use(
   cors({
@@ -383,11 +403,32 @@ async function countActiveProjects(userId) {
   return count || 0;
 }
 
+async function getStorageSetupStatus() {
+  try {
+    const { data, error } = await supabase.storage.getBucket(STORAGE_BUCKET);
+    if (error) throw error;
+    return { configured: Boolean(data?.name), bucket: STORAGE_BUCKET };
+  } catch (error) {
+    console.warn("Storage setup lookup fallback:", error.message);
+    return { configured: false, bucket: STORAGE_BUCKET };
+  }
+}
+
 async function getBillingOverview(user) {
   const planRecord = await getUserPlan(user.id);
   const planKey = normalisePlanKey(planRecord.plan);
   const plan = PLAN_DEFINITIONS[planKey];
   const activeProjects = await countActiveProjects(user.id);
+  const storageSetup = await getStorageSetupStatus();
+  const stripeBillingConfigured =
+    PAID_PLANS_ENABLED &&
+    !hasPlaceholderStripeValue(process.env.STRIPE_SECRET) &&
+    !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.pro) &&
+    !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.business);
+  const webhookConfigured = !hasPlaceholderStripeValue(process.env.STRIPE_WEBHOOK_SECRET);
+  const emailConfigured = !hasPlaceholderStripeValue(process.env.RESEND_API_KEY);
+  const frontendPublicConfigured =
+    Boolean(FRONTEND_URL) && !/localhost|127\.0\.0\.1/i.test(FRONTEND_URL);
 
   return {
     plan: {
@@ -400,13 +441,20 @@ async function getBillingOverview(user) {
         limit: plan.limits.activeProjects
       }
     },
-    plans: PLAN_ORDER.map((key) => publicPlanDefinition(PLAN_DEFINITIONS[key])),
+    plans: (PAID_PLANS_ENABLED ? PLAN_ORDER : ["free"]).map((key) =>
+      publicPlanDefinition(PLAN_DEFINITIONS[key])
+    ),
     setup: {
-      stripeBillingConfigured:
-        !hasPlaceholderStripeValue(process.env.STRIPE_SECRET) &&
-        !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.pro) &&
-        !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.business),
-      emailConfigured: !hasPlaceholderStripeValue(process.env.RESEND_API_KEY)
+      paidPlansEnabled: PAID_PLANS_ENABLED,
+      stripeBillingConfigured,
+      webhookConfigured,
+      emailConfigured,
+      storageConfigured: storageSetup.configured,
+      storageBucket: storageSetup.bucket,
+      frontendPublicConfigured,
+      legalDraftsPresent: true,
+      reportReviewEnabled: true,
+      pdfExportsEnabled: true
     }
   };
 }
@@ -433,8 +481,9 @@ async function assertProjectLimit(userId) {
   const activeProjects = await countActiveProjects(userId);
   if (activeProjects >= limit) {
     const err = createPlanRequiredError("Unlimited active projects", "pro");
-    err.message =
-      "Free includes 1 active project. Upgrade to Pro to run multiple client projects.";
+    err.message = PAID_PLANS_ENABLED
+      ? "Free includes 1 active project. Upgrade to Pro to run multiple client projects."
+      : "Free beta includes 1 active project. Complete, archive, cancel or delete an active project to create another.";
     err.usage = { activeProjects, limit };
     throw err;
   }
@@ -481,7 +530,9 @@ async function assertRightsLicenseLimit(userId) {
   const licenseCount = await countRightsLicenses(userId);
   if (licenseCount >= limit) {
     const err = createPlanRequiredError("Unlimited rights licences", "pro");
-    err.message = `Free includes ${limit} rights licences. Upgrade to Pro for unlimited licence tracking.`;
+    err.message = PAID_PLANS_ENABLED
+      ? `Free includes ${limit} rights licences. Upgrade to Pro for unlimited licence tracking.`
+      : `Free beta includes ${limit} rights licences. Paid plan upgrades are coming soon.`;
     err.usage = { rightsLicenses: licenseCount, limit };
     throw err;
   }
@@ -741,6 +792,59 @@ async function validateShareToken(projectId, token, accessCode = null) {
   return data;
 }
 
+async function hasActiveShareLinks(projectId) {
+  const { count, error } = await supabase
+    .from("project_share_links")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .is("revoked_at", null);
+
+  if (error) throw error;
+  return (count || 0) > 0;
+}
+
+function getPublicAccessCredentials(req) {
+  return {
+    token: req.body?.token ? String(req.body.token) : req.query.token ? String(req.query.token) : null,
+    accessCode: req.body?.accessCode
+      ? String(req.body.accessCode).trim()
+      : req.body?.access_code
+      ? String(req.body.access_code).trim()
+      : req.query.accessCode
+      ? String(req.query.accessCode).trim()
+      : null
+  };
+}
+
+async function validatePublicActionAccess(req, project, allowedSections = []) {
+  const { token, accessCode } = getPublicAccessCredentials(req);
+
+  if (!token) {
+    const err = new Error("Use the secure client link before sending updates or approvals.");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const shareLink = await validateShareToken(project.id, token, accessCode);
+  if (!shareLink) {
+    const err = new Error("Use the secure client link before sending updates or approvals.");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  if (
+    allowedSections.length > 0 &&
+    shareLink.section !== "all" &&
+    !allowedSections.includes(shareLink.section)
+  ) {
+    const err = new Error("This client link is not valid for that action.");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return shareLink;
+}
+
 async function getOwnedSuggestion(suggestionId, user) {
   const { data: suggestion, error } = await supabase
     .from("suggestions")
@@ -756,6 +860,128 @@ async function getOwnedSuggestion(suggestionId, user) {
 
   const project = await getOwnedProject(suggestion.project_id, user);
   return { suggestion, project };
+}
+
+function normaliseContentReportValue(value, allowed, fallback) {
+  return allowed.has(value) ? value : fallback;
+}
+
+function contentReportPayload(body = {}, fallbackRole = "freelancer") {
+  const sourceTypes = new Set([
+    "suggestion",
+    "update",
+    "deliverable",
+    "gallery",
+    "project",
+    "rights_artwork",
+    "rights_license"
+  ]);
+  const roles = new Set(["client", "freelancer", "visitor"]);
+  const reasons = new Set(["copyright", "privacy", "abuse", "illegal", "policy", "other"]);
+  const details = body?.details?.trim?.() || "";
+
+  if (!details) {
+    const err = new Error("Report details are required");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return {
+    source_type: normaliseContentReportValue(
+      body?.sourceType || body?.source_type,
+      sourceTypes,
+      "project"
+    ),
+    source_id: body?.sourceId || body?.source_id || null,
+    reporter_role: normaliseContentReportValue(
+      body?.reporterRole || body?.reporter_role || fallbackRole,
+      roles,
+      fallbackRole
+    ),
+    reporter_email: body?.reporterEmail?.trim?.() || body?.reporter_email?.trim?.() || null,
+    reason: normaliseContentReportValue(body?.reason, reasons, "policy"),
+    details: details.slice(0, 2000),
+    status: "open"
+  };
+}
+
+function normaliseContentReportStatus(status) {
+  const allowed = new Set(["open", "reviewed", "dismissed", "resolved"]);
+  return allowed.has(status) ? status : "reviewed";
+}
+
+async function getAuthUserEmail(userId) {
+  if (!userId) return null;
+
+  try {
+    const { data, error } = await supabase.auth.admin.getUserById(userId);
+    if (error) throw error;
+    return data?.user?.email || null;
+  } catch (error) {
+    console.warn("User email lookup fallback:", error.message);
+    return null;
+  }
+}
+
+function buildContentReportNotificationEmail({ project, profile, report }) {
+  const brandName = profile.brand_name || "Scopey";
+  return {
+    subject: `New Scopey report for "${project.title}"`,
+    text: [
+      `Hi ${brandName},`,
+      "",
+      `A client submitted a ${report.reason} report on "${project.title}".`,
+      "",
+      `Reported item: ${report.source_type}`,
+      report.reporter_email ? `Reporter email: ${report.reporter_email}` : "",
+      "",
+      "Report details:",
+      report.details,
+      "",
+      "Open Scopey and review this from the project Reports tab.",
+      "",
+      "Thanks,",
+      "Scopey"
+    ]
+      .filter((line) => line !== "")
+      .join("\n")
+  };
+}
+
+async function notifyOwnerOfContentReport(project, report) {
+  const profile = await getProfileForUser(project.user_id);
+  const to = profile.contact_email || (await getAuthUserEmail(project.user_id));
+
+  if (!to) {
+    return { sent: false, provider: "missing_owner_email" };
+  }
+
+  const email = buildContentReportNotificationEmail({ project, profile, report });
+  return sendEmail({
+    to,
+    subject: email.subject,
+    text: email.text
+  });
+}
+
+async function getContentReports(projectId) {
+  const { data, error } = await supabase
+    .from("content_reports")
+    .select(CONTENT_REPORT_SELECT)
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function getOptionalContentReports(projectId) {
+  try {
+    return await getContentReports(projectId);
+  } catch (error) {
+    console.warn("Content reports lookup fallback:", error.message);
+    return [];
+  }
 }
 
 async function getCollaborationForProject(projectId) {
@@ -778,6 +1004,7 @@ async function getCollaborationForProject(projectId) {
   const activity = await getOptionalProjectActivity(projectId);
   const agreementVersions = await getOptionalAgreementVersions(projectId);
   const deliverables = await getOptionalProjectDeliverables(projectId);
+  const reports = await getOptionalContentReports(projectId);
 
   return {
     suggestions: suggestions || [],
@@ -785,6 +1012,7 @@ async function getCollaborationForProject(projectId) {
     activity,
     agreementVersions,
     deliverables,
+    reports,
     gallery: buildProjectGallery(updates || [], suggestions || [], deliverables)
   };
 }
@@ -800,6 +1028,7 @@ async function getOptionalCollaborationForProject(projectId) {
       activity: [],
       agreementVersions: [],
       deliverables: [],
+      reports: [],
       gallery: [],
       collaboration_warning: error.message
     };
@@ -1350,7 +1579,7 @@ function buildAgreementSnapshot(project) {
     agreement_payment_terms: project.agreement_payment_terms || "",
     agreement_revision_terms: project.agreement_revision_terms || "",
     agreement_cancellation_terms: project.agreement_cancellation_terms || "",
-    accepted_at: new Date().toISOString()
+    accepted_at: project.accepted_at || null
   };
 }
 
@@ -1402,6 +1631,12 @@ function normaliseImagePayload(image) {
   const contentType = match[1];
   const base64 = match[2];
   const buffer = Buffer.from(base64, "base64");
+
+  if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
+    const err = new Error("Images must be JPG, PNG or WebP files");
+    err.statusCode = 400;
+    throw err;
+  }
 
   if (!buffer.length || buffer.length > 5 * 1024 * 1024) {
     const err = new Error("Image must be smaller than 5MB");
@@ -1557,6 +1792,12 @@ app.get("/billing", async (req, res) => {
 
 app.post("/billing/checkout", async (req, res) => {
   try {
+    if (!PAID_PLANS_ENABLED) {
+      return res.status(503).json({
+        error: "Paid plans are coming soon. Scopey is free during public beta."
+      });
+    }
+
     const user = await getUserFromRequest(req);
     const requestedPlan = normalisePlanKey(req.body?.plan);
 
@@ -2070,6 +2311,11 @@ app.get("/public/project/:shareId", async (req, res) => {
 
     try {
       shareLink = await validateShareToken(project.id, token, accessCode);
+      if (!shareLink && (await hasActiveShareLinks(project.id))) {
+        const err = new Error("Use the latest secure client link for this project.");
+        err.statusCode = 401;
+        throw err;
+      }
     } catch (error) {
       if (error.requiresVerification) {
         return res.status(401).json({
@@ -2102,6 +2348,8 @@ app.get("/public/project/:shareId", async (req, res) => {
     if (changesError) throw changesError;
 
     const collaboration = await getOptionalCollaborationForProject(project.id);
+    const publicCollaboration = { ...collaboration };
+    delete publicCollaboration.reports;
     const profile = await getProfileForUser(project.user_id);
     const projectPayments = await getOptionalProjectPayments(project.id);
 
@@ -2112,7 +2360,7 @@ app.get("/public/project/:shareId", async (req, res) => {
       changes: changes || [],
       projectPayments,
       shareLink,
-      ...collaboration
+      ...publicCollaboration
     });
   } catch (error) {
     console.error("Public project load error:", error.message);
@@ -2139,6 +2387,84 @@ app.get("/project/:projectId/collaboration", async (req, res) => {
     res
       .status(error.statusCode || 500)
       .json({ error: error.message || "Could not load collaboration" });
+  }
+});
+
+app.post("/project/:projectId/reports", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const { projectId } = req.params;
+    const project = await getOwnedProject(projectId, user);
+    const payload = contentReportPayload(req.body, "freelancer");
+
+    const { data, error } = await supabase
+      .from("content_reports")
+      .insert([{ project_id: project.id, ...payload }])
+      .select(CONTENT_REPORT_SELECT)
+      .single();
+
+    if (error) throw error;
+
+    await recordProjectActivity(project.id, {
+      actorRole: "freelancer",
+      eventType: "content_report_created",
+      title: "Content report created",
+      detail: `${payload.reason} report added for ${payload.source_type}.`,
+      metadata: { report_id: data.id, source_type: payload.source_type, source_id: payload.source_id }
+    });
+
+    res.status(201).json({ report: data });
+  } catch (error) {
+    console.error("Owner content report error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not create content report" });
+  }
+});
+
+app.patch("/project/:projectId/reports/:reportId", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const { projectId, reportId } = req.params;
+    const project = await getOwnedProject(projectId, user);
+    const status = normaliseContentReportStatus(req.body?.status);
+    const reviewerNote = req.body?.reviewerNote?.trim?.() || req.body?.reviewer_note?.trim?.() || null;
+    const reviewedAt = status === "open" ? null : new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("content_reports")
+      .update({
+        status,
+        reviewer_note: reviewerNote,
+        reviewed_by: status === "open" ? null : user.id,
+        reviewed_at: reviewedAt,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", reportId)
+      .eq("project_id", project.id)
+      .select(CONTENT_REPORT_SELECT)
+      .single();
+
+    if (error || !data) {
+      const err = new Error("Report not found");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    await recordProjectActivity(project.id, {
+      actorRole: "freelancer",
+      eventType: "content_report_reviewed",
+      title: "Content report updated",
+      detail: `Report marked ${status}.`,
+      metadata: { report_id: data.id, status, source_type: data.source_type }
+    });
+
+    res.json({ report: data });
+  } catch (error) {
+    console.error("Report review error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not update report" });
   }
 });
 
@@ -2288,7 +2614,6 @@ app.post("/project/:projectId/share-links", async (req, res) => {
 app.post("/project/:projectId/send-email", async (req, res) => {
   try {
     const user = await getUserFromRequest(req);
-    await assertPlan(user.id, "pro", "Automated client email");
     const { projectId } = req.params;
     const { section } = req.body;
     const project = await getOwnedProject(projectId, user);
@@ -2477,6 +2802,10 @@ app.patch("/project/:projectId/agreement", async (req, res) => {
       .single();
 
     if (error) throw error;
+    await createAgreementVersion(data, {
+      status: "draft",
+      agreement_snapshot: buildAgreementSnapshot(data)
+    });
     await recordProjectActivity(project.id, {
       actorRole: "freelancer",
       eventType: "agreement_saved",
@@ -2892,10 +3221,58 @@ app.post("/suggestions/:suggestionId/create-change", async (req, res) => {
 // =======================
 // PUBLIC CLIENT COLLABORATION
 // =======================
+app.post("/public/project/:shareId/reports", async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    const project = await getSharedProject(shareId);
+    await validatePublicActionAccess(req, project);
+    const payload = contentReportPayload(req.body, "client");
+
+    const { data, error } = await supabase
+      .from("content_reports")
+      .insert([{ project_id: project.id, ...payload, reporter_role: "client" }])
+      .select(CONTENT_REPORT_SELECT)
+      .single();
+
+    if (error) throw error;
+
+    let notification = { sent: false, provider: "not_attempted" };
+    try {
+      notification = await notifyOwnerOfContentReport(project, data);
+    } catch (notificationError) {
+      console.warn("Content report notification fallback:", notificationError.message);
+      notification = { sent: false, provider: "failed" };
+    }
+
+    await recordProjectActivity(project.id, {
+      actorRole: "client",
+      eventType: "content_report_created",
+      title: "Client reported content",
+      detail: `${payload.reason} report added for ${payload.source_type}.`,
+      metadata: {
+        report_id: data.id,
+        source_type: payload.source_type,
+        source_id: payload.source_id,
+        notification_provider: notification.provider,
+        notification_sent: Boolean(notification.sent)
+      }
+    });
+
+    res.status(201).json({ report: data, notification });
+  } catch (error) {
+    console.error("Public content report error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not send report" });
+  }
+});
+
 app.post("/public/project/:shareId/suggestions", async (req, res) => {
   try {
     const { shareId } = req.params;
     const { title, details, proposedPrice, image } = req.body;
+    const project = await getSharedProject(shareId);
+    await validatePublicActionAccess(req, project, ["suggestions"]);
 
     if (!title?.trim()) {
       return res.status(400).json({ error: "Suggestion title is required" });
@@ -2910,7 +3287,6 @@ app.post("/public/project/:shareId/suggestions", async (req, res) => {
       return res.status(400).json({ error: "Enter a valid suggested value" });
     }
 
-    const project = await getSharedProject(shareId);
     const upload = await uploadProjectImage(project.id, "client", image);
 
     const { data, error } = await supabase
@@ -2950,12 +3326,13 @@ app.post("/public/project/:shareId/updates", async (req, res) => {
   try {
     const { shareId } = req.params;
     const { message, image } = req.body;
+    const project = await getSharedProject(shareId);
+    await validatePublicActionAccess(req, project, ["updates"]);
 
     if (!message?.trim() && !image?.dataUrl) {
       return res.status(400).json({ error: "Add a note or image first" });
     }
 
-    const project = await getSharedProject(shareId);
     const upload = await uploadProjectImage(project.id, "client", image);
 
     const { data, error } = await supabase
@@ -2994,6 +3371,7 @@ app.post("/public/project/:shareId/accept-agreement", async (req, res) => {
     const { shareId } = req.params;
     const { clientName, clientEmail } = req.body;
     const project = await getSharedProject(shareId);
+    await validatePublicActionAccess(req, project, ["agreement"]);
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Client name is required" });
@@ -3048,6 +3426,7 @@ app.post("/public/project/:shareId/approve-completion", async (req, res) => {
     const { shareId } = req.params;
     const { clientName, clientEmail } = req.body;
     const project = await getSharedProject(shareId);
+    await validatePublicActionAccess(req, project, ["completion"]);
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Client name is required" });
@@ -3057,13 +3436,15 @@ app.post("/public/project/:shareId/approve-completion", async (req, res) => {
       return res.status(400).json({ error: "This project is not awaiting final approval" });
     }
 
+    const completedAt = new Date().toISOString();
     const { data, error } = await supabase
       .from("projects")
       .update({
         status: "complete",
-        completed_at: new Date().toISOString(),
+        completed_at: completedAt,
         completed_by_name: clientName.trim(),
-        completed_by_email: clientEmail?.trim() || null
+        completed_by_email: clientEmail?.trim() || null,
+        archived_at: completedAt
       })
       .eq("id", project.id)
       .select(PUBLIC_PROJECT_SELECT)
@@ -3091,6 +3472,7 @@ app.post("/public/project/:shareId/deliverables/:deliverableId/approve", async (
     const { shareId, deliverableId } = req.params;
     const { clientName, clientEmail } = req.body;
     const project = await getSharedProject(shareId);
+    await validatePublicActionAccess(req, project, ["completion"]);
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Client name is required" });
@@ -3204,6 +3586,7 @@ app.post("/public/create-change-checkout", async (req, res) => {
     }
 
     const { project, change } = await getSharedChange(shareId, changeId);
+    await validatePublicActionAccess(req, project, ["changes"]);
     await assertPlan(project.user_id, "pro", "Stripe checkout for paid changes");
 
     if (change.status === "approved" || change.paid) {
@@ -3256,6 +3639,7 @@ app.post("/public/create-project-payment-checkout", async (req, res) => {
     }
 
     const { project, payment } = await getSharedProjectPayment(shareId, paymentId);
+    await validatePublicActionAccess(req, project, ["payments"]);
     await assertPlan(project.user_id, "pro", "Stripe checkout for project payments");
 
     if (payment.status === "paid") {

@@ -2,6 +2,53 @@
 -- Run this in the Supabase SQL editor, then create a public storage bucket
 -- named `scopey-uploads` or set SUPABASE_STORAGE_BUCKET to your chosen name.
 
+create extension if not exists pgcrypto;
+
+create table if not exists public.projects (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  title text,
+  client_name text,
+  created_at timestamp without time zone default now(),
+  share_id text
+);
+
+create table if not exists public.scope_items (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references public.projects(id) on delete cascade,
+  title text,
+  price numeric
+);
+
+create table if not exists public.changes (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references public.projects(id) on delete cascade,
+  title text,
+  price numeric,
+  status text default 'pending'::text,
+  created_at timestamp without time zone default now(),
+  updated_at timestamp without time zone default now(),
+  updated_by text,
+  paid boolean default false,
+  paid_at timestamptz
+);
+
+create table if not exists public.processed_events (
+  id text primary key,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.change_payments (
+  id uuid primary key default gen_random_uuid(),
+  change_id uuid references public.changes(id) on delete cascade,
+  amount numeric not null,
+  stripe_session_id text not null,
+  created_at timestamptz default now()
+);
+
+alter table public.processed_events
+  add column if not exists created_at timestamptz not null default now();
+
 alter table public.scope_items
   add column if not exists created_at timestamptz not null default now();
 
@@ -138,6 +185,33 @@ create table if not exists public.project_updates (
   image_name text,
   created_at timestamptz not null default now()
 );
+
+create table if not exists public.content_reports (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  source_type text not null
+    check (source_type in ('suggestion', 'update', 'deliverable', 'gallery', 'project', 'rights_artwork', 'rights_license')),
+  source_id uuid,
+  reporter_role text not null
+    check (reporter_role in ('client', 'freelancer', 'visitor')),
+  reporter_email text,
+  reason text not null default 'policy'
+    check (reason in ('copyright', 'privacy', 'abuse', 'illegal', 'policy', 'other')),
+  details text not null,
+  status text not null default 'open'
+    check (status in ('open', 'reviewed', 'dismissed', 'resolved')),
+  reviewer_note text,
+  reviewed_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.content_reports
+  add column if not exists reviewer_note text,
+  add column if not exists reviewed_by uuid references auth.users(id) on delete set null,
+  add column if not exists reviewed_at timestamptz,
+  add column if not exists updated_at timestamptz not null default now();
 
 create table if not exists public.project_payments (
   id uuid primary key default gen_random_uuid(),
@@ -290,6 +364,14 @@ alter table public.rights_licenses
 
 do $$
 begin
+  alter table public.projects
+    drop constraint if exists projects_user_id_fkey;
+  alter table public.projects
+    add constraint projects_user_id_fkey
+    foreign key (user_id)
+    references auth.users(id)
+    on delete cascade;
+
   alter table public.scope_items
     drop constraint if exists scope_items_project_id_fkey;
   alter table public.scope_items
@@ -326,6 +408,14 @@ begin
     drop constraint if exists project_updates_project_id_fkey;
   alter table public.project_updates
     add constraint project_updates_project_id_fkey
+    foreign key (project_id)
+    references public.projects(id)
+    on delete cascade;
+
+  alter table public.content_reports
+    drop constraint if exists content_reports_project_id_fkey;
+  alter table public.content_reports
+    add constraint content_reports_project_id_fkey
     foreign key (project_id)
     references public.projects(id)
     on delete cascade;
@@ -393,6 +483,12 @@ create index if not exists suggestions_project_id_created_at_idx
 create index if not exists project_updates_project_id_created_at_idx
   on public.project_updates(project_id, created_at desc);
 
+create index if not exists content_reports_project_id_created_at_idx
+  on public.content_reports(project_id, created_at desc);
+
+create index if not exists content_reports_project_id_status_idx
+  on public.content_reports(project_id, status);
+
 create index if not exists project_payments_project_id_created_at_idx
   on public.project_payments(project_id, created_at desc);
 
@@ -426,6 +522,24 @@ create index if not exists rights_artworks_source_commission_id_idx
 create index if not exists rights_licenses_artwork_id_start_date_idx
   on public.rights_licenses(artwork_id, start_date desc);
 
+create index if not exists projects_user_id_created_at_idx
+  on public.projects(user_id, created_at desc);
+
+create unique index if not exists projects_share_id_unique_idx
+  on public.projects(share_id)
+  where share_id is not null;
+
+create index if not exists scope_items_project_id_created_at_idx
+  on public.scope_items(project_id, created_at desc);
+
+create index if not exists changes_project_id_created_at_idx
+  on public.changes(project_id, created_at desc);
+
+alter table public.projects enable row level security;
+alter table public.scope_items enable row level security;
+alter table public.changes enable row level security;
+alter table public.change_payments enable row level security;
+alter table public.processed_events enable row level security;
 alter table public.freelancer_profiles enable row level security;
 alter table public.user_plans enable row level security;
 alter table public.policy_acceptances enable row level security;
@@ -434,11 +548,99 @@ alter table public.project_activity enable row level security;
 alter table public.project_share_links enable row level security;
 alter table public.project_agreement_versions enable row level security;
 alter table public.project_deliverables enable row level security;
+alter table public.content_reports enable row level security;
 alter table public.rights_artworks enable row level security;
 alter table public.rights_licenses enable row level security;
 
 do $$
 begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'projects'
+      and policyname = 'Users can manage their own projects'
+  ) then
+    create policy "Users can manage their own projects"
+      on public.projects
+      for all
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'scope_items'
+      and policyname = 'Users can manage scope items for their projects'
+  ) then
+    create policy "Users can manage scope items for their projects"
+      on public.scope_items
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = scope_items.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = scope_items.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'changes'
+      and policyname = 'Users can manage changes for their projects'
+  ) then
+    create policy "Users can manage changes for their projects"
+      on public.changes
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = changes.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = changes.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'change_payments'
+      and policyname = 'Users can read payments for their changes'
+  ) then
+    create policy "Users can read payments for their changes"
+      on public.change_payments
+      for select
+      using (
+        exists (
+          select 1
+          from public.changes
+          join public.projects on projects.id = changes.project_id
+          where changes.id = change_payments.change_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'
@@ -536,6 +738,33 @@ begin
       for all
       using (auth.uid() = user_id)
       with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'content_reports'
+      and policyname = 'Users can manage reports for their projects'
+  ) then
+    create policy "Users can manage reports for their projects"
+      on public.content_reports
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = content_reports.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = content_reports.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
   end if;
 
   if not exists (
