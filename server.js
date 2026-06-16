@@ -1381,6 +1381,86 @@ async function getProjectPayments(projectId) {
   return data || [];
 }
 
+async function getProjectPaymentSafety(projectId) {
+  const [payments, changesResult, deliverablesResult] = await Promise.all([
+    getProjectPayments(projectId),
+    supabase
+      .from("changes")
+      .select("id,title,price,status,paid")
+      .eq("project_id", projectId)
+      .eq("status", "pending"),
+    supabase
+      .from("project_deliverables")
+      .select("id")
+      .eq("project_id", projectId)
+  ]);
+
+  if (changesResult.error) throw changesResult.error;
+  if (deliverablesResult.error) throw deliverablesResult.error;
+
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const pendingDeposits = pendingPayments.filter(
+    (payment) => payment.payment_type === "deposit"
+  );
+
+  return {
+    pendingDeposits,
+    pendingPayments,
+    pendingChanges: changesResult.data || [],
+    deliverables: deliverablesResult.data || []
+  };
+}
+
+function createProjectSafetyError(message, safety) {
+  const err = new Error(message);
+  err.statusCode = 409;
+  err.safety = {
+    pendingDeposits: safety.pendingDeposits.length,
+    pendingPayments: safety.pendingPayments.length,
+    pendingChanges: safety.pendingChanges.length,
+    deliverables: safety.deliverables.length
+  };
+  return err;
+}
+
+async function assertProjectPaymentSafety(projectId, status) {
+  if (!["in_progress", "awaiting_final_approval", "complete"].includes(status)) {
+    return;
+  }
+
+  const safety = await getProjectPaymentSafety(projectId);
+
+  if (status === "in_progress" && safety.pendingDeposits.length) {
+    throw createProjectSafetyError(
+      "Deposit payment must be marked paid before work can move in progress.",
+      safety
+    );
+  }
+
+  if (["awaiting_final_approval", "complete"].includes(status)) {
+    if (safety.pendingPayments.length) {
+      throw createProjectSafetyError(
+        "All project payments must be paid or cancelled before final approval.",
+        safety
+      );
+    }
+
+    if (safety.pendingChanges.length) {
+      throw createProjectSafetyError(
+        "Pending paid changes must be approved, paid, revised or declined before final approval.",
+        safety
+      );
+    }
+
+    if (!safety.deliverables.length) {
+      throw createProjectSafetyError(
+        "Add at least one final deliverable before final approval.",
+        safety
+      );
+    }
+  }
+}
+
 async function getPublicProjectPayments(projectId) {
   const { data, error } = await supabase
     .from("project_payments")
@@ -3311,6 +3391,8 @@ app.patch("/project/:projectId/status", async (req, res) => {
       });
     }
 
+    await assertProjectPaymentSafety(project.id, status);
+
     const update = { status };
 
     if (status === "sent") {
@@ -3358,7 +3440,10 @@ app.patch("/project/:projectId/status", async (req, res) => {
     console.error("Project status update error:", error.message);
     res
       .status(error.statusCode || 500)
-      .json({ error: error.message || "Could not update project status" });
+      .json({
+        error: error.message || "Could not update project status",
+        safety: error.safety
+      });
   }
 });
 
@@ -3898,6 +3983,8 @@ app.post("/public/project/:shareId/approve-completion", async (req, res) => {
       return res.status(400).json({ error: "This project is not awaiting final approval" });
     }
 
+    await assertProjectPaymentSafety(project.id, "complete");
+
     const completedAt = new Date().toISOString();
     const { data, error } = await supabase
       .from("projects")
@@ -3925,7 +4012,10 @@ app.post("/public/project/:shareId/approve-completion", async (req, res) => {
     console.error("Completion approval error:", error.message);
     res
       .status(error.statusCode || 500)
-      .json({ error: error.message || "Could not approve completion" });
+      .json({
+        error: error.message || "Could not approve completion",
+        safety: error.safety
+      });
   }
 });
 

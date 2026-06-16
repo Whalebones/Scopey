@@ -2326,6 +2326,43 @@ function getOutstandingTotal(payments = currentProjectPayments) {
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 }
 
+function getPendingProjectPayments(payments = currentProjectPayments) {
+  return payments.filter((payment) => payment.status === "pending");
+}
+
+function getPendingDepositPayments(payments = currentProjectPayments) {
+  return getPendingProjectPayments(payments).filter(
+    (payment) => payment.payment_type === "deposit"
+  );
+}
+
+function getPendingPaidChanges(changes = currentChanges) {
+  return changes.filter((change) => change.status === "pending");
+}
+
+function getLifecyclePaymentBlockers(status, changes = currentChanges, payments = currentProjectPayments, deliverables = currentDeliverables) {
+  if (status === "in_progress") {
+    const pendingDeposits = getPendingDepositPayments(payments);
+    return pendingDeposits.length
+      ? [
+          {
+            label: "Deposit payment pending",
+            detail: `${pendingDeposits.length} deposit payment${pendingDeposits.length === 1 ? "" : "s"} must be paid before work starts.`,
+            tab: "payments"
+          }
+        ]
+      : [];
+  }
+
+  if (["awaiting_final_approval", "complete"].includes(status)) {
+    return getCompletionChecks(currentProject, changes, payments, deliverables).filter(
+      (check) => check.blocking && !check.complete
+    );
+  }
+
+  return [];
+}
+
 function getProjectPhaseCopy(project) {
   const phases = {
     draft: ["Project setup", "Build the agreement, scope and client handoff before sending."],
@@ -2385,7 +2422,8 @@ function renderProjectJourney(project) {
 function getGuidedAction(project, scopeItems = [], changes = [], suggestions = [], payments = [], deliverables = []) {
   const pendingChanges = changes.filter((change) => change.status === "pending");
   const openSuggestions = suggestions.filter((suggestion) => suggestion.status === "suggested");
-  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const pendingPayments = getPendingProjectPayments(payments);
+  const pendingDeposits = getPendingDepositPayments(payments);
   const overduePayments = payments.filter(isPaymentOverdue);
   const unapprovedDeliverables = deliverables.filter((item) => item.status !== "approved");
   const openReports = currentContentReports.filter((report) => report.status === "open");
@@ -2459,6 +2497,16 @@ function getGuidedAction(project, scopeItems = [], changes = [], suggestions = [
   }
 
   if (project.status === "accepted") {
+    if (pendingDeposits.length) {
+      return {
+        title: "Collect the deposit",
+        copy: `${pendingDeposits.length} deposit payment${pendingDeposits.length === 1 ? "" : "s"} must be paid before work moves in progress.`,
+        label: "Open payments",
+        type: "tab",
+        tab: "payments"
+      };
+    }
+
     return {
       title: "Start delivery",
       copy: "The client has accepted the scope. Mark the project in progress when work begins.",
@@ -2773,8 +2821,8 @@ function renderHandoffPanel(project, scopeItems, changes, payments, deliverables
 }
 
 function getCompletionChecks(project, changes = [], payments = [], deliverables = []) {
-  const pendingChanges = changes.filter((change) => change.status === "pending");
-  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const pendingChanges = getPendingPaidChanges(changes);
+  const pendingPayments = getPendingProjectPayments(payments);
   const openReports = currentContentReports.filter((report) => report.status === "open");
   const accepted = Boolean(
     project?.accepted_at ||
@@ -2859,13 +2907,19 @@ function renderCompletionReadiness(project, changes, payments, deliverables) {
   }
 
   if (completeProjectBtn) {
-    completeProjectBtn.textContent = project?.status === "awaiting_final_approval"
+    completeProjectBtn.textContent = blockers.length
+      ? "Finish before closing"
+      : project?.status === "awaiting_final_approval"
       ? "Complete without client"
       : "Mark complete";
     completeProjectBtn.disabled = ["complete", "cancelled"].includes(project?.status);
   }
 
   if (startWorkBtn) {
+    const startBlockers = getLifecyclePaymentBlockers("in_progress", changes, payments, deliverables);
+    startWorkBtn.textContent = startBlockers.length ? "Deposit required" : "Mark in progress";
+    startWorkBtn.classList.toggle("btn-secondary", startBlockers.length > 0);
+    startWorkBtn.classList.toggle("btn-primary", startBlockers.length === 0 && project?.status === "accepted");
     startWorkBtn.disabled = !["accepted"].includes(project?.status);
   }
 
@@ -2901,6 +2955,7 @@ function renderProjectCommandCentre(project, scopeItems, changes, suggestions, p
   const approved = changes.filter((change) => change.status === "approved");
   const approvedTotal = approved.reduce((sum, change) => sum + Number(change.price || 0), 0);
   const outstandingTotal = getOutstandingTotal(payments);
+  const pendingPaymentCount = getPendingProjectPayments(payments).length;
   const overdueCount = payments.filter(isPaymentOverdue).length;
   const openSuggestions = suggestions.filter((suggestion) => suggestion.status === "suggested").length;
   const openReports = currentContentReports.filter((report) => report.status === "open").length;
@@ -2930,10 +2985,12 @@ function renderProjectCommandCentre(project, scopeItems, changes, suggestions, p
     },
     {
       label: "Payments clean",
-      complete: overdueCount === 0,
-      detail: overdueCount
-        ? `${overdueCount} payment${overdueCount === 1 ? "" : "s"} overdue.`
-        : "No overdue project payments."
+      complete: pendingPaymentCount === 0,
+      detail: pendingPaymentCount
+        ? overdueCount
+          ? `${overdueCount} payment${overdueCount === 1 ? "" : "s"} overdue.`
+          : `${pendingPaymentCount} payment${pendingPaymentCount === 1 ? "" : "s"} still pending.`
+        : "No pending project payments."
     },
     {
       label: "Client suggestions reviewed",
@@ -5755,19 +5812,13 @@ function updateProjectStatus(status, button = null) {
     return;
   }
 
+  const lifecycleBlockers = getLifecyclePaymentBlockers(status);
+  if (lifecycleBlockers.length) {
+    routeToChecklistItem(lifecycleBlockers[0]);
+    return;
+  }
+
   if (status === "awaiting_final_approval") {
-    const blockers = getCompletionChecks(
-      currentProject,
-      currentChanges,
-      currentProjectPayments,
-      currentDeliverables
-    ).filter((check) => check.blocking && !check.complete);
-
-    if (blockers.length) {
-      routeToChecklistItem(blockers[0]);
-      return;
-    }
-
     openProjectActionModal({
       eyebrow: "Final approval",
       title: "Request final client approval?",
