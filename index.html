@@ -1715,6 +1715,46 @@
 
       <div id="account-plan-grid" class="account-plan-grid"></div>
 
+      <section class="account-payment-setup">
+        <div class="section-row">
+          <div>
+            <div class="card-title">Client payment setup</div>
+            <p class="card-copy card-copy-small">
+              Connect a payout method before sending deposit or milestone payment links to clients.
+            </p>
+          </div>
+          <span id="payment-setup-status" class="status-chip status-warning">Needs setup</span>
+        </div>
+
+        <div class="account-payment-grid">
+          <section class="account-summary-tile">
+            <span>Stripe</span>
+            <strong id="stripe-payment-status">Not connected</strong>
+            <p id="stripe-payment-copy">
+              Connect Stripe to accept card payments and route funds to your own payout account.
+            </p>
+            <button id="connect-stripe-btn" class="btn btn-primary btn-small" type="button">
+              Connect Stripe
+            </button>
+          </section>
+
+          <section class="account-summary-tile">
+            <span>PayPal</span>
+            <strong id="paypal-payment-status">Not saved</strong>
+            <p>
+              Add a PayPal.me or PayPal payment link for manual client payments.
+            </p>
+            <label class="field-label" for="paypal-email">PayPal email</label>
+            <input id="paypal-email" type="email" placeholder="payments@example.com" />
+            <label class="field-label" for="paypal-url">PayPal payment link</label>
+            <input id="paypal-url" placeholder="https://paypal.me/yourname" />
+            <button id="save-paypal-btn" class="btn btn-secondary btn-small" type="button">
+              Save PayPal
+            </button>
+          </section>
+        </div>
+      </section>
+
       <div class="account-legal-note">
         <p>
           Paid plans are coming soon. Cancellation and refund wording is available for launch prep.

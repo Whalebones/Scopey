@@ -89,6 +89,7 @@ const REQUIRED_SCHEMA_TABLES = [
   "change_payments",
   "processed_events",
   "freelancer_profiles",
+  "freelancer_payment_accounts",
   "user_plans",
   "policy_acceptances",
   "agreement_templates",
@@ -109,6 +110,7 @@ const REQUIRED_OWNER_POLICY_TABLES = [
   "scope_items",
   "changes",
   "freelancer_profiles",
+  "freelancer_payment_accounts",
   "user_plans",
   "policy_acceptances",
   "agreement_templates",
@@ -168,6 +170,20 @@ const PROJECT_PAYMENT_SELECT =
   "id,project_id,label,payment_type,amount,currency,status,payment_method,stripe_session_id,invoice_number,due_date,paid_at,created_at";
 const PUBLIC_PROJECT_PAYMENT_SELECT =
   "id,project_id,label,payment_type,amount,currency,status,payment_method,due_date,paid_at,created_at";
+const PAYMENT_ACCOUNT_SELECT = [
+  "user_id",
+  "preferred_provider",
+  "stripe_account_id",
+  "stripe_onboarding_complete",
+  "stripe_charges_enabled",
+  "stripe_payouts_enabled",
+  "stripe_details_submitted",
+  "stripe_requirements",
+  "paypal_email",
+  "paypal_url",
+  "paypal_enabled",
+  "updated_at"
+].join(",");
 const PROFILE_SELECT = [
   "user_id",
   "brand_name",
@@ -444,16 +460,19 @@ function publicPlanDefinition(plan) {
 }
 
 function hasPlaceholderStripeValue(value) {
-  return !value || /xxx|dummy|\*/i.test(value);
+  return !value || /xxx|dummy|placeholder|\*/i.test(value);
 }
 
-function assertStripeBillingConfigured(plan) {
+function assertStripeSecretConfigured(message = "Stripe is not configured yet. Add a real STRIPE_SECRET in .env.") {
   if (hasPlaceholderStripeValue(process.env.STRIPE_SECRET)) {
-    const err = new Error("Stripe billing is not configured yet. Add a real STRIPE_SECRET in .env.");
+    const err = new Error(message);
     err.statusCode = 503;
     throw err;
   }
+}
 
+function assertStripeBillingConfigured(plan) {
+  assertStripeSecretConfigured("Stripe billing is not configured yet. Add a real STRIPE_SECRET in .env.");
   if (hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS[plan])) {
     const planName = PLAN_DEFINITIONS[plan]?.name || "this plan";
     const err = new Error(`Stripe checkout for ${planName} is not configured yet. Add the plan price ID in .env.`);
@@ -1079,6 +1098,186 @@ async function getProfileForUser(userId) {
   }
 
   return data || fallback;
+}
+
+function paymentAccountFallback(userId) {
+  return {
+    user_id: userId,
+    preferred_provider: "manual",
+    stripe_account_id: null,
+    stripe_onboarding_complete: false,
+    stripe_charges_enabled: false,
+    stripe_payouts_enabled: false,
+    stripe_details_submitted: false,
+    stripe_requirements: {},
+    paypal_email: null,
+    paypal_url: null,
+    paypal_enabled: false,
+    updated_at: null
+  };
+}
+
+function isValidEmailValue(value) {
+  return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalisePaypalUrl(value) {
+  if (!value?.trim()) return null;
+  const trimmed = value.trim();
+  let url;
+
+  try {
+    url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+  } catch {
+    const err = new Error("Enter a valid PayPal.me or PayPal payment URL.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const host = url.hostname.toLowerCase();
+  const allowed =
+    host === "paypal.me" ||
+    host === "www.paypal.me" ||
+    host === "paypal.com" ||
+    host === "www.paypal.com";
+
+  if (!allowed) {
+    const err = new Error("PayPal links must use paypal.me or paypal.com.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return url.toString();
+}
+
+function publicPaymentAccount(account = {}) {
+  const stripeReady = Boolean(
+    account.stripe_account_id &&
+      account.stripe_charges_enabled &&
+      account.stripe_payouts_enabled
+  );
+  const paypalReady = Boolean(account.paypal_enabled && account.paypal_url);
+
+  return {
+    preferredProvider: account.preferred_provider || "manual",
+    stripe: {
+      connected: Boolean(account.stripe_account_id),
+      ready: stripeReady,
+      onboardingComplete: Boolean(account.stripe_onboarding_complete),
+      chargesEnabled: Boolean(account.stripe_charges_enabled),
+      payoutsEnabled: Boolean(account.stripe_payouts_enabled),
+      detailsSubmitted: Boolean(account.stripe_details_submitted),
+      requirements: account.stripe_requirements || {}
+    },
+    paypal: {
+      enabled: paypalReady,
+      email: account.paypal_email || null,
+      url: account.paypal_url || null
+    },
+    canAcceptOnlinePayments: stripeReady || paypalReady,
+    automaticProvider: stripeReady ? "stripe" : null,
+    manualProvider: paypalReady ? "paypal" : "manual",
+    updatedAt: account.updated_at || null
+  };
+}
+
+async function getPaymentAccountForUser(userId) {
+  const { data, error } = await supabase
+    .from("freelancer_payment_accounts")
+    .select(PAYMENT_ACCOUNT_SELECT)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || paymentAccountFallback(userId);
+}
+
+async function upsertPaymentAccount(userId, patch) {
+  const { data, error } = await supabase
+    .from("freelancer_payment_accounts")
+    .upsert(
+      {
+        user_id: userId,
+        ...patch,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "user_id" }
+    )
+    .select(PAYMENT_ACCOUNT_SELECT)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+function stripeAccountPatch(account) {
+  return {
+    stripe_onboarding_complete: Boolean(account.details_submitted),
+    stripe_charges_enabled: Boolean(account.charges_enabled),
+    stripe_payouts_enabled: Boolean(account.payouts_enabled),
+    stripe_details_submitted: Boolean(account.details_submitted),
+    stripe_requirements: account.requirements || {}
+  };
+}
+
+function paypalRedirectUrl(account) {
+  if (account.paypal_url) {
+    return account.paypal_url;
+  }
+
+  const err = new Error("The freelancer needs to add a PayPal.me or PayPal payment link before PayPal payments can be opened.");
+  err.statusCode = 409;
+  throw err;
+}
+
+async function syncStripePaymentAccount(userId, account = null) {
+  const existing = account || (await getPaymentAccountForUser(userId));
+
+  if (!existing.stripe_account_id || hasPlaceholderStripeValue(process.env.STRIPE_SECRET)) {
+    return existing;
+  }
+
+  const stripeAccount = await stripe.accounts.retrieve(existing.stripe_account_id);
+  const preferredProvider =
+    stripeAccount.charges_enabled && stripeAccount.payouts_enabled
+      ? "stripe"
+      : existing.preferred_provider || "manual";
+
+  return upsertPaymentAccount(userId, {
+    ...stripeAccountPatch(stripeAccount),
+    preferred_provider: preferredProvider
+  });
+}
+
+async function getSyncedPaymentAccount(userId) {
+  const account = await getPaymentAccountForUser(userId);
+  return syncStripePaymentAccount(userId, account);
+}
+
+async function getPreferredClientPaymentRoute(userId) {
+  const account = await getSyncedPaymentAccount(userId);
+  const publicAccount = publicPaymentAccount(account);
+
+  if (publicAccount.stripe.ready) {
+    return {
+      provider: "stripe",
+      account,
+      accountId: account.stripe_account_id
+    };
+  }
+
+  if (publicAccount.paypal.enabled) {
+    return {
+      provider: "paypal",
+      account,
+      url: account.paypal_url
+    };
+  }
+
+  return {
+    provider: "manual",
+    account
+  };
 }
 
 async function getSharedProject(shareId) {
@@ -2213,6 +2412,97 @@ app.get("/billing", async (req, res) => {
     res
       .status(error.statusCode || 500)
       .json({ error: error.message || "Could not load billing details" });
+  }
+});
+
+app.get("/payment-accounts", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const account = await getSyncedPaymentAccount(user.id);
+    res.json({ paymentAccount: publicPaymentAccount(account) });
+  } catch (error) {
+    console.error("Payment account load error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not load payment setup" });
+  }
+});
+
+app.post("/payment-accounts/stripe/onboarding", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    assertStripeSecretConfigured("Stripe Connect is not configured yet. Add a real STRIPE_SECRET in .env.");
+
+    let account = await getPaymentAccountForUser(user.id);
+    let stripeAccountId = account.stripe_account_id;
+
+    if (!stripeAccountId) {
+      const stripeAccount = await stripe.accounts.create({
+        type: "express",
+        email: user.email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true }
+        },
+        metadata: {
+          scopey_user_id: user.id
+        }
+      });
+
+      stripeAccountId = stripeAccount.id;
+      account = await upsertPaymentAccount(user.id, {
+        stripe_account_id: stripeAccountId,
+        preferred_provider: "stripe",
+        ...stripeAccountPatch(stripeAccount)
+      });
+    } else {
+      account = await syncStripePaymentAccount(user.id, account);
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: stripeAccountId,
+      refresh_url: `${FRONTEND_URL}?payments=stripe-refresh`,
+      return_url: `${FRONTEND_URL}?payments=stripe-return`,
+      type: "account_onboarding"
+    });
+
+    res.json({
+      url: accountLink.url,
+      paymentAccount: publicPaymentAccount(account)
+    });
+  } catch (error) {
+    console.error("Stripe Connect onboarding error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not start Stripe setup" });
+  }
+});
+
+app.put("/payment-accounts/paypal", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const paypalEmail = req.body?.paypalEmail?.trim() || null;
+    const paypalUrl = normalisePaypalUrl(req.body?.paypalUrl || "");
+    const preferredProvider = req.body?.preferredProvider === "paypal" ? "paypal" : "manual";
+
+    if (paypalEmail && !isValidEmailValue(paypalEmail)) {
+      return res.status(400).json({ error: "Enter a valid PayPal email address." });
+    }
+
+    const paypalEnabled = Boolean(paypalEmail || paypalUrl);
+    const account = await upsertPaymentAccount(user.id, {
+      paypal_email: paypalEmail,
+      paypal_url: paypalUrl,
+      paypal_enabled: paypalEnabled,
+      preferred_provider: paypalEnabled ? preferredProvider : "manual"
+    });
+
+    res.json({ paymentAccount: publicPaymentAccount(account) });
+  } catch (error) {
+    console.error("PayPal setup save error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not save PayPal setup" });
   }
 });
 
@@ -4085,7 +4375,6 @@ app.post("/create-change-checkout", async (req, res) => {
     }
 
     const { change, project } = await getOwnedChange(changeId, user);
-    await assertPlan(user.id, "pro", "Stripe checkout for paid changes");
 
     if (change.status === "approved" || change.paid) {
       return res
@@ -4093,6 +4382,25 @@ app.post("/create-change-checkout", async (req, res) => {
         .json({ error: "This change is already paid or approved." });
     }
 
+    const paymentRoute = await getPreferredClientPaymentRoute(user.id);
+
+    if (paymentRoute.provider === "paypal") {
+      res.json({
+        provider: "paypal",
+        manual: true,
+        url: paypalRedirectUrl(paymentRoute.account),
+        message: "PayPal payments open outside Scopey. Mark this change paid after confirming receipt."
+      });
+      return;
+    }
+
+    if (paymentRoute.provider !== "stripe") {
+      return res.status(409).json({
+        error: "Set up Stripe or PayPal payments in Account before creating payment links."
+      });
+    }
+
+    assertStripeSecretConfigured("Stripe checkout is not configured yet.");
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -4106,6 +4414,11 @@ app.post("/create-change-checkout", async (req, res) => {
           quantity: 1
         }
       ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: paymentRoute.accountId
+        }
+      },
       metadata: {
         change_id: change.id
       },
@@ -4139,7 +4452,6 @@ app.post("/public/create-change-checkout", async (req, res) => {
 
     const { project, change } = await getSharedChange(shareId, changeId);
     await validatePublicActionAccess(req, project, ["changes"]);
-    await assertPlan(project.user_id, "pro", "Stripe checkout for paid changes");
 
     if (change.status === "approved" || change.paid) {
       return res
@@ -4147,7 +4459,26 @@ app.post("/public/create-change-checkout", async (req, res) => {
         .json({ error: "This change is already paid or approved." });
     }
 
+    const paymentRoute = await getPreferredClientPaymentRoute(project.user_id);
     const returnUrl = buildShareUrl(shareId, normaliseShareSection(section), token || null);
+
+    if (paymentRoute.provider === "paypal") {
+      res.json({
+        provider: "paypal",
+        manual: true,
+        url: paypalRedirectUrl(paymentRoute.account),
+        message: "PayPal payments open outside Scopey. The freelancer will mark this change paid after confirming receipt."
+      });
+      return;
+    }
+
+    if (paymentRoute.provider !== "stripe") {
+      return res.status(409).json({
+        error: "The freelancer has not set up Stripe or PayPal payments yet."
+      });
+    }
+
+    assertStripeSecretConfigured("Stripe checkout is not configured yet.");
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -4161,6 +4492,11 @@ app.post("/public/create-change-checkout", async (req, res) => {
           quantity: 1
         }
       ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: paymentRoute.accountId
+        }
+      },
       metadata: {
         change_id: change.id,
         share_id: shareId
@@ -4192,13 +4528,38 @@ app.post("/public/create-project-payment-checkout", async (req, res) => {
 
     const { project, payment } = await getSharedProjectPayment(shareId, paymentId);
     await validatePublicActionAccess(req, project, ["payments"]);
-    await assertPlan(project.user_id, "pro", "Stripe checkout for project payments");
 
     if (payment.status === "paid") {
       return res.status(400).json({ error: "This payment is already marked paid" });
     }
 
+    const paymentRoute = await getPreferredClientPaymentRoute(project.user_id);
     const returnUrl = buildShareUrl(shareId, normaliseShareSection(section), token || null);
+
+    if (paymentRoute.provider === "paypal") {
+      await supabase
+        .from("project_payments")
+        .update({
+          payment_method: "paypal"
+        })
+        .eq("id", payment.id);
+
+      res.json({
+        provider: "paypal",
+        manual: true,
+        url: paypalRedirectUrl(paymentRoute.account),
+        message: "PayPal payments open outside Scopey. The freelancer will mark this payment paid after confirming receipt."
+      });
+      return;
+    }
+
+    if (paymentRoute.provider !== "stripe") {
+      return res.status(409).json({
+        error: "The freelancer has not set up Stripe or PayPal payments yet."
+      });
+    }
+
+    assertStripeSecretConfigured("Stripe checkout is not configured yet.");
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -4212,6 +4573,11 @@ app.post("/public/create-project-payment-checkout", async (req, res) => {
           quantity: 1
         }
       ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: paymentRoute.accountId
+        }
+      },
       metadata: {
         project_payment_id: payment.id,
         share_id: shareId

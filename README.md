@@ -33,7 +33,7 @@ Automatic client emails are available on Free and paid plans. If `RESEND_API_KEY
 ### 3. Add the database schema
 Run `supabase-schema.sql` in the Supabase SQL editor. The file creates the core Scopey tables when they do not exist and upgrades older development schemas with the current production fields.
 
-If your Supabase project was created before the newer project collaboration tables had owner policies, run `supabase-rls-policy-update.sql` once after the main schema. It adds the missing RLS policies for suggestions, updates, activity, share links, agreement versions, deliverables and project payments.
+If your Supabase project was created before the newer project collaboration and payment setup tables had owner policies, run `supabase-rls-policy-update.sql` once after the main schema. It adds the missing RLS policies for suggestions, updates, activity, share links, agreement versions, deliverables, project payments and freelancer payment accounts.
 
 It includes:
 
@@ -42,7 +42,8 @@ It includes:
 - project lifecycle and agreement fields on `projects`
 - `client_email` on `projects` so project links can be addressed to the client
 - `freelancer_profiles` for business profile names, profile images and client-facing brand details
-- `project_payments` for deposits, milestones, final balances and manual/Stripe payment tracking
+- `freelancer_payment_accounts` for Stripe Connect and PayPal setup
+- `project_payments` for deposits, milestones, final balances and manual/Stripe/PayPal payment tracking
 - `suggestions` for client-submitted changes, inspiration and alteration requests
 - `project_updates` for freelancer progress updates and client notes
 - `agreement_templates` for reusable agreement terms
@@ -68,7 +69,16 @@ Serve the frontend from a local static server for best results:
 
 Then open the frontend URL and sign in using your Supabase email flow.
 
-### 6. Start Stripe webhook listener (development)
+### 6. Payment setup
+Freelancers can configure payment collection from the Account modal:
+
+- Stripe Connect routes card payments to the freelancer's connected Stripe account.
+- PayPal setup stores a PayPal email/payment link and opens PayPal for manual client payments.
+- PayPal payments remain pending in Scopey until the freelancer confirms receipt and marks them paid.
+
+For Stripe Connect, use a real `STRIPE_SECRET` and enable Connect in your Stripe dashboard. The same webhook listener handles completed project payments.
+
+### 7. Start Stripe webhook listener (development)
 stripe listen --forward-to localhost:3000/webhook
 
 ## Notes
@@ -100,7 +110,8 @@ stripe listen --forward-to localhost:3000/webhook
 - Locked accepted agreement snapshots with binary PDF agreement export
 - Agreement version history when accepted terms are revised
 - Reusable agreement templates
-- Project payment tracking for deposits, milestones, final balances and manual payments
+- Freelancer payment setup with Stripe Connect and PayPal links
+- Project payment tracking for deposits, milestones, final balances and manual/Stripe/PayPal payments
 - Due-date and overdue payment indicators
 - Binary PDF invoice/receipt export for project payments
 - Client-submitted suggestions with accept, decline and revised-value flows

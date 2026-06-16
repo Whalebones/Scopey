@@ -30,6 +30,7 @@ let currentDeliverables = [];
 let currentContentReports = [];
 let currentProfile = null;
 let currentBilling = null;
+let currentPaymentAccount = null;
 let currentAdminReadiness = null;
 let currentRights = null;
 let currentProjectTab = "overview";
@@ -54,6 +55,7 @@ const params = new URLSearchParams(window.location.search);
 const shareId = params.get("share");
 const clientSection = params.get("section") || "all";
 const clientToken = params.get("token") || "";
+const paymentReturnState = params.get("payments") || "";
 let clientAccessCodeValue =
   clientToken && sessionStorage.getItem(`scopey-access-${clientToken}`)
     ? sessionStorage.getItem(`scopey-access-${clientToken}`)
@@ -144,6 +146,14 @@ const accountPlanCopy = document.getElementById("account-plan-copy");
 const accountProjectUsage = document.getElementById("account-project-usage");
 const accountProjectNote = document.getElementById("account-project-note");
 const accountPlanGrid = document.getElementById("account-plan-grid");
+const paymentSetupStatus = document.getElementById("payment-setup-status");
+const stripePaymentStatus = document.getElementById("stripe-payment-status");
+const stripePaymentCopy = document.getElementById("stripe-payment-copy");
+const connectStripeBtn = document.getElementById("connect-stripe-btn");
+const paypalPaymentStatus = document.getElementById("paypal-payment-status");
+const paypalEmailInput = document.getElementById("paypal-email");
+const paypalUrlInput = document.getElementById("paypal-url");
+const savePaypalBtn = document.getElementById("save-paypal-btn");
 const developerDiagnosticsBtn = document.getElementById("developer-diagnostics-btn");
 const developerDiagnosticsModal = document.getElementById("developer-diagnostics-modal");
 const closeDeveloperDiagnosticsBtn = document.getElementById("close-developer-diagnostics-btn");
@@ -2028,6 +2038,114 @@ function renderAccountBilling() {
   });
 }
 
+function renderPaymentAccountSetup() {
+  const account = currentPaymentAccount || {};
+  const stripe = account.stripe || {};
+  const paypal = account.paypal || {};
+  const stripeReady = Boolean(stripe.ready);
+  const paypalReady = Boolean(paypal.enabled);
+  const anyReady = stripeReady || paypalReady;
+
+  if (paymentSetupStatus) {
+    paymentSetupStatus.textContent = anyReady ? "Ready" : "Needs setup";
+    paymentSetupStatus.className = `status-chip status-${anyReady ? "success" : "warning"}`;
+  }
+
+  if (stripePaymentStatus) {
+    stripePaymentStatus.textContent = stripeReady
+      ? "Ready for card payments"
+      : stripe.connected
+      ? "Setup incomplete"
+      : "Not connected";
+  }
+
+  if (stripePaymentCopy) {
+    stripePaymentCopy.textContent = stripeReady
+      ? "Client card payments can route to your Stripe payout account."
+      : stripe.connected
+      ? "Continue Stripe onboarding so Scopey can confirm charges and payouts are enabled."
+      : "Connect Stripe to accept card payments and route funds to your own payout account.";
+  }
+
+  if (connectStripeBtn) {
+    connectStripeBtn.textContent = stripe.connected && !stripeReady ? "Continue Stripe setup" : stripeReady ? "Stripe connected" : "Connect Stripe";
+    connectStripeBtn.disabled = stripeReady;
+    connectStripeBtn.classList.toggle("btn-secondary", stripe.connected);
+    connectStripeBtn.classList.toggle("btn-primary", !stripe.connected);
+  }
+
+  if (paypalPaymentStatus) {
+    paypalPaymentStatus.textContent = paypalReady
+      ? "Payment link saved"
+      : paypal.email
+      ? "Email saved, add link"
+      : "Not saved";
+  }
+
+  if (paypalEmailInput && !paypalEmailInput.matches(":focus")) {
+    paypalEmailInput.value = paypal.email || "";
+  }
+
+  if (paypalUrlInput && !paypalUrlInput.matches(":focus")) {
+    paypalUrlInput.value = paypal.url || "";
+  }
+}
+
+async function loadPaymentAccount() {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(`${API_URL}/payment-accounts`, { headers });
+  const data = await readJsonResponse(response, "Could not load payment setup.");
+  currentPaymentAccount = data.paymentAccount || null;
+  renderPaymentAccountSetup();
+  return currentPaymentAccount;
+}
+
+async function connectStripePayments() {
+  setButtonLoading(connectStripeBtn, true, "Opening Stripe...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/payment-accounts/stripe/onboarding`, {
+      method: "POST",
+      headers
+    });
+    const data = await readJsonResponse(response, "Could not start Stripe setup.");
+
+    if (!data.url) throw new Error("Stripe did not return an onboarding link.");
+    window.location.href = data.url;
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not start Stripe setup.", "error");
+    setButtonLoading(connectStripeBtn, false);
+  }
+}
+
+async function savePaypalPayments() {
+  setButtonLoading(savePaypalBtn, true, "Saving...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/payment-accounts/paypal`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        paypalEmail: paypalEmailInput?.value.trim() || null,
+        paypalUrl: paypalUrlInput?.value.trim() || null,
+        preferredProvider: "paypal"
+      })
+    });
+    const data = await readJsonResponse(response, "Could not save PayPal setup.");
+    currentPaymentAccount = data.paymentAccount || null;
+    renderPaymentAccountSetup();
+    showBanner("PayPal payment setup saved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not save PayPal setup.", "error");
+  } finally {
+    setButtonLoading(savePaypalBtn, false, "Save PayPal");
+  }
+}
+
 function setProjectCreateVisible(isVisible, rememberChoice = false) {
   isCreatingProject = isVisible;
   projectCreateCard?.classList.toggle("hidden", !isVisible);
@@ -3180,7 +3298,11 @@ function buildPaymentRow(payment, options = {}) {
   const subtitleBits = [
     payment.payment_type,
     formatCurrency(payment.amount, payment.currency || getProjectCurrency()),
-    payment.payment_method === "stripe" ? "Stripe" : "Manual"
+    payment.payment_method === "stripe"
+      ? "Stripe"
+      : payment.payment_method === "paypal"
+      ? "PayPal"
+      : "Manual"
   ];
   if (payment.due_date) subtitleBits.push(`Due ${payment.due_date}`);
   if (payment.paid_at) subtitleBits.push(`Paid ${formatDateTime(payment.paid_at)}`);
@@ -3747,13 +3869,16 @@ function closeLegalModal() {
 
 async function openAccountModal() {
   renderAccountBilling();
+  renderPaymentAccountSetup();
   accountModal?.setAttribute("aria-hidden", "false");
 
   try {
-    if (!currentBilling && currentUser) {
-      await loadBilling();
-    }
+    const loaders = [];
+    if (!currentBilling && currentUser) loaders.push(loadBilling());
+    if (!currentPaymentAccount && currentUser) loaders.push(loadPaymentAccount());
+    await Promise.allSettled(loaders);
     renderAccountBilling();
+    renderPaymentAccountSetup();
   } catch (error) {
     console.error("Account modal error:", error);
     showBanner(error.message || "Could not load account details.", "error");
@@ -4460,6 +4585,7 @@ async function signOut() {
   currentDeliverables = [];
   currentContentReports = [];
   currentProfile = null;
+  currentPaymentAccount = null;
   currentRights = null;
   currentAdminReadiness = null;
   currentGuidedAction = null;
@@ -6727,10 +6853,14 @@ async function startPublicPayment(change, event) {
       throw new Error(data?.error || "Could not start checkout.");
     }
 
+    if (data.provider === "paypal") {
+      showBanner(data.message || "Opening PayPal. Scopey will keep this pending until the freelancer confirms payment.", "info");
+    }
+
     window.location.href = data.url;
   } catch (error) {
     console.error(error);
-    showBanner("Could not start payment. Please try again.", "error");
+    showBanner(error.message || "Could not start payment. Please try again.", "error");
     setButtonLoading(button, false);
     isBusy = false;
   }
@@ -6760,6 +6890,10 @@ async function startProjectPayment(payment, event) {
 
     if (!response.ok || !data.url) {
       throw new Error(data?.error || "Could not start payment.");
+    }
+
+    if (data.provider === "paypal") {
+      showBanner(data.message || "Opening PayPal. Scopey will keep this pending until the freelancer confirms payment.", "info");
     }
 
     window.location.href = data.url;
@@ -7067,6 +7201,18 @@ async function init() {
   void loadAdminReadiness({ silent: true });
   updateAuthButtons(true);
   setView("landing");
+
+  if (paymentReturnState === "stripe-return" || paymentReturnState === "stripe-refresh") {
+    currentPaymentAccount = null;
+    openAccountModal();
+    showBanner(
+      paymentReturnState === "stripe-refresh"
+        ? "Stripe setup needs another pass. Continue setup from Account."
+        : "Stripe setup returned to Scopey. Check your payment status in Account.",
+      "info"
+    );
+    window.history.replaceState({}, "", getAppUrl());
+  }
 }
 
 // =======================
@@ -7106,6 +7252,8 @@ closeAccessibilityBtn?.addEventListener("click", closeAccessibilityModal);
 resetAccessibilityBtn?.addEventListener("click", resetAccessibilitySettings);
 closeLegalBtn?.addEventListener("click", closeLegalModal);
 closeAccountBtn?.addEventListener("click", closeAccountModal);
+connectStripeBtn?.addEventListener("click", connectStripePayments);
+savePaypalBtn?.addEventListener("click", savePaypalPayments);
 betaFeedbackBtn?.addEventListener("click", openBetaFeedbackModal);
 closeBetaFeedbackBtn?.addEventListener("click", closeBetaFeedbackModal);
 cancelBetaFeedbackBtn?.addEventListener("click", closeBetaFeedbackModal);

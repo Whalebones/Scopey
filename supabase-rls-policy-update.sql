@@ -27,6 +27,7 @@ as $$
       ('change_payments'),
       ('processed_events'),
       ('freelancer_profiles'),
+      ('freelancer_payment_accounts'),
       ('user_plans'),
       ('policy_acceptances'),
       ('agreement_templates'),
@@ -69,6 +70,49 @@ revoke all on function public.scopey_schema_health() from anon;
 revoke all on function public.scopey_schema_health() from authenticated;
 grant execute on function public.scopey_schema_health() to service_role;
 
+create table if not exists public.freelancer_payment_accounts (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  preferred_provider text not null default 'manual'
+    check (preferred_provider in ('manual', 'stripe', 'paypal')),
+  stripe_account_id text,
+  stripe_onboarding_complete boolean not null default false,
+  stripe_charges_enabled boolean not null default false,
+  stripe_payouts_enabled boolean not null default false,
+  stripe_details_submitted boolean not null default false,
+  stripe_requirements jsonb not null default '{}'::jsonb,
+  paypal_email text,
+  paypal_url text,
+  paypal_enabled boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.freelancer_payment_accounts
+  add column if not exists preferred_provider text not null default 'manual',
+  add column if not exists stripe_account_id text,
+  add column if not exists stripe_onboarding_complete boolean not null default false,
+  add column if not exists stripe_charges_enabled boolean not null default false,
+  add column if not exists stripe_payouts_enabled boolean not null default false,
+  add column if not exists stripe_details_submitted boolean not null default false,
+  add column if not exists stripe_requirements jsonb not null default '{}'::jsonb,
+  add column if not exists paypal_email text,
+  add column if not exists paypal_url text,
+  add column if not exists paypal_enabled boolean not null default false,
+  add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  alter table public.project_payments
+    drop constraint if exists project_payments_payment_method_check;
+  alter table public.project_payments
+    add constraint project_payments_payment_method_check
+    check (payment_method in ('manual', 'stripe', 'paypal'));
+end $$;
+
+create index if not exists freelancer_payment_accounts_stripe_account_id_idx
+  on public.freelancer_payment_accounts(stripe_account_id);
+
+alter table public.freelancer_payment_accounts enable row level security;
 alter table public.suggestions enable row level security;
 alter table public.project_updates enable row level security;
 alter table public.project_activity enable row level security;
@@ -79,6 +123,43 @@ alter table public.project_payments enable row level security;
 
 do $$
 begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'freelancer_payment_accounts'
+      and policyname = 'Users can read their own payment account'
+  ) then
+    create policy "Users can read their own payment account"
+      on public.freelancer_payment_accounts
+      for select
+      using (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'freelancer_payment_accounts'
+      and policyname = 'Users can insert their own payment account'
+  ) then
+    create policy "Users can insert their own payment account"
+      on public.freelancer_payment_accounts
+      for insert
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'freelancer_payment_accounts'
+      and policyname = 'Users can update their own payment account'
+  ) then
+    create policy "Users can update their own payment account"
+      on public.freelancer_payment_accounts
+      for update
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'
@@ -278,6 +359,7 @@ from pg_policies
 where schemaname = 'public'
   and tablename in (
     'suggestions',
+    'freelancer_payment_accounts',
     'project_updates',
     'project_activity',
     'project_share_links',
