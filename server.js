@@ -68,6 +68,7 @@ const FRONTEND_URL = normalisePublicUrl(process.env.FRONTEND_URL);
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "scopey-uploads";
 const PORT = Number(process.env.PORT || 3000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 600);
+const ADMIN_EMAILS = parseAdminEmails(process.env.SCOPEY_ADMIN_EMAILS);
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const FRONTEND_ASSETS = new Set([
@@ -322,6 +323,43 @@ function parseCorsOrigins(value = "") {
     .filter(Boolean);
 }
 
+function parseAdminEmails(value = "") {
+  return new Set(
+    value
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function getRequestOrigin(req) {
+  return req.get("origin") || req.get("referer") || "";
+}
+
+function isLocalRequest(req) {
+  const origin = getRequestOrigin(req);
+  if (!origin) return false;
+
+  try {
+    const { hostname } = new URL(origin);
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function isAdminUser(user) {
+  return Boolean(user?.email && ADMIN_EMAILS.has(user.email.toLowerCase()));
+}
+
+function assertAdminAccess(user, req) {
+  if (isAdminUser(user) || isLocalRequest(req)) return;
+
+  const err = new Error("Admin access is required.");
+  err.statusCode = 403;
+  throw err;
+}
+
 async function getUserFromRequest(req) {
   const token = req.headers.authorization?.replace("Bearer ", "");
 
@@ -445,11 +483,7 @@ async function getStorageSetupStatus() {
   }
 }
 
-async function getBillingOverview(user) {
-  const planRecord = await getUserPlan(user.id);
-  const planKey = normalisePlanKey(planRecord.plan);
-  const plan = PLAN_DEFINITIONS[planKey];
-  const activeProjects = await countActiveProjects(user.id);
+async function getLaunchSetupStatus() {
   const storageSetup = await getStorageSetupStatus();
   const stripeBillingConfigured =
     PAID_PLANS_ENABLED &&
@@ -460,6 +494,26 @@ async function getBillingOverview(user) {
   const emailConfigured = !hasPlaceholderStripeValue(process.env.RESEND_API_KEY);
   const frontendPublicConfigured =
     Boolean(FRONTEND_URL) && !/localhost|127\.0\.0\.1/i.test(FRONTEND_URL);
+
+  return {
+    paidPlansEnabled: PAID_PLANS_ENABLED,
+    stripeBillingConfigured,
+    webhookConfigured,
+    emailConfigured,
+    storageConfigured: storageSetup.configured,
+    storageBucket: storageSetup.bucket,
+    frontendPublicConfigured,
+    legalDraftsPresent: true,
+    reportReviewEnabled: true,
+    pdfExportsEnabled: true
+  };
+}
+
+async function getBillingOverview(user) {
+  const planRecord = await getUserPlan(user.id);
+  const planKey = normalisePlanKey(planRecord.plan);
+  const plan = PLAN_DEFINITIONS[planKey];
+  const activeProjects = await countActiveProjects(user.id);
 
   return {
     plan: {
@@ -474,19 +528,7 @@ async function getBillingOverview(user) {
     },
     plans: (PAID_PLANS_ENABLED ? PLAN_ORDER : ["free"]).map((key) =>
       publicPlanDefinition(PLAN_DEFINITIONS[key])
-    ),
-    setup: {
-      paidPlansEnabled: PAID_PLANS_ENABLED,
-      stripeBillingConfigured,
-      webhookConfigured,
-      emailConfigured,
-      storageConfigured: storageSetup.configured,
-      storageBucket: storageSetup.bucket,
-      frontendPublicConfigured,
-      legalDraftsPresent: true,
-      reportReviewEnabled: true,
-      pdfExportsEnabled: true
-    }
+    )
   };
 }
 
@@ -1818,6 +1860,28 @@ app.get("/billing", async (req, res) => {
     res
       .status(error.statusCode || 500)
       .json({ error: error.message || "Could not load billing details" });
+  }
+});
+
+app.get("/admin/readiness", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    assertAdminAccess(user, req);
+
+    const setup = await getLaunchSetupStatus();
+    res.json({
+      admin: true,
+      access: isAdminUser(user) ? "admin" : "local",
+      email: user.email,
+      setup
+    });
+  } catch (error) {
+    if (error.statusCode !== 403) {
+      console.error("Admin readiness error:", error.message);
+    }
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not load admin readiness" });
   }
 });
 

@@ -19,6 +19,7 @@ Required values:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
 - `SUPABASE_STORAGE_BUCKET` (optional, defaults to `scopey-uploads`)
+- `SCOPEY_ADMIN_EMAILS` (comma-separated Supabase account emails that can view launch readiness)
 - `FRONTEND_URL`
 - `ADDITIONAL_CORS_ORIGINS` (optional comma-separated list for preview/front-end hosts)
 - `PORT` (optional, defaults to `3000`)
@@ -78,6 +79,7 @@ stripe listen --forward-to localhost:3000/webhook
 - Set `FRONTEND_URL=http://www.scopey.co.uk` so generated client links, email links and checkout redirects use the public site.
 - Add `http://www.scopey.co.uk`, `http://scopey.co.uk`, `https://www.scopey.co.uk` and `https://scopey.co.uk` to Supabase Auth URL settings while DNS/SSL settles.
 - In Supabase, set the Site URL to `http://www.scopey.co.uk` and add the same variants as redirect URLs.
+- Set `SCOPEY_ADMIN_EMAILS` to your own Scopey/Supabase login email. Only those signed-in accounts can view the launch readiness checklist on the public site.
 - Keep `PAID_PLANS_ENABLED=false` until Pro and Business checkout is ready to sell publicly.
 - Point the bare domain to the same app or redirect it to `www.scopey.co.uk` in your hosting/DNS provider.
 - Deploy HTTPS when available, then update `FRONTEND_URL` to `https://www.scopey.co.uk`.

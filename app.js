@@ -30,6 +30,7 @@ let currentDeliverables = [];
 let currentContentReports = [];
 let currentProfile = null;
 let currentBilling = null;
+let currentAdminReadiness = null;
 let currentRights = null;
 let currentProjectTab = "overview";
 let currentGuidedAction = null;
@@ -1769,16 +1770,20 @@ function renderRights() {
 function getLaunchReadinessChecks(setup = {}) {
   return [
     {
-      label: "Stripe checkout",
-      complete: Boolean(setup.stripeBillingConfigured),
-      detail: setup.stripeBillingConfigured
+      label: "Paid plan checkout",
+      complete: !setup.paidPlansEnabled || Boolean(setup.stripeBillingConfigured),
+      detail: !setup.paidPlansEnabled
+        ? "Paid checkout is hidden while Scopey is in public beta."
+        : setup.stripeBillingConfigured
         ? "Plan checkout keys and price IDs are configured."
         : "Add real Stripe secret and plan price IDs before selling paid tiers."
     },
     {
       label: "Stripe webhooks",
-      complete: Boolean(setup.webhookConfigured),
-      detail: setup.webhookConfigured
+      complete: !setup.paidPlansEnabled || Boolean(setup.webhookConfigured),
+      detail: !setup.paidPlansEnabled
+        ? "Stripe webhooks are not required while paid plans are disabled."
+        : setup.webhookConfigured
         ? "Webhook secret is configured for payment events."
         : "Add STRIPE_WEBHOOK_SECRET so payment state can be trusted."
     },
@@ -3483,7 +3488,7 @@ function closeAccountModal() {
 }
 
 function isDeveloperDiagnosticsAvailable() {
-  return ["localhost", "127.0.0.1", "::1", ""].includes(window.location.hostname);
+  return Boolean(currentAdminReadiness);
 }
 
 function updateDeveloperDiagnosticsVisibility() {
@@ -3491,22 +3496,25 @@ function updateDeveloperDiagnosticsVisibility() {
 }
 
 async function openDeveloperDiagnosticsModal() {
-  if (!isDeveloperDiagnosticsAvailable()) return;
-
   try {
-    if (!currentBilling && currentUser) {
-      await loadBilling();
+    if (!currentAdminReadiness && currentUser) {
+      await loadAdminReadiness();
     }
-    if (!currentBilling) {
+    if (!currentUser) {
       openAuthModal();
-      showBanner("Sign in before viewing developer diagnostics.", "info");
+      showBanner("Sign in before viewing launch readiness.", "info");
       return;
     }
-    renderLaunchReadiness(currentBilling.setup || {});
+    if (!currentAdminReadiness) {
+      showBanner("Launch readiness is only available to Scopey admins.", "warning");
+      updateDeveloperDiagnosticsVisibility();
+      return;
+    }
+    renderLaunchReadiness(currentAdminReadiness.setup || {});
     developerDiagnosticsModal?.setAttribute("aria-hidden", "false");
   } catch (error) {
     console.error("Developer diagnostics error:", error);
-    showBanner(error.message || "Could not load developer diagnostics.", "error");
+    showBanner(error.message || "Could not load launch readiness.", "error");
   }
 }
 
@@ -4055,12 +4063,14 @@ async function signOut() {
   currentContentReports = [];
   currentProfile = null;
   currentRights = null;
+  currentAdminReadiness = null;
   currentGuidedAction = null;
   currentProjectTab = "overview";
   isClientView = false;
 
   clearStoredAuthSession();
   updateAuthButtons(false);
+  updateDeveloperDiagnosticsVisibility();
   setView("landing");
   showBanner("Signed out.", "success");
   window.history.replaceState({}, "", getAppUrl());
@@ -4694,6 +4704,37 @@ async function loadBilling() {
   currentBilling = await readJsonResponse(response, "Could not load billing.");
   renderBilling();
   return currentBilling;
+}
+
+async function loadAdminReadiness({ silent = false } = {}) {
+  if (!currentUser) {
+    currentAdminReadiness = null;
+    updateDeveloperDiagnosticsVisibility();
+    return null;
+  }
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/admin/readiness`, { headers });
+
+    if (response.status === 403 || response.status === 404) {
+      currentAdminReadiness = null;
+      updateDeveloperDiagnosticsVisibility();
+      return null;
+    }
+
+    currentAdminReadiness = await readJsonResponse(response, "Could not load launch readiness.");
+    updateDeveloperDiagnosticsVisibility();
+    return currentAdminReadiness;
+  } catch (error) {
+    currentAdminReadiness = null;
+    updateDeveloperDiagnosticsVisibility();
+    if (!silent) {
+      console.error("Admin readiness load error:", error);
+      showBanner(error.message || "Could not load launch readiness.", "error");
+    }
+    return null;
+  }
 }
 
 async function loadRights() {
@@ -6520,6 +6561,7 @@ async function initOwnerView() {
     renderOwnerEmptyWorkspace();
 
     await loadBilling();
+    await loadAdminReadiness({ silent: true });
     await loadProfile();
     await loadRights();
     await loadAgreementTemplates();
@@ -6593,6 +6635,7 @@ async function init() {
   }
 
   currentUser = data.session.user;
+  await loadAdminReadiness({ silent: true });
   updateAuthButtons(true);
   setView("landing");
 }
@@ -6764,8 +6807,11 @@ db.auth.onAuthStateChange(async (event, session) => {
   if (currentUser) {
     resetAuthLoadingState();
     closeAuthModal();
+    await loadAdminReadiness({ silent: true });
     updateAuthButtons(true);
   } else {
+    currentAdminReadiness = null;
+    updateDeveloperDiagnosticsVisibility();
     updateAuthButtons(false);
     setView("landing");
   }
