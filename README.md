@@ -33,6 +33,8 @@ Automatic client emails are available on Free and paid plans. If `RESEND_API_KEY
 ### 3. Add the database schema
 Run `supabase-schema.sql` in the Supabase SQL editor. The file creates the core Scopey tables when they do not exist and upgrades older development schemas with the current production fields.
 
+If your Supabase project was created before the newer project collaboration tables had owner policies, run `supabase-rls-policy-update.sql` once after the main schema. It adds the missing RLS policies for suggestions, updates, activity, share links, agreement versions, deliverables and project payments.
+
 It includes:
 
 - core `projects`, `scope_items`, `changes`, `change_payments` and `processed_events` tables

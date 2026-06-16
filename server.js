@@ -23,6 +23,7 @@ import {
 // ENV CHECK
 // =======================
 const PAID_PLANS_ENABLED = process.env.PAID_PLANS_ENABLED === "true";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const requiredEnv = [
   "SUPABASE_URL",
   "SUPABASE_SERVICE_KEY",
@@ -81,6 +82,48 @@ const FRONTEND_ASSETS = new Set([
   "scopey-logo.svg",
   "scopey-logo-dark.svg"
 ]);
+const REQUIRED_SCHEMA_TABLES = [
+  "projects",
+  "scope_items",
+  "changes",
+  "change_payments",
+  "processed_events",
+  "freelancer_profiles",
+  "user_plans",
+  "policy_acceptances",
+  "agreement_templates",
+  "suggestions",
+  "project_updates",
+  "content_reports",
+  "beta_feedback",
+  "project_payments",
+  "project_activity",
+  "project_share_links",
+  "project_agreement_versions",
+  "project_deliverables",
+  "rights_artworks",
+  "rights_licenses"
+];
+const REQUIRED_OWNER_POLICY_TABLES = [
+  "projects",
+  "scope_items",
+  "changes",
+  "freelancer_profiles",
+  "user_plans",
+  "policy_acceptances",
+  "agreement_templates",
+  "content_reports",
+  "suggestions",
+  "project_updates",
+  "project_activity",
+  "project_share_links",
+  "project_agreement_versions",
+  "project_deliverables",
+  "project_payments",
+  "rights_artworks",
+  "rights_licenses"
+];
+const SERVICE_ROLE_ONLY_TABLES = new Set(["processed_events", "beta_feedback"]);
 const ALLOWED_ORIGINS = Array.from(
   new Set([
     getUrlOrigin(FRONTEND_URL),
@@ -123,6 +166,8 @@ const PROJECT_SELECT = [
 const PUBLIC_PROJECT_SELECT = PROJECT_SELECT;
 const PROJECT_PAYMENT_SELECT =
   "id,project_id,label,payment_type,amount,currency,status,payment_method,stripe_session_id,invoice_number,due_date,paid_at,created_at";
+const PUBLIC_PROJECT_PAYMENT_SELECT =
+  "id,project_id,label,payment_type,amount,currency,status,payment_method,due_date,paid_at,created_at";
 const PROFILE_SELECT = [
   "user_id",
   "brand_name",
@@ -332,20 +377,9 @@ function parseAdminEmails(value = "") {
   );
 }
 
-function getRequestOrigin(req) {
-  return req.get("origin") || req.get("referer") || "";
-}
-
 function isLocalRequest(req) {
-  const origin = getRequestOrigin(req);
-  if (!origin) return false;
-
-  try {
-    const { hostname } = new URL(origin);
-    return ["localhost", "127.0.0.1", "::1"].includes(hostname);
-  } catch (_error) {
-    return false;
-  }
+  const remoteAddress = req.socket?.remoteAddress || req.ip || "";
+  return ["::1", "127.0.0.1", "::ffff:127.0.0.1"].includes(remoteAddress);
 }
 
 function isAdminUser(user) {
@@ -353,7 +387,7 @@ function isAdminUser(user) {
 }
 
 function assertAdminAccess(user, req) {
-  if (isAdminUser(user) || isLocalRequest(req)) return;
+  if (isAdminUser(user) || (!IS_PRODUCTION && isLocalRequest(req))) return;
 
   const err = new Error("Admin access is required.");
   err.statusCode = 403;
@@ -492,8 +526,76 @@ async function getStorageSetupStatus() {
   }
 }
 
+async function probeSchemaTables() {
+  const missingTables = [];
+
+  for (const table of REQUIRED_SCHEMA_TABLES) {
+    const { error } = await supabase
+      .from(table)
+      .select("*", { head: true, count: "exact" });
+
+    if (isMissingRelationError(error)) {
+      missingTables.push(table);
+    } else if (error) {
+      throw error;
+    }
+  }
+
+  return missingTables;
+}
+
+async function getSchemaSetupStatus() {
+  try {
+    const { data, error } = await supabase.rpc("scopey_schema_health");
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    const rowByTable = new Map(rows.map((row) => [row.table_name, row]));
+    const missingTables = REQUIRED_SCHEMA_TABLES.filter(
+      (table) => !rowByTable.get(table)?.table_exists
+    );
+    const rlsDisabledTables = rows
+      .filter((row) => row.table_exists && !row.rls_enabled)
+      .map((row) => row.table_name);
+    const missingOwnerPolicyTables = REQUIRED_OWNER_POLICY_TABLES.filter((table) => {
+      const row = rowByTable.get(table);
+      return row?.table_exists && Number(row.policy_count || 0) === 0;
+    });
+
+    return {
+      configured:
+        missingTables.length === 0 &&
+        rlsDisabledTables.length === 0 &&
+        missingOwnerPolicyTables.length === 0,
+      healthFunctionAvailable: true,
+      checkedTables: rows.length,
+      serviceRoleOnlyTables: Array.from(SERVICE_ROLE_ONLY_TABLES),
+      missingTables,
+      rlsDisabledTables,
+      missingOwnerPolicyTables
+    };
+  } catch (error) {
+    console.warn("Schema health RPC fallback:", error.message);
+    const missingTables = await probeSchemaTables();
+
+    return {
+      configured: missingTables.length === 0,
+      healthFunctionAvailable: false,
+      checkedTables: REQUIRED_SCHEMA_TABLES.length - missingTables.length,
+      serviceRoleOnlyTables: Array.from(SERVICE_ROLE_ONLY_TABLES),
+      missingTables,
+      rlsDisabledTables: [],
+      missingOwnerPolicyTables: [],
+      warning: "Install scopey_schema_health by running supabase-rls-policy-update.sql."
+    };
+  }
+}
+
 async function getLaunchSetupStatus() {
-  const storageSetup = await getStorageSetupStatus();
+  const [storageSetup, schemaSetup] = await Promise.all([
+    getStorageSetupStatus(),
+    getSchemaSetupStatus()
+  ]);
   const stripeBillingConfigured =
     PAID_PLANS_ENABLED &&
     !hasPlaceholderStripeValue(process.env.STRIPE_SECRET) &&
@@ -511,10 +613,164 @@ async function getLaunchSetupStatus() {
     emailConfigured,
     storageConfigured: storageSetup.configured,
     storageBucket: storageSetup.bucket,
+    schema: schemaSetup,
     frontendPublicConfigured,
     legalDraftsPresent: true,
     reportReviewEnabled: true,
     pdfExportsEnabled: true
+  };
+}
+
+async function createDemoProjectForUser(user) {
+  const profile = await getProfileForUser(user.id);
+  const currency = normaliseCurrency(profile.default_currency || "GBP");
+  const demoStamp = new Date().toISOString().slice(0, 10);
+  const agreement = {
+    agreement_summary:
+      "A polished landing page refresh for a fictional client, including direction, build notes and launch handoff.",
+    agreement_scope:
+      "One responsive landing page, three content sections, contact call-to-action, basic accessibility pass and launch handoff notes.",
+    agreement_exclusions:
+      "Brand strategy, copywriting beyond supplied text, ecommerce, booking systems and ongoing maintenance are not included unless separately approved.",
+    agreement_timeline:
+      "Concept within 3 working days, review round within 2 working days, final handoff after approval.",
+    agreement_payment_terms:
+      "50% deposit before work begins. Remaining balance due before final files are released.",
+    agreement_revision_terms:
+      "Two revision rounds are included. Extra revisions are reviewed as paid changes before work continues.",
+    agreement_cancellation_terms:
+      "If cancelled after work begins, completed work and approved changes remain payable."
+  };
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .insert([
+      {
+        title: `Scopey demo project ${demoStamp}`,
+        client_name: "Demo Client",
+        client_email: user.email || "client@example.com",
+        currency,
+        user_id: user.id,
+        share_id: crypto.randomUUID(),
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        ...agreement
+      }
+    ])
+    .select(PROJECT_SELECT)
+    .single();
+
+  if (projectError) throw projectError;
+
+  const scopeItems = [
+    { project_id: project.id, title: "Responsive landing page design", price: 450 },
+    { project_id: project.id, title: "Frontend build and mobile pass", price: 650 },
+    { project_id: project.id, title: "Launch handoff checklist", price: 150 }
+  ];
+  const { error: scopeError } = await supabase.from("scope_items").insert(scopeItems);
+  if (scopeError) throw scopeError;
+
+  const payments = [
+    {
+      project_id: project.id,
+      label: "Deposit",
+      payment_type: "deposit",
+      amount: 625,
+      currency,
+      status: "pending",
+      due_date: new Date().toISOString().slice(0, 10)
+    },
+    {
+      project_id: project.id,
+      label: "Final balance",
+      payment_type: "final",
+      amount: 625,
+      currency,
+      status: "pending"
+    }
+  ];
+  const { error: paymentsError } = await supabase.from("project_payments").insert(payments);
+  if (paymentsError) throw paymentsError;
+
+  const { error: changesError } = await supabase.from("changes").insert([
+    {
+      project_id: project.id,
+      title: "Add animated testimonial strip",
+      price: 180,
+      status: "pending"
+    }
+  ]);
+  if (changesError) throw changesError;
+
+  const { error: suggestionsError } = await supabase.from("suggestions").insert([
+    {
+      project_id: project.id,
+      title: "Try a warmer hero image",
+      details: "Client wants to compare the current hero with a softer, people-focused visual direction.",
+      proposed_price: 0,
+      status: "suggested"
+    }
+  ]);
+  if (suggestionsError) throw suggestionsError;
+
+  const { error: updatesError } = await supabase.from("project_updates").insert([
+    {
+      project_id: project.id,
+      author_role: "freelancer",
+      message: "Initial direction is ready for review. Agreement, scope and deposit are prepared for client sign-off."
+    },
+    {
+      project_id: project.id,
+      author_role: "client",
+      message: "The project structure looks clear. I added one visual suggestion for review."
+    }
+  ]);
+  if (updatesError) throw updatesError;
+
+  const { error: deliverablesError } = await supabase.from("project_deliverables").insert([
+    {
+      project_id: project.id,
+      title: "Preview handoff note",
+      note: "Demo deliverable used to test the client approval area.",
+      status: "shared"
+    }
+  ]);
+  if (deliverablesError) throw deliverablesError;
+
+  await createAgreementVersion(project, {
+    status: "sent",
+    sent_at: project.sent_at,
+    agreement_snapshot: buildAgreementSnapshot(project)
+  });
+
+  await recordProjectActivity(project.id, {
+    actorRole: "system",
+    eventType: "demo_project_created",
+    title: "Demo project created",
+    detail: "Scopey generated a full demo workspace for admin testing."
+  });
+
+  const accessCode = "123456";
+  const { data: shareLink, error: linkError } = await supabase
+    .from("project_share_links")
+    .insert([
+      {
+        project_id: project.id,
+        section: "all",
+        label: "Demo full client review link",
+        access_code: accessCode
+      }
+    ])
+    .select("id,token,section,label,expires_at,revoked_at,created_at")
+    .single();
+
+  if (linkError) throw linkError;
+
+  return {
+    project,
+    shareLink,
+    link: buildShareUrl(project.share_id, "all", shareLink.token),
+    accessCode
   };
 }
 
@@ -842,7 +1098,11 @@ async function getSharedProject(shareId) {
 }
 
 async function validateShareToken(projectId, token, accessCode = null) {
-  if (!token) return null;
+  if (!token) {
+    const err = new Error("Use the latest secure client link for this project.");
+    err.statusCode = 401;
+    throw err;
+  }
 
   const { data, error } = await supabase
     .from("project_share_links")
@@ -872,17 +1132,6 @@ async function validateShareToken(projectId, token, accessCode = null) {
   }
 
   return data;
-}
-
-async function hasActiveShareLinks(projectId) {
-  const { count, error } = await supabase
-    .from("project_share_links")
-    .select("id", { count: "exact", head: true })
-    .eq("project_id", projectId)
-    .is("revoked_at", null);
-
-  if (error) throw error;
-  return (count || 0) > 0;
 }
 
 function getPublicAccessCredentials(req) {
@@ -1132,11 +1381,22 @@ async function getProjectPayments(projectId) {
   return data || [];
 }
 
-async function getOptionalProjectPayments(projectId) {
+async function getPublicProjectPayments(projectId) {
+  const { data, error } = await supabase
+    .from("project_payments")
+    .select(PUBLIC_PROJECT_PAYMENT_SELECT)
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function getOptionalPublicProjectPayments(projectId) {
   try {
-    return await getProjectPayments(projectId);
+    return await getPublicProjectPayments(projectId);
   } catch (error) {
-    console.warn("Project payments lookup fallback:", error.message);
+    console.warn("Public project payments lookup fallback:", error.message);
     return [];
   }
 }
@@ -1898,6 +2158,28 @@ app.get("/admin/readiness", async (req, res) => {
   }
 });
 
+app.post("/admin/demo-project", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    assertAdminAccess(user, req);
+
+    const demo = await createDemoProjectForUser(user);
+    res.status(201).json({
+      project: demo.project,
+      shareLink: demo.shareLink,
+      link: demo.link,
+      accessCode: demo.accessCode
+    });
+  } catch (error) {
+    if (error.statusCode !== 403) {
+      console.error("Admin demo project error:", error.message);
+    }
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not create demo project" });
+  }
+});
+
 app.post("/billing/checkout", async (req, res) => {
   try {
     if (!PAID_PLANS_ENABLED) {
@@ -2481,11 +2763,6 @@ app.get("/public/project/:shareId", async (req, res) => {
 
     try {
       shareLink = await validateShareToken(project.id, token, accessCode);
-      if (!shareLink && (await hasActiveShareLinks(project.id))) {
-        const err = new Error("Use the latest secure client link for this project.");
-        err.statusCode = 401;
-        throw err;
-      }
     } catch (error) {
       if (error.requiresVerification) {
         return res.status(401).json({
@@ -2521,7 +2798,7 @@ app.get("/public/project/:shareId", async (req, res) => {
     const publicCollaboration = { ...collaboration };
     delete publicCollaboration.reports;
     const profile = await getProfileForUser(project.user_id);
-    const projectPayments = await getOptionalProjectPayments(project.id);
+    const projectPayments = await getOptionalPublicProjectPayments(project.id);
 
     res.json({
       project: publicProjectPayload(project),
@@ -3013,7 +3290,7 @@ app.patch("/project/:projectId/status", async (req, res) => {
     const project = await getOwnedProject(projectId, user);
     const allowedTransitions = {
       draft: ["sent", "cancelled"],
-      sent: ["draft", "accepted", "cancelled"],
+      sent: ["draft", "cancelled"],
       accepted: ["in_progress", "awaiting_final_approval", "cancelled"],
       in_progress: ["awaiting_final_approval", "cancelled"],
       awaiting_final_approval: ["complete", "in_progress", "cancelled"],
@@ -3028,14 +3305,17 @@ app.patch("/project/:projectId/status", async (req, res) => {
       });
     }
 
+    if (["in_progress", "awaiting_final_approval", "complete"].includes(status) && !project.accepted_at) {
+      return res.status(409).json({
+        error: "Client agreement acceptance is required before work can move forward."
+      });
+    }
+
     const update = { status };
 
     if (status === "sent") {
       update.sent_at = new Date().toISOString();
       update.cancelled_at = null;
-    }
-    if (status === "in_progress" && !project.accepted_at) {
-      update.status = "in_progress";
     }
     if (status === "awaiting_final_approval") {
       update.final_approval_requested_at = new Date().toISOString();
@@ -3542,6 +3822,18 @@ app.post("/public/project/:shareId/accept-agreement", async (req, res) => {
     const { clientName, clientEmail } = req.body;
     const project = await getSharedProject(shareId);
     await validatePublicActionAccess(req, project, ["agreement"]);
+
+    if (project.accepted_at) {
+      return res.status(409).json({
+        error: "This agreement has already been accepted. Ask the freelancer to revise it before accepting again."
+      });
+    }
+
+    if (project.status === "cancelled" || project.status === "complete") {
+      return res.status(409).json({
+        error: "This project is no longer accepting agreement changes."
+      });
+    }
 
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Client name is required" });

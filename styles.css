@@ -1582,6 +1582,60 @@ body.theme-dark .profile-avatar{
   overflow-wrap:anywhere;
 }
 
+.client-flow-steps{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+
+.client-flow-step{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  min-width:0;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(255,255,255,0.68);
+}
+
+.client-flow-step span{
+  flex:0 0 auto;
+  min-width:30px;
+  height:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:var(--surface-muted);
+  color:var(--muted);
+  font-size:.72rem;
+  font-weight:900;
+}
+
+.client-flow-step strong{
+  display:block;
+  margin:0;
+  line-height:1.2;
+}
+
+.client-flow-step p{
+  margin:5px 0 0;
+  color:var(--muted);
+  font-size:.85rem;
+  line-height:1.35;
+}
+
+.client-flow-step.complete span{
+  background:rgba(25,135,84,0.12);
+  color:#087244;
+}
+
+.client-flow-step.active{
+  border-color:rgba(255,75,48,0.34);
+  background:rgba(255,75,48,0.07);
+}
+
 .client-guidance-grid{
   grid-template-columns:repeat(3,minmax(0,1fr));
 }
@@ -1601,7 +1655,8 @@ body.theme-dark .profile-avatar{
 body.theme-dark .handoff-grid div,
 body.theme-dark .client-summary-grid div,
 body.theme-dark .client-guidance-grid div,
-body.theme-dark .client-attention-item{
+body.theme-dark .client-attention-item,
+body.theme-dark .client-flow-step{
   background:#191a1d;
   border-color:rgba(255,255,255,0.08);
 }
@@ -3122,6 +3177,32 @@ body.theme-dark .danger-panel h3{
   background:var(--surface);
 }
 
+.demo-project-result{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  gap:8px 14px;
+  align-items:center;
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface);
+}
+
+.demo-project-result span{
+  color:var(--muted);
+  font-size:.78rem;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.demo-project-result a,
+.demo-project-result strong{
+  min-width:0;
+  color:var(--text);
+  overflow-wrap:anywhere;
+}
+
 .account-plan-grid{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
@@ -3415,9 +3496,11 @@ body.theme-soft .handoff-grid div,
 body.theme-soft .client-summary-grid div,
 body.theme-soft .client-guidance-grid div,
 body.theme-soft .client-attention-item,
+body.theme-soft .client-flow-step,
 body.theme-soft .first-run-steps div,
 body.theme-soft .account-summary-tile,
 body.theme-soft .developer-diagnostics-readiness,
+body.theme-soft .demo-project-result,
 body.theme-soft .account-plan-card{
   background:rgba(230,240,235,0.72);
   border-color:rgba(169,196,182,0.76);
@@ -3543,6 +3626,7 @@ body.theme-dusk .handoff-grid div,
 body.theme-dusk .client-summary-grid div,
 body.theme-dusk .client-guidance-grid div,
 body.theme-dusk .client-attention-item,
+body.theme-dusk .client-flow-step,
 body.theme-dusk .first-run-steps div,
 body.theme-dusk .list-item,
 body.theme-dusk .agreement-row,
@@ -3551,6 +3635,7 @@ body.theme-dusk .project-tab,
 body.theme-dusk .setup-step,
 body.theme-dusk .account-summary-tile,
 body.theme-dusk .developer-diagnostics-readiness,
+body.theme-dusk .demo-project-result,
 body.theme-dusk .account-plan-card,
 body.theme-dusk .usage-meter{
   background:#211d22;
@@ -3712,6 +3797,10 @@ body.theme-dusk .footer-links button:hover{
   .launch-check-list{
     grid-template-columns:1fr;
   }
+
+  .client-flow-steps{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
 }
 
 @media (max-width:720px){
@@ -3796,6 +3885,7 @@ body.theme-dusk .footer-links button:hover{
   .client-summary-grid,
   .client-guidance-grid,
   .first-run-steps,
+  .client-flow-steps,
   .client-action-card{
     grid-template-columns:1fr;
   }

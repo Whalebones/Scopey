@@ -1290,6 +1290,11 @@
         </button>
       </section>
 
+      <section class="card client-flow-card" data-client-section="all">
+        <div class="card-title">Review path</div>
+        <div id="client-flow-steps" class="client-flow-steps" aria-label="Client review path"></div>
+      </section>
+
       <section class="card client-guidance-card" data-client-section="all">
         <div class="card-title">How to use this page</div>
         <div id="client-guidance-grid" class="client-guidance-grid">
@@ -1742,12 +1747,32 @@
           <div>
             <div class="card-title">Production checks</div>
             <p class="card-copy card-copy-small">
-              Payments, email, storage, policy documents and review flows.
+              Database, RLS, payments, email, storage, policy documents and review flows.
             </p>
           </div>
           <span id="developer-launch-score" class="status-chip status-neutral">0%</span>
         </div>
         <div id="developer-launch-list" class="launch-check-list"></div>
+      </section>
+
+      <section class="developer-diagnostics-readiness">
+        <div class="section-row">
+          <div>
+            <div class="card-title">Demo project</div>
+            <p class="card-copy card-copy-small">
+              Create a seeded admin-only test project with agreement, scope, payments, suggestions, updates and a client link.
+            </p>
+          </div>
+          <button id="create-demo-project-btn" class="btn btn-secondary" type="button">
+            Create demo project
+          </button>
+        </div>
+        <div id="demo-project-result" class="demo-project-result hidden">
+          <span>Client review link</span>
+          <a id="demo-project-link" href="#" target="_blank" rel="noopener noreferrer"></a>
+          <span>Access code</span>
+          <strong id="demo-project-access-code">123456</strong>
+        </div>
       </section>
     </div>
   </div>

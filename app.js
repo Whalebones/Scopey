@@ -147,6 +147,10 @@ const developerDiagnosticsModal = document.getElementById("developer-diagnostics
 const closeDeveloperDiagnosticsBtn = document.getElementById("close-developer-diagnostics-btn");
 const developerLaunchScore = document.getElementById("developer-launch-score");
 const developerLaunchList = document.getElementById("developer-launch-list");
+const createDemoProjectBtn = document.getElementById("create-demo-project-btn");
+const demoProjectResult = document.getElementById("demo-project-result");
+const demoProjectLink = document.getElementById("demo-project-link");
+const demoProjectAccessCode = document.getElementById("demo-project-access-code");
 const betaFeedbackBtn = document.getElementById("beta-feedback-btn");
 const betaFeedbackModal = document.getElementById("beta-feedback-modal");
 const closeBetaFeedbackBtn = document.getElementById("close-beta-feedback-btn");
@@ -398,6 +402,7 @@ const clientPrimaryActionTitle = document.getElementById("client-primary-action-
 const clientPrimaryActionCopy = document.getElementById("client-primary-action-copy");
 const clientPrimaryActionBtn = document.getElementById("client-primary-action-btn");
 const clientAttentionList = document.getElementById("client-attention-list");
+const clientFlowSteps = document.getElementById("client-flow-steps");
 const clientGuidanceGrid = document.getElementById("client-guidance-grid");
 const clientScopeList = document.getElementById("client-scope-list");
 const clientPendingList = document.getElementById("client-pending-list");
@@ -1789,7 +1794,35 @@ function renderRights() {
 }
 
 function getLaunchReadinessChecks(setup = {}) {
+  const schema = setup.schema || {};
+  const missingTables = schema.missingTables || [];
+  const rlsDisabledTables = schema.rlsDisabledTables || [];
+  const missingOwnerPolicyTables = schema.missingOwnerPolicyTables || [];
+
   return [
+    {
+      label: "Database schema",
+      complete: Boolean(schema.configured),
+      detail: schema.configured
+        ? `Schema health is clean across ${schema.checkedTables || "the required"} tables.`
+        : missingTables.length
+        ? `Missing tables: ${missingTables.join(", ")}. Run the latest Supabase schema.`
+        : schema.warning || "Run supabase-rls-policy-update.sql to enable live schema health checks."
+    },
+    {
+      label: "RLS owner policies",
+      complete:
+        Boolean(schema.configured) ||
+        (missingOwnerPolicyTables.length === 0 && rlsDisabledTables.length === 0 && Boolean(schema.healthFunctionAvailable)),
+      detail: schema.healthFunctionAvailable
+        ? missingOwnerPolicyTables.length || rlsDisabledTables.length
+          ? [
+              missingOwnerPolicyTables.length ? `Missing policies: ${missingOwnerPolicyTables.join(", ")}` : "",
+              rlsDisabledTables.length ? `RLS disabled: ${rlsDisabledTables.join(", ")}` : ""
+            ].filter(Boolean).join(" | ")
+          : `Owner policies are present. Service-only tables stay locked: ${(schema.serviceRoleOnlyTables || []).join(", ")}.`
+        : "Install the schema health RPC by running supabase-rls-policy-update.sql."
+    },
     {
       label: "Paid plan checkout",
       complete: !setup.paidPlansEnabled || Boolean(setup.stripeBillingConfigured),
@@ -2093,14 +2126,6 @@ function getClientSectionLabel(section = getShareSectionForTab()) {
     all: "project workspace"
   };
   return labels[section] || "project workspace";
-}
-
-function getProjectShareLink(project = currentProject, section = getShareSectionForTab()) {
-  if (!project?.share_id) return "";
-  const url = new URL(getAppUrl());
-  url.searchParams.set("share", project.share_id);
-  if (section && section !== "all") url.searchParams.set("section", section);
-  return url.toString();
 }
 
 function getShareTokenQuery() {
@@ -3330,6 +3355,70 @@ function renderClientAttention(project, changes, payments, deliverables) {
   });
 }
 
+function getClientFlowSteps(project, changes = [], payments = [], deliverables = []) {
+  const hasPendingPayment = payments.some((payment) => payment.status === "pending");
+  const hasPendingChange = changes.some((change) => change.status === "pending");
+  const hasDeliverables = deliverables.length > 0;
+  const allDeliverablesApproved = hasDeliverables && deliverables.every((item) => item.status === "approved");
+
+  return [
+    {
+      label: "Agreement",
+      copy: project?.accepted_at ? "Accepted" : "Review terms",
+      complete: Boolean(project?.accepted_at),
+      active: !project?.accepted_at && !["complete", "cancelled"].includes(project?.status)
+    },
+    {
+      label: "Payments",
+      copy: hasPendingPayment || hasPendingChange ? "Action needed" : "Clear",
+      complete: !hasPendingPayment && !hasPendingChange,
+      active: hasPendingPayment || hasPendingChange
+    },
+    {
+      label: "Updates",
+      copy: "Track progress",
+      complete: Boolean(project?.accepted_at) && !["sent", "draft"].includes(project?.status),
+      active: Boolean(project?.accepted_at) && !["complete", "cancelled"].includes(project?.status)
+    },
+    {
+      label: "Final approval",
+      copy:
+        project?.status === "complete"
+          ? "Signed off"
+          : project?.status === "awaiting_final_approval"
+          ? "Ready"
+          : allDeliverablesApproved
+          ? "Files approved"
+          : "Not ready yet",
+      complete: project?.status === "complete" || allDeliverablesApproved,
+      active: project?.status === "awaiting_final_approval"
+    }
+  ];
+}
+
+function renderClientFlowSteps(project, changes, payments, deliverables) {
+  if (!clientFlowSteps) return;
+  clientFlowSteps.innerHTML = "";
+
+  getClientFlowSteps(project, changes, payments, deliverables).forEach((step, index) => {
+    const item = document.createElement("div");
+    item.className = `client-flow-step ${step.complete ? "complete" : ""} ${step.active ? "active" : ""}`;
+
+    const marker = document.createElement("span");
+    marker.textContent = step.complete ? "OK" : String(index + 1);
+
+    const text = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = step.label;
+    const copy = document.createElement("p");
+    copy.textContent = step.copy;
+
+    text.append(title, copy);
+    item.append(marker, text);
+    clientFlowSteps.appendChild(item);
+  });
+}
+
 function getClientGuidanceItems(project, changes = [], payments = [], deliverables = []) {
   const pendingPayments = payments.filter((payment) => payment.status === "pending");
   const pendingChanges = changes.filter((change) => change.status === "pending");
@@ -3660,6 +3749,57 @@ async function openDeveloperDiagnosticsModal() {
   } catch (error) {
     console.error("Developer diagnostics error:", error);
     showBanner(error.message || "Could not load launch readiness.", "error");
+  }
+}
+
+function renderDemoProjectResult(demo = null) {
+  if (!demoProjectResult) return;
+
+  demoProjectResult.classList.toggle("hidden", !demo);
+  if (!demo) return;
+
+  if (demoProjectLink) {
+    demoProjectLink.textContent = demo.link || "No link returned";
+    demoProjectLink.href = demo.link || "#";
+  }
+  if (demoProjectAccessCode) {
+    demoProjectAccessCode.textContent = demo.accessCode || "Not required";
+  }
+}
+
+async function createAdminDemoProject() {
+  setButtonLoading(createDemoProjectBtn, true, "Creating demo...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/admin/demo-project`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({})
+    });
+    const demo = await readJsonResponse(response, "Could not create demo project.");
+
+    currentProjectId = demo.project?.id || currentProjectId;
+    await loadBilling();
+    await loadProjects();
+    await loadProject();
+    renderDemoProjectResult(demo);
+
+    if (demo.link && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(demo.link);
+        showBanner("Demo project created and client link copied.", "success");
+      } catch (_error) {
+        showBanner("Demo project created. Copy the client link from Launch readiness.", "success");
+      }
+    } else {
+      showBanner("Demo project created.", "success");
+    }
+  } catch (error) {
+    console.error("Demo project error:", error);
+    showBanner(error.message || "Could not create demo project.", "error");
+  } finally {
+    setButtonLoading(createDemoProjectBtn, false, "Create demo project");
   }
 }
 
@@ -5540,7 +5680,7 @@ async function performProjectStatusUpdate(status, button = null) {
 }
 
 function updateProjectStatus(status, button = null) {
-  if (status === "in_progress" && !currentProject?.accepted_at && currentProject?.status !== "accepted") {
+  if (status === "in_progress" && !currentProject?.accepted_at) {
     showBanner("Wait for the client to accept the agreement before marking work in progress.", "warning");
     setCurrentProjectTab("client");
     return;
@@ -5846,22 +5986,20 @@ async function copyShareLink() {
 
   try {
     const section = getShareSectionForTab();
-    let link = getProjectShareLink(currentProject, section);
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/project/${encodeURIComponent(currentProject.id)}/share-links`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ section })
+      }
+    );
+    const data = await readJsonResponse(response, "Could not create scoped link.");
+    const link = data.link;
 
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_URL}/project/${encodeURIComponent(currentProject.id)}/share-links`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ section })
-        }
-      );
-      const data = await readJsonResponse(response, "Could not create scoped link.");
-      link = data.link || link;
-    } catch (linkError) {
-      console.warn("Scoped link fallback:", linkError);
+    if (!link) {
+      throw new Error("Could not prepare a secure client link.");
     }
 
     await navigator.clipboard.writeText(link);
@@ -5893,7 +6031,7 @@ async function previewClientProject(event = null) {
       }
     );
     const data = await readJsonResponse(response, "Could not create client preview link.");
-    const link = data.link || getProjectShareLink(currentProject, section);
+    const link = data.link;
 
     if (!link) {
       showBanner("Could not prepare the client preview link.", "error");
@@ -6227,6 +6365,7 @@ function renderClient(
   renderClientSummary(project, scopeItems, changes, payments, deliverables);
   renderClientPrimaryAction(project, changes, payments, deliverables);
   renderClientAttention(project, changes, payments, deliverables);
+  renderClientFlowSteps(project, changes, payments, deliverables);
   renderClientGuidance(project, changes, payments, deliverables);
   renderAgreementPreview(clientAgreementPreview, project);
 
@@ -6829,6 +6968,7 @@ cancelBetaFeedbackBtn?.addEventListener("click", closeBetaFeedbackModal);
 submitBetaFeedbackBtn?.addEventListener("click", submitBetaFeedback);
 developerDiagnosticsBtn?.addEventListener("click", openDeveloperDiagnosticsModal);
 closeDeveloperDiagnosticsBtn?.addEventListener("click", closeDeveloperDiagnosticsModal);
+createDemoProjectBtn?.addEventListener("click", createAdminDemoProject);
 openRightsBtn?.addEventListener("click", openRightsModal);
 closeRightsBtn?.addEventListener("click", closeRightsModal);
 
