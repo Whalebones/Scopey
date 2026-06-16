@@ -482,9 +482,30 @@
             <div class="card-title">Project workspace</div>
             <h2 class="empty-state-heading">Create your first project</h2>
             <p class="card-copy">
-              Use the project form above to create a project. Once a project is selected, you'll see its scope,
-              change requests, values and client review tools here.
+              Add one client project, then Scopey will guide you through agreement, scope, handoff and client review.
             </p>
+            <div class="first-run-steps" aria-label="First project setup path">
+              <div>
+                <span>1</span>
+                <strong>Business profile</strong>
+                <p>Add the name and contact details clients should trust.</p>
+              </div>
+              <div>
+                <span>2</span>
+                <strong>Client workspace</strong>
+                <p>Create one project with the client's name and email.</p>
+              </div>
+              <div>
+                <span>3</span>
+                <strong>Agreement and scope</strong>
+                <p>Define what is included before work changes.</p>
+              </div>
+              <div>
+                <span>4</span>
+                <strong>Send review link</strong>
+                <p>Preview the client page, then email or copy the link.</p>
+              </div>
+            </div>
           </section>
 
           <section id="project-workspace" class="hidden workspace-stack">
@@ -1262,6 +1283,7 @@
           <p id="client-primary-action-copy" class="card-copy card-copy-small">
             Scopey will keep the most useful action here.
           </p>
+          <div id="client-attention-list" class="client-attention-list" aria-label="Client attention items"></div>
         </div>
         <button id="client-primary-action-btn" class="btn btn-primary" type="button">
           Continue
@@ -1437,14 +1459,69 @@
         <button type="button" data-legal-open="refunds">Refunds</button>
         <button type="button" data-legal-open="subprocessors">Sub-processors</button>
         <button type="button" data-legal-open="dpa">DPA</button>
+        <button id="beta-feedback-btn" type="button">Beta feedback</button>
         <button id="developer-diagnostics-btn" class="hidden" type="button">
-          Developer diagnostics
+          Launch readiness
         </button>
       </div>
     </div>
   </footer>
 
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- BETA FEEDBACK MODAL -->
+  <div id="beta-feedback-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel feedback-panel">
+      <button
+        id="close-beta-feedback-btn"
+        class="modal-close"
+        aria-label="Close beta feedback"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <span class="auth-kicker">Public beta</span>
+      <h3>Send Scopey feedback</h3>
+      <p class="muted">
+        Tell us what felt confusing, broken, missing or surprisingly useful.
+      </p>
+
+      <div class="compose-form compose-form-compact">
+        <div>
+          <label class="field-label" for="beta-feedback-category">Feedback type</label>
+          <select id="beta-feedback-category">
+            <option value="general">General feedback</option>
+            <option value="confusing">Something felt confusing</option>
+            <option value="bug">Something broke</option>
+            <option value="client_flow">Client review flow</option>
+            <option value="feature">Feature request</option>
+            <option value="pricing">Pricing or plans</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label" for="beta-feedback-email">Email</label>
+          <input id="beta-feedback-email" type="email" placeholder="Optional" />
+        </div>
+      </div>
+
+      <label class="field-label" for="beta-feedback-message">Feedback</label>
+      <textarea
+        id="beta-feedback-message"
+        rows="6"
+        placeholder="What happened, what did you expect, or what would make Scopey easier?"
+      ></textarea>
+
+      <div class="modal-actions modal-actions-right margin-top-md">
+        <button id="cancel-beta-feedback-btn" class="btn btn-secondary" type="button">
+          Cancel
+        </button>
+        <button id="submit-beta-feedback-btn" class="btn btn-primary" type="button">
+          Send feedback
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- AUTH MODAL -->
   <div id="auth-modal" class="modal" aria-hidden="true">
@@ -1642,7 +1719,7 @@
     </div>
   </div>
 
-  <!-- DEVELOPER DIAGNOSTICS MODAL -->
+  <!-- ADMIN LAUNCH READINESS MODAL -->
   <div id="developer-diagnostics-modal" class="modal" aria-hidden="true">
     <div class="modal-panel developer-diagnostics-panel">
       <button
@@ -1654,10 +1731,10 @@
         &times;
       </button>
 
-      <span class="auth-kicker">Developer diagnostics</span>
+      <span class="auth-kicker">Admin</span>
       <h3>Launch readiness</h3>
       <p class="muted">
-        Local-only operational checks for deployment setup. This panel is hidden on public domains.
+        Admin-only operational checks for deployment setup. This panel is hidden from public users.
       </p>
 
       <section class="developer-diagnostics-readiness">

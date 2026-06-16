@@ -30,6 +30,7 @@ let currentDeliverables = [];
 let currentContentReports = [];
 let currentProfile = null;
 let currentBilling = null;
+let currentAdminReadiness = null;
 let currentRights = null;
 let currentProjectTab = "overview";
 let currentGuidedAction = null;
@@ -146,6 +147,14 @@ const developerDiagnosticsModal = document.getElementById("developer-diagnostics
 const closeDeveloperDiagnosticsBtn = document.getElementById("close-developer-diagnostics-btn");
 const developerLaunchScore = document.getElementById("developer-launch-score");
 const developerLaunchList = document.getElementById("developer-launch-list");
+const betaFeedbackBtn = document.getElementById("beta-feedback-btn");
+const betaFeedbackModal = document.getElementById("beta-feedback-modal");
+const closeBetaFeedbackBtn = document.getElementById("close-beta-feedback-btn");
+const cancelBetaFeedbackBtn = document.getElementById("cancel-beta-feedback-btn");
+const submitBetaFeedbackBtn = document.getElementById("submit-beta-feedback-btn");
+const betaFeedbackCategory = document.getElementById("beta-feedback-category");
+const betaFeedbackEmail = document.getElementById("beta-feedback-email");
+const betaFeedbackMessage = document.getElementById("beta-feedback-message");
 
 const deleteProjectModal = document.getElementById("delete-project-modal");
 const deleteProjectFinalModal = document.getElementById("delete-project-final-modal");
@@ -388,6 +397,7 @@ const clientSummaryDeliverables = document.getElementById("client-summary-delive
 const clientPrimaryActionTitle = document.getElementById("client-primary-action-title");
 const clientPrimaryActionCopy = document.getElementById("client-primary-action-copy");
 const clientPrimaryActionBtn = document.getElementById("client-primary-action-btn");
+const clientAttentionList = document.getElementById("client-attention-list");
 const clientGuidanceGrid = document.getElementById("client-guidance-grid");
 const clientScopeList = document.getElementById("client-scope-list");
 const clientPendingList = document.getElementById("client-pending-list");
@@ -1296,6 +1306,18 @@ async function getAuthHeaders() {
   };
 }
 
+async function getOptionalAuthHeaders() {
+  const { data } = await db.auth.getSession().catch(() => ({ data: null }));
+  return data?.session?.access_token
+    ? {
+        Authorization: `Bearer ${data.session.access_token}`,
+        "Content-Type": "application/json"
+      }
+    : {
+        "Content-Type": "application/json"
+      };
+}
+
 function fileToDataUrl(input) {
   const file = input?.files?.[0];
   if (!file) return Promise.resolve(null);
@@ -1769,16 +1791,20 @@ function renderRights() {
 function getLaunchReadinessChecks(setup = {}) {
   return [
     {
-      label: "Stripe checkout",
-      complete: Boolean(setup.stripeBillingConfigured),
-      detail: setup.stripeBillingConfigured
+      label: "Paid plan checkout",
+      complete: !setup.paidPlansEnabled || Boolean(setup.stripeBillingConfigured),
+      detail: !setup.paidPlansEnabled
+        ? "Paid checkout is hidden while Scopey is in public beta."
+        : setup.stripeBillingConfigured
         ? "Plan checkout keys and price IDs are configured."
         : "Add real Stripe secret and plan price IDs before selling paid tiers."
     },
     {
       label: "Stripe webhooks",
-      complete: Boolean(setup.webhookConfigured),
-      detail: setup.webhookConfigured
+      complete: !setup.paidPlansEnabled || Boolean(setup.webhookConfigured),
+      detail: !setup.paidPlansEnabled
+        ? "Stripe webhooks are not required while paid plans are disabled."
+        : setup.webhookConfigured
         ? "Webhook secret is configured for payment events."
         : "Add STRIPE_WEBHOOK_SECRET so payment state can be trusted."
     },
@@ -3250,6 +3276,60 @@ function renderClientPrimaryAction(project, changes, payments, deliverables) {
   }
 }
 
+function getClientAttentionItems(project, changes = [], payments = [], deliverables = []) {
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const pendingChanges = changes.filter((change) => change.status === "pending");
+  const unapprovedDeliverables = deliverables.filter((item) => item.status !== "approved");
+  const items = [];
+
+  if (!projectHasAgreement(project)) {
+    items.push(["Waiting", "Freelancer is preparing terms", "neutral"]);
+  } else if (!project?.accepted_at && !["complete", "cancelled"].includes(project?.status)) {
+    items.push(["Action", "Agreement needs review", "warning"]);
+  } else {
+    items.push(["Done", "Agreement accepted", "success"]);
+  }
+
+  if (pendingPayments.length) {
+    items.push(["Action", `${pendingPayments.length} payment${pendingPayments.length === 1 ? "" : "s"} due`, "warning"]);
+  } else {
+    items.push(["Clear", "No project payments due", "success"]);
+  }
+
+  if (pendingChanges.length) {
+    items.push(["Review", `${pendingChanges.length} paid change${pendingChanges.length === 1 ? "" : "s"}`, "warning"]);
+  } else {
+    items.push(["Clear", "No paid changes pending", "success"]);
+  }
+
+  if (project?.status === "awaiting_final_approval") {
+    items.push(["Action", "Final approval requested", "warning"]);
+  } else if (unapprovedDeliverables.length) {
+    items.push(["Review", `${unapprovedDeliverables.length} deliverable${unapprovedDeliverables.length === 1 ? "" : "s"}`, "warning"]);
+  } else if (project?.status === "complete") {
+    items.push(["Done", "Project complete", "success"]);
+  }
+
+  return items.slice(0, 4);
+}
+
+function renderClientAttention(project, changes, payments, deliverables) {
+  if (!clientAttentionList) return;
+  clientAttentionList.innerHTML = "";
+
+  getClientAttentionItems(project, changes, payments, deliverables).forEach(([label, copy, kind]) => {
+    const item = document.createElement("div");
+    item.className = `client-attention-item status-${kind}`;
+    const badge = document.createElement("span");
+    badge.textContent = label;
+    const text = document.createElement("strong");
+    text.textContent = copy;
+    item.appendChild(badge);
+    item.appendChild(text);
+    clientAttentionList.appendChild(item);
+  });
+}
+
 function getClientGuidanceItems(project, changes = [], payments = [], deliverables = []) {
   const pendingPayments = payments.filter((payment) => payment.status === "pending");
   const pendingChanges = changes.filter((change) => change.status === "pending");
@@ -3482,8 +3562,78 @@ function closeAccountModal() {
   accountModal?.setAttribute("aria-hidden", "true");
 }
 
+function openBetaFeedbackModal() {
+  if (betaFeedbackEmail) {
+    betaFeedbackEmail.value =
+      currentUser?.email ||
+      currentProject?.client_email ||
+      betaFeedbackEmail.value ||
+      "";
+  }
+  if (betaFeedbackCategory && isClientView) {
+    betaFeedbackCategory.value = "client_flow";
+  }
+  betaFeedbackModal?.setAttribute("aria-hidden", "false");
+  betaFeedbackMessage?.focus();
+}
+
+function closeBetaFeedbackModal() {
+  betaFeedbackModal?.setAttribute("aria-hidden", "true");
+}
+
+function getFeedbackContext() {
+  return {
+    view: isClientView ? "client" : currentUser ? "owner" : "landing",
+    projectId: currentProject?.id || null,
+    projectStatus: currentProject?.status || null,
+    projectTab: currentProjectTab || null,
+    clientSection,
+    hasUser: Boolean(currentUser),
+    theme: getAccessibilitySettings().theme
+  };
+}
+
+async function submitBetaFeedback() {
+  const message = betaFeedbackMessage?.value.trim();
+
+  if (!message) {
+    showBanner("Add a short note before sending feedback.", "error");
+    return;
+  }
+
+  setButtonLoading(submitBetaFeedbackBtn, true, "Sending...");
+
+  try {
+    const headers = await getOptionalAuthHeaders();
+    const response = await fetch(`${API_URL}/feedback`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        category: betaFeedbackCategory?.value || "general",
+        email: betaFeedbackEmail?.value.trim() || null,
+        message,
+        reporterRole: isClientView ? "client" : currentUser ? "freelancer" : "visitor",
+        pageUrl: window.location.href,
+        shareId: shareId || null,
+        projectId: currentProject?.id || null,
+        context: getFeedbackContext()
+      })
+    });
+
+    await readJsonResponse(response, "Could not send feedback.");
+    if (betaFeedbackMessage) betaFeedbackMessage.value = "";
+    closeBetaFeedbackModal();
+    showBanner("Thanks, feedback sent.", "success");
+  } catch (error) {
+    console.error("Feedback error:", error);
+    showBanner(error.message || "Could not send feedback.", "error");
+  } finally {
+    setButtonLoading(submitBetaFeedbackBtn, false, "Send feedback");
+  }
+}
+
 function isDeveloperDiagnosticsAvailable() {
-  return ["localhost", "127.0.0.1", "::1", ""].includes(window.location.hostname);
+  return Boolean(currentAdminReadiness);
 }
 
 function updateDeveloperDiagnosticsVisibility() {
@@ -3491,22 +3641,25 @@ function updateDeveloperDiagnosticsVisibility() {
 }
 
 async function openDeveloperDiagnosticsModal() {
-  if (!isDeveloperDiagnosticsAvailable()) return;
-
   try {
-    if (!currentBilling && currentUser) {
-      await loadBilling();
+    if (!currentAdminReadiness && currentUser) {
+      await loadAdminReadiness();
     }
-    if (!currentBilling) {
+    if (!currentUser) {
       openAuthModal();
-      showBanner("Sign in before viewing developer diagnostics.", "info");
+      showBanner("Sign in before viewing launch readiness.", "info");
       return;
     }
-    renderLaunchReadiness(currentBilling.setup || {});
+    if (!currentAdminReadiness) {
+      showBanner("Launch readiness is only available to Scopey admins.", "warning");
+      updateDeveloperDiagnosticsVisibility();
+      return;
+    }
+    renderLaunchReadiness(currentAdminReadiness.setup || {});
     developerDiagnosticsModal?.setAttribute("aria-hidden", "false");
   } catch (error) {
     console.error("Developer diagnostics error:", error);
-    showBanner(error.message || "Could not load developer diagnostics.", "error");
+    showBanner(error.message || "Could not load launch readiness.", "error");
   }
 }
 
@@ -4055,12 +4208,14 @@ async function signOut() {
   currentContentReports = [];
   currentProfile = null;
   currentRights = null;
+  currentAdminReadiness = null;
   currentGuidedAction = null;
   currentProjectTab = "overview";
   isClientView = false;
 
   clearStoredAuthSession();
   updateAuthButtons(false);
+  updateDeveloperDiagnosticsVisibility();
   setView("landing");
   showBanner("Signed out.", "success");
   window.history.replaceState({}, "", getAppUrl());
@@ -4694,6 +4849,37 @@ async function loadBilling() {
   currentBilling = await readJsonResponse(response, "Could not load billing.");
   renderBilling();
   return currentBilling;
+}
+
+async function loadAdminReadiness({ silent = false } = {}) {
+  if (!currentUser) {
+    currentAdminReadiness = null;
+    updateDeveloperDiagnosticsVisibility();
+    return null;
+  }
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/admin/readiness`, { headers });
+
+    if (response.status === 403 || response.status === 404) {
+      currentAdminReadiness = null;
+      updateDeveloperDiagnosticsVisibility();
+      return null;
+    }
+
+    currentAdminReadiness = await readJsonResponse(response, "Could not load launch readiness.");
+    updateDeveloperDiagnosticsVisibility();
+    return currentAdminReadiness;
+  } catch (error) {
+    currentAdminReadiness = null;
+    updateDeveloperDiagnosticsVisibility();
+    if (!silent) {
+      console.error("Admin readiness load error:", error);
+      showBanner(error.message || "Could not load launch readiness.", "error");
+    }
+    return null;
+  }
 }
 
 async function loadRights() {
@@ -6040,6 +6226,7 @@ function renderClient(
   clientProjectSubtitle.textContent = `Client: ${project.client_name} | ${getProjectStatusLabel(project.status)} | Managed by ${getProfileName(profile)}`;
   renderClientSummary(project, scopeItems, changes, payments, deliverables);
   renderClientPrimaryAction(project, changes, payments, deliverables);
+  renderClientAttention(project, changes, payments, deliverables);
   renderClientGuidance(project, changes, payments, deliverables);
   renderAgreementPreview(clientAgreementPreview, project);
 
@@ -6520,6 +6707,7 @@ async function initOwnerView() {
     renderOwnerEmptyWorkspace();
 
     await loadBilling();
+    await loadAdminReadiness({ silent: true });
     await loadProfile();
     await loadRights();
     await loadAgreementTemplates();
@@ -6593,6 +6781,7 @@ async function init() {
   }
 
   currentUser = data.session.user;
+  await loadAdminReadiness({ silent: true });
   updateAuthButtons(true);
   setView("landing");
 }
@@ -6634,6 +6823,10 @@ closeAccessibilityBtn?.addEventListener("click", closeAccessibilityModal);
 resetAccessibilityBtn?.addEventListener("click", resetAccessibilitySettings);
 closeLegalBtn?.addEventListener("click", closeLegalModal);
 closeAccountBtn?.addEventListener("click", closeAccountModal);
+betaFeedbackBtn?.addEventListener("click", openBetaFeedbackModal);
+closeBetaFeedbackBtn?.addEventListener("click", closeBetaFeedbackModal);
+cancelBetaFeedbackBtn?.addEventListener("click", closeBetaFeedbackModal);
+submitBetaFeedbackBtn?.addEventListener("click", submitBetaFeedback);
 developerDiagnosticsBtn?.addEventListener("click", openDeveloperDiagnosticsModal);
 closeDeveloperDiagnosticsBtn?.addEventListener("click", closeDeveloperDiagnosticsModal);
 openRightsBtn?.addEventListener("click", openRightsModal);
@@ -6764,8 +6957,11 @@ db.auth.onAuthStateChange(async (event, session) => {
   if (currentUser) {
     resetAuthLoadingState();
     closeAuthModal();
+    await loadAdminReadiness({ silent: true });
     updateAuthButtons(true);
   } else {
+    currentAdminReadiness = null;
+    updateDeveloperDiagnosticsVisibility();
     updateAuthButtons(false);
     setView("landing");
   }
@@ -6776,6 +6972,7 @@ window.addEventListener("click", (event) => {
   if (event.target === accessibilityModal) closeAccessibilityModal();
   if (event.target === legalModal) closeLegalModal();
   if (event.target === accountModal) closeAccountModal();
+  if (event.target === betaFeedbackModal) closeBetaFeedbackModal();
   if (event.target === developerDiagnosticsModal) closeDeveloperDiagnosticsModal();
   if (event.target === rightsModal) closeRightsModal();
   if (event.target === reportContentModal) closeContentReportModal();

@@ -68,6 +68,7 @@ const FRONTEND_URL = normalisePublicUrl(process.env.FRONTEND_URL);
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "scopey-uploads";
 const PORT = Number(process.env.PORT || 3000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 600);
+const ADMIN_EMAILS = parseAdminEmails(process.env.SCOPEY_ADMIN_EMAILS);
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const FRONTEND_ASSETS = new Set([
@@ -322,6 +323,43 @@ function parseCorsOrigins(value = "") {
     .filter(Boolean);
 }
 
+function parseAdminEmails(value = "") {
+  return new Set(
+    value
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function getRequestOrigin(req) {
+  return req.get("origin") || req.get("referer") || "";
+}
+
+function isLocalRequest(req) {
+  const origin = getRequestOrigin(req);
+  if (!origin) return false;
+
+  try {
+    const { hostname } = new URL(origin);
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function isAdminUser(user) {
+  return Boolean(user?.email && ADMIN_EMAILS.has(user.email.toLowerCase()));
+}
+
+function assertAdminAccess(user, req) {
+  if (isAdminUser(user) || isLocalRequest(req)) return;
+
+  const err = new Error("Admin access is required.");
+  err.statusCode = 403;
+  throw err;
+}
+
 async function getUserFromRequest(req) {
   const token = req.headers.authorization?.replace("Bearer ", "");
 
@@ -339,6 +377,15 @@ async function getUserFromRequest(req) {
     throw err;
   }
 
+  return data.user;
+}
+
+async function getOptionalUserFromRequest(req) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return null;
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
   return data.user;
 }
 
@@ -445,11 +492,7 @@ async function getStorageSetupStatus() {
   }
 }
 
-async function getBillingOverview(user) {
-  const planRecord = await getUserPlan(user.id);
-  const planKey = normalisePlanKey(planRecord.plan);
-  const plan = PLAN_DEFINITIONS[planKey];
-  const activeProjects = await countActiveProjects(user.id);
+async function getLaunchSetupStatus() {
   const storageSetup = await getStorageSetupStatus();
   const stripeBillingConfigured =
     PAID_PLANS_ENABLED &&
@@ -460,6 +503,26 @@ async function getBillingOverview(user) {
   const emailConfigured = !hasPlaceholderStripeValue(process.env.RESEND_API_KEY);
   const frontendPublicConfigured =
     Boolean(FRONTEND_URL) && !/localhost|127\.0\.0\.1/i.test(FRONTEND_URL);
+
+  return {
+    paidPlansEnabled: PAID_PLANS_ENABLED,
+    stripeBillingConfigured,
+    webhookConfigured,
+    emailConfigured,
+    storageConfigured: storageSetup.configured,
+    storageBucket: storageSetup.bucket,
+    frontendPublicConfigured,
+    legalDraftsPresent: true,
+    reportReviewEnabled: true,
+    pdfExportsEnabled: true
+  };
+}
+
+async function getBillingOverview(user) {
+  const planRecord = await getUserPlan(user.id);
+  const planKey = normalisePlanKey(planRecord.plan);
+  const plan = PLAN_DEFINITIONS[planKey];
+  const activeProjects = await countActiveProjects(user.id);
 
   return {
     plan: {
@@ -474,19 +537,7 @@ async function getBillingOverview(user) {
     },
     plans: (PAID_PLANS_ENABLED ? PLAN_ORDER : ["free"]).map((key) =>
       publicPlanDefinition(PLAN_DEFINITIONS[key])
-    ),
-    setup: {
-      paidPlansEnabled: PAID_PLANS_ENABLED,
-      stripeBillingConfigured,
-      webhookConfigured,
-      emailConfigured,
-      storageConfigured: storageSetup.configured,
-      storageBucket: storageSetup.bucket,
-      frontendPublicConfigured,
-      legalDraftsPresent: true,
-      reportReviewEnabled: true,
-      pdfExportsEnabled: true
-    }
+    )
   };
 }
 
@@ -939,6 +990,10 @@ function contentReportPayload(body = {}, fallbackRole = "freelancer") {
 function normaliseContentReportStatus(status) {
   const allowed = new Set(["open", "reviewed", "dismissed", "resolved"]);
   return allowed.has(status) ? status : "reviewed";
+}
+
+function normaliseFeedbackValue(value, allowed, fallback) {
+  return allowed.has(value) ? value : fallback;
 }
 
 async function getAuthUserEmail(userId) {
@@ -1821,6 +1876,28 @@ app.get("/billing", async (req, res) => {
   }
 });
 
+app.get("/admin/readiness", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    assertAdminAccess(user, req);
+
+    const setup = await getLaunchSetupStatus();
+    res.json({
+      admin: true,
+      access: isAdminUser(user) ? "admin" : "local",
+      email: user.email,
+      setup
+    });
+  } catch (error) {
+    if (error.statusCode !== 403) {
+      console.error("Admin readiness error:", error.message);
+    }
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not load admin readiness" });
+  }
+});
+
 app.post("/billing/checkout", async (req, res) => {
   try {
     if (!PAID_PLANS_ENABLED) {
@@ -1918,6 +1995,68 @@ app.post("/legal/acceptance", async (req, res) => {
     res
       .status(missingPolicyTable ? 503 : error.statusCode || 500)
       .json({ error: message });
+  }
+});
+
+app.post("/feedback", async (req, res) => {
+  try {
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    const categories = new Set(["general", "confusing", "bug", "client_flow", "feature", "pricing"]);
+    const roles = new Set(["freelancer", "client", "visitor"]);
+    const pageUrl = typeof req.body?.pageUrl === "string" ? req.body.pageUrl.trim().slice(0, 600) : null;
+    const reporterEmail = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const rawShareId = req.body?.shareId || req.body?.share_id;
+    const shareId = typeof rawShareId === "string" && rawShareId.trim() ? rawShareId.trim() : null;
+
+    if (!message) {
+      return res.status(400).json({ error: "Feedback message is required." });
+    }
+
+    const user = await getOptionalUserFromRequest(req);
+    let projectId = null;
+
+    if (shareId) {
+      try {
+        const project = await getSharedProject(shareId);
+        projectId = project.id;
+      } catch (error) {
+        console.warn("Feedback share lookup fallback:", error.message);
+      }
+    } else if (user && req.body?.projectId) {
+      try {
+        const project = await getOwnedProject(req.body.projectId, user);
+        projectId = project.id;
+      } catch (error) {
+        console.warn("Feedback project lookup fallback:", error.message);
+      }
+    }
+
+    const payload = {
+      user_id: user?.id || null,
+      project_id: projectId,
+      share_id: shareId,
+      reporter_role: normaliseFeedbackValue(req.body?.reporterRole, roles, user ? "freelancer" : "visitor"),
+      reporter_email: reporterEmail || user?.email || null,
+      category: normaliseFeedbackValue(req.body?.category, categories, "general"),
+      message: message.slice(0, 3000),
+      page_url: pageUrl,
+      context: req.body?.context && typeof req.body.context === "object" ? req.body.context : {}
+    };
+
+    const { data, error } = await supabase
+      .from("beta_feedback")
+      .insert([payload])
+      .select("id,created_at")
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({ feedback: data });
+  } catch (error) {
+    console.error("Feedback submit error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not submit feedback" });
   }
 });
 
