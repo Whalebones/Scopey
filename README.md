@@ -19,17 +19,22 @@ Required values:
 - `SUPABASE_SERVICE_KEY`
 - `SUPABASE_STORAGE_BUCKET` (optional, defaults to `scopey-uploads`)
 - `FRONTEND_URL`
+- `ADDITIONAL_CORS_ORIGINS` (optional comma-separated list for preview/front-end hosts)
 - `PORT` (optional, defaults to `3000`)
 
 Optional email delivery:
 - `RESEND_API_KEY`
 - `EMAIL_FROM`
 
-If `RESEND_API_KEY` is not set, Scopey cannot send automatic client emails. The Email client button will prepare a secure review link and copy it where browser permissions allow, but no email is sent until Resend is configured.
+Automatic client emails are available on Free and paid plans. If `RESEND_API_KEY` is not set, the Email client button will prepare a secure review link and copy it where browser permissions allow, but no email is sent until Resend is configured.
 
-### 3. Add collaboration tables
-Run `supabase-schema.sql` in the Supabase SQL editor to add:
+### 3. Add the database schema
+Run `supabase-schema.sql` in the Supabase SQL editor. The file creates the core Scopey tables when they do not exist and upgrades older development schemas with the current production fields.
 
+It includes:
+
+- core `projects`, `scope_items`, `changes`, `change_payments` and `processed_events` tables
+- owner RLS policies for project, scope and change data used by the frontend
 - project lifecycle and agreement fields on `projects`
 - `client_email` on `projects` so project links can be addressed to the client
 - `freelancer_profiles` for business profile names, profile images and client-facing brand details
@@ -102,8 +107,8 @@ stripe listen --forward-to localhost:3000/webhook
 
 Scopey currently supports three plan keys:
 
-- `free`: 1 active project, basic scope/suggestions/updates and client review links
-- `pro`: unlimited active projects, automated client emails, agreement templates, PDF exports and Stripe checkout
+- `free`: 1 active project, automatic client emails, scope/suggestions/updates and client review links
+- `pro`: unlimited active projects, agreement templates, PDF exports and Stripe checkout
 - `business`: Pro plus higher storage limits and room for future team/business controls
 
-Free users can still experience the core project workflow. Pro is the main solo-freelancer upgrade and is enforced by the backend for project limits, reusable templates, automated emails, PDF exports and Stripe checkout.
+Free users can experience the full handoff loop for one active project. Pro is the main solo-freelancer upgrade and is enforced by the backend for multiple active projects, reusable templates, PDF exports and Stripe checkout.

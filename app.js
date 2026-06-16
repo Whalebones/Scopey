@@ -26,13 +26,21 @@ let currentActivity = [];
 let currentGallery = [];
 let currentAgreementVersions = [];
 let currentDeliverables = [];
+let currentContentReports = [];
 let currentProfile = null;
 let currentBilling = null;
 let currentRights = null;
 let currentProjectTab = "overview";
 let currentGuidedAction = null;
 let selectedBillingPlanKey = null;
+let selectedRightsArtworkId = null;
+let pendingRightsConflicts = [];
+let pendingContentReport = null;
+let pendingReportReview = null;
 let isCreatingProject = false;
+let isOpeningDashboard = false;
+let isSigningOut = false;
+const recentToastRegistry = new Map();
 
 let isClientView = false;
 let isBusy = false;
@@ -65,15 +73,32 @@ const SUPPORTED_CURRENCIES = [
   "DKK",
   "PLN"
 ];
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const RIGHTS_USAGE_LABELS = {
+  print: "Print",
+  merchandise: "Merchandise",
+  digital: "Digital",
+  packaging: "Packaging",
+  advertising: "Advertising",
+  all_uses: "All uses"
+};
+const RIGHTS_TERRITORY_LABELS = {
+  worldwide: "Worldwide",
+  uk: "UK",
+  eu: "EU",
+  north_america: "North America"
+};
 const POLICY_VERSIONS = {
   terms: "2026-06-15",
   privacy: "2026-06-15"
 };
+const PUBLIC_BETA_FREE_ONLY = true;
 
 // =======================
 // DOM REFERENCES
 // =======================
 const bannerEl = document.getElementById("banner");
+const toastRegion = document.getElementById("toast-region");
 const landingView = document.getElementById("landing-view");
 const ownerView = document.getElementById("owner-view");
 const clientView = document.getElementById("client-view");
@@ -114,9 +139,12 @@ const accountPlanName = document.getElementById("account-plan-name");
 const accountPlanCopy = document.getElementById("account-plan-copy");
 const accountProjectUsage = document.getElementById("account-project-usage");
 const accountProjectNote = document.getElementById("account-project-note");
-const accountStripeStatus = document.getElementById("account-stripe-status");
-const accountEmailStatus = document.getElementById("account-email-status");
 const accountPlanGrid = document.getElementById("account-plan-grid");
+const developerDiagnosticsBtn = document.getElementById("developer-diagnostics-btn");
+const developerDiagnosticsModal = document.getElementById("developer-diagnostics-modal");
+const closeDeveloperDiagnosticsBtn = document.getElementById("close-developer-diagnostics-btn");
+const developerLaunchScore = document.getElementById("developer-launch-score");
+const developerLaunchList = document.getElementById("developer-launch-list");
 
 const deleteProjectModal = document.getElementById("delete-project-modal");
 const deleteProjectFinalModal = document.getElementById("delete-project-final-modal");
@@ -168,6 +196,7 @@ const billingFeatureList = document.getElementById("billing-feature-list");
 const billingPlanCtaBtn = document.getElementById("billing-plan-cta-btn");
 const upgradeProBtn = document.getElementById("upgrade-pro-btn");
 const upgradeBusinessBtn = document.getElementById("upgrade-business-btn");
+const projectLimitNote = document.getElementById("project-limit-note");
 const rightsModal = document.getElementById("rights-modal");
 const openRightsBtn = document.getElementById("open-rights-btn");
 const closeRightsBtn = document.getElementById("close-rights-btn");
@@ -183,6 +212,39 @@ const rightsArtworkTitle = document.getElementById("rights-artwork-title");
 const rightsArtworkDescription = document.getElementById("rights-artwork-description");
 const rightsCreateArtworkBtn = document.getElementById("rights-create-artwork-btn");
 const rightsArtworkList = document.getElementById("rights-artwork-list");
+const rightsArtworkSelect = document.getElementById("rights-artwork-select");
+const rightsLicenseClient = document.getElementById("rights-license-client");
+const rightsLicenseUsageType = document.getElementById("rights-license-usage-type");
+const rightsLicenseTerritory = document.getElementById("rights-license-territory");
+const rightsLicenseExclusive = document.getElementById("rights-license-exclusive");
+const rightsLicenseFee = document.getElementById("rights-license-fee");
+const rightsLicenseCurrency = document.getElementById("rights-license-currency");
+const rightsLicenseStart = document.getElementById("rights-license-start");
+const rightsLicenseEnd = document.getElementById("rights-license-end");
+const rightsLicenseNotes = document.getElementById("rights-license-notes");
+const rightsConflictPanel = document.getElementById("rights-conflict-panel");
+const rightsConflictList = document.getElementById("rights-conflict-list");
+const rightsAcknowledgeConflict = document.getElementById("rights-acknowledge-conflict");
+const rightsCreateLicenseBtn = document.getElementById("rights-create-license-btn");
+const reportContentModal = document.getElementById("report-content-modal");
+const closeReportContentBtn = document.getElementById("close-report-content-btn");
+const cancelReportContentBtn = document.getElementById("cancel-report-content-btn");
+const submitReportContentBtn = document.getElementById("submit-report-content-btn");
+const reportContentTitle = document.getElementById("report-content-title");
+const reportContentContext = document.getElementById("report-content-context");
+const reportContentEmail = document.getElementById("report-content-email");
+const reportContentReason = document.getElementById("report-content-reason");
+const reportContentDetails = document.getElementById("report-content-details");
+const reportReviewModal = document.getElementById("report-review-modal");
+const closeReportReviewBtn = document.getElementById("close-report-review-btn");
+const cancelReportReviewBtn = document.getElementById("cancel-report-review-btn");
+const submitReportReviewBtn = document.getElementById("submit-report-review-btn");
+const reportReviewTitle = document.getElementById("report-review-title");
+const reportReviewContext = document.getElementById("report-review-context");
+const reportReviewStatus = document.getElementById("report-review-status");
+const reportReviewNote = document.getElementById("report-review-note");
+const contentReportSummary = document.getElementById("content-report-summary");
+const contentReportList = document.getElementById("content-report-list");
 
 const ownerEmptyState = document.getElementById("owner-empty-state");
 const projectWorkspace = document.getElementById("project-workspace");
@@ -234,6 +296,8 @@ const handoffStatusChip = document.getElementById("handoff-status-chip");
 const handoffLinkScope = document.getElementById("handoff-link-scope");
 const handoffEmailState = document.getElementById("handoff-email-state");
 const handoffClientAction = document.getElementById("handoff-client-action");
+const handoffReadinessList = document.getElementById("handoff-readiness-list");
+const handoffSendBtn = document.getElementById("handoff-send-btn");
 const editProjectTitle = document.getElementById("edit-project-title");
 const editProjectClient = document.getElementById("edit-project-client");
 const editProjectClientEmail = document.getElementById("edit-project-client-email");
@@ -304,6 +368,7 @@ const requestFinalBtn = document.getElementById("request-final-btn");
 const completeProjectBtn = document.getElementById("complete-project-btn");
 const cancelProjectBtn = document.getElementById("cancel-project-btn");
 const completionStatusCopy = document.getElementById("completion-status-copy");
+const completionReadinessList = document.getElementById("completion-readiness-list");
 const projectTimelineList = document.getElementById("project-timeline-list");
 
 const clientProfileCard = document.getElementById("client-profile-card");
@@ -319,6 +384,10 @@ const clientSummaryScope = document.getElementById("client-summary-scope");
 const clientSummaryChanges = document.getElementById("client-summary-changes");
 const clientSummaryPayments = document.getElementById("client-summary-payments");
 const clientSummaryDeliverables = document.getElementById("client-summary-deliverables");
+const clientPrimaryActionTitle = document.getElementById("client-primary-action-title");
+const clientPrimaryActionCopy = document.getElementById("client-primary-action-copy");
+const clientPrimaryActionBtn = document.getElementById("client-primary-action-btn");
+const clientGuidanceGrid = document.getElementById("client-guidance-grid");
 const clientScopeList = document.getElementById("client-scope-list");
 const clientPendingList = document.getElementById("client-pending-list");
 const clientApprovedList = document.getElementById("client-approved-list");
@@ -527,6 +596,14 @@ const LEGAL_DOCUMENTS = {
           "Users should avoid adding special-category personal data or unnecessary sensitive client information unless they have a lawful basis and appropriate safeguards.",
           "Scopey may remove content or restrict accounts where content creates legal, security or platform risk."
         ]
+      },
+      {
+        heading: "Reporting content",
+        body: [
+          "Freelancers and clients can report project messages, suggestions or uploaded images that may breach Scopey's usage rules.",
+          "Reports are recorded against the project so the account owner can review the concern, preserve context and take action where needed.",
+          "Scopey may later use reports to investigate platform abuse, remove content or restrict access in line with these rules and the Terms."
+        ]
       }
     ]
   },
@@ -703,16 +780,60 @@ function formatCurrency(value, currency = getProjectCurrency()) {
 }
 
 function showBanner(message, kind = "info") {
-  if (!bannerEl) return;
-  bannerEl.textContent = message;
-  bannerEl.className = `banner ${kind}`;
-  bannerEl.style.display = "block";
+  if (bannerEl) {
+    bannerEl.textContent = message;
+    bannerEl.className = `banner ${kind}`;
+    bannerEl.style.display = "block";
+  }
+  showToast(message, kind);
 }
 
 function clearBanner() {
   if (!bannerEl) return;
   bannerEl.textContent = "";
   bannerEl.style.display = "none";
+}
+
+function showToast(message, kind = "info") {
+  if (!toastRegion || !message) return;
+
+  const key = `${kind}:${message}`;
+  const now = Date.now();
+  const lastShownAt = recentToastRegistry.get(key) || 0;
+  if (now - lastShownAt < 1600) return;
+  recentToastRegistry.set(key, now);
+  recentToastRegistry.forEach((shownAt, toastKey) => {
+    if (now - shownAt > 8000) recentToastRegistry.delete(toastKey);
+  });
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${kind}`;
+  toast.setAttribute("role", kind === "error" ? "alert" : "status");
+
+  const body = document.createElement("div");
+  body.className = "toast-body";
+  const title = document.createElement("strong");
+  title.textContent =
+    kind === "success" ? "Done" : kind === "error" ? "Needs attention" : kind === "warning" ? "Check this" : "Scopey";
+  const copy = document.createElement("p");
+  copy.textContent = message;
+  body.appendChild(title);
+  body.appendChild(copy);
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.setAttribute("aria-label", "Dismiss notification");
+  close.textContent = "x";
+  close.addEventListener("click", () => toast.remove());
+
+  toast.appendChild(body);
+  toast.appendChild(close);
+  toastRegion.appendChild(toast);
+
+  window.setTimeout(() => {
+    toast.classList.add("toast-exiting");
+    window.setTimeout(() => toast.remove(), 220);
+  }, kind === "error" ? 7000 : 4600);
 }
 
 function getCurrentPlanKey() {
@@ -738,6 +859,11 @@ function isActiveProjectLimitReached() {
 }
 
 function showUpgradePrompt(message, plan = "pro") {
+  if (PUBLIC_BETA_FREE_ONLY) {
+    showBanner(`${message} Paid plans are coming soon. Scopey is free during public beta.`, "warning");
+    return;
+  }
+
   const planName = plan === "business" ? "Business" : "Pro";
   showBanner(`${message} Upgrade to ${planName} when you're ready.`, "warning");
 }
@@ -749,6 +875,13 @@ function userHasPlan(requiredPlan = "pro") {
 
 function requirePlan(requiredPlan, feature) {
   if (userHasPlan(requiredPlan)) return true;
+
+  if (PUBLIC_BETA_FREE_ONLY) {
+    showBanner(`${feature} will be available when paid plans launch.`, "warning");
+    openAccountModal();
+    return false;
+  }
+
   const planName = requiredPlan === "business" ? "Business" : "Pro";
   showBanner(`${feature} is included with ${planName}.`, "warning");
   openAccountModal();
@@ -757,9 +890,19 @@ function requirePlan(requiredPlan, feature) {
 
 function setLockedControl(control, isLocked, label, lockedLabel) {
   if (!control) return;
-  control.classList.toggle("plan-locked", isLocked);
-  control.title = isLocked ? `${label} is included with Pro` : "";
-  control.textContent = isLocked ? lockedLabel : label;
+  const emailControl = [emailClientBtn, handoffEmailClientBtn, clientReviewEmailClientBtn].includes(control);
+  const effectiveLocked = emailControl ? false : isLocked;
+  control.classList.toggle("plan-locked", effectiveLocked);
+  control.title = effectiveLocked
+    ? PUBLIC_BETA_FREE_ONLY
+      ? `${label} is coming soon`
+      : `${label} is included with Pro`
+    : "";
+  control.textContent = effectiveLocked
+    ? PUBLIC_BETA_FREE_ONLY
+      ? `${label} - Coming soon`
+      : `${label} - Pro`
+    : label;
 }
 
 function renderPlanLockedStates() {
@@ -1067,6 +1210,68 @@ function buildCollaborationCard(title, subtitle, details, imageUrl, rightNode = 
   return card;
 }
 
+function getSourceLabel(sourceType) {
+  const labels = {
+    suggestion: "client suggestion",
+    update: "project update",
+    deliverable: "deliverable",
+    gallery: "image",
+    project: "project"
+  };
+  return labels[sourceType] || "content";
+}
+
+function getReportReasonLabel(reason) {
+  const labels = {
+    copyright: "Copyright or rights",
+    privacy: "Privacy",
+    abuse: "Abuse or harassment",
+    illegal: "Illegal content",
+    policy: "Policy concern",
+    other: "Other"
+  };
+  return labels[reason] || "Policy concern";
+}
+
+function getReportStatusKind(status) {
+  if (status === "resolved") return "success";
+  if (status === "dismissed") return "neutral";
+  if (status === "reviewed") return "warning";
+  return "danger";
+}
+
+function buildReportButton(sourceType, sourceId, title, reporterRole = "freelancer") {
+  const button = document.createElement("button");
+  button.className = "btn btn-secondary btn-small";
+  button.type = "button";
+  button.textContent = "Report";
+  button.addEventListener("click", () => {
+    openContentReportModal({
+      sourceType,
+      sourceId,
+      title,
+      reporterRole
+    });
+  });
+  return button;
+}
+
+function formatRightsLabel(value, labels) {
+  return labels[value] || value || "Not set";
+}
+
+function formatRightsLicenseSubtitle(license) {
+  const bits = [
+    formatRightsLabel(license.usage_type, RIGHTS_USAGE_LABELS),
+    formatRightsLabel(license.territory, RIGHTS_TERRITORY_LABELS),
+    license.exclusive ? "Exclusive" : "Non-exclusive",
+    formatCurrency(license.fee || 0, license.currency || "GBP")
+  ];
+  if (license.start_date) bits.push(`From ${license.start_date}`);
+  if (license.end_date) bits.push(`Until ${license.end_date}`);
+  return bits.join(" | ");
+}
+
 function getSuggestionStatusKind(status) {
   if (status === "accepted") return "success";
   if (status === "declined") return "danger";
@@ -1090,8 +1295,8 @@ function fileToDataUrl(input) {
   const file = input?.files?.[0];
   if (!file) return Promise.resolve(null);
 
-  if (!file.type.startsWith("image/")) {
-    return Promise.reject(new Error("Please choose an image file."));
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    return Promise.reject(new Error("Please choose a JPG, PNG or WebP image."));
   }
 
   if (file.size > 5 * 1024 * 1024) {
@@ -1108,6 +1313,104 @@ function fileToDataUrl(input) {
     reader.onerror = () => reject(new Error("Could not read image file."));
     reader.readAsDataURL(file);
   });
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not prepare image watermark."));
+    image.src = dataUrl;
+  });
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  const base64 = String(dataUrl || "").split(",")[1] || "";
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+async function watermarkFreelancerUpdateImage(image) {
+  if (!image?.dataUrl) return image;
+
+  const sourceImage = await loadImageFromDataUrl(image.dataUrl);
+  const sourceWidth = sourceImage.naturalWidth || sourceImage.width;
+  const sourceHeight = sourceImage.naturalHeight || sourceImage.height;
+
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error("Could not prepare image watermark.");
+  }
+
+  const maxDimension = 2200;
+  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not prepare image watermark.");
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(sourceImage, 0, 0, width, height);
+
+  const watermarkName = getProfileName(currentProfile).slice(0, 48);
+  const watermarkText = `${watermarkName} - progress update`;
+  const fontSize = Math.max(22, Math.min(72, Math.round(width / 28)));
+  const diagonal = Math.hypot(width, height);
+
+  context.save();
+  context.translate(width / 2, height / 2);
+  context.rotate(-Math.PI / 7);
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = `700 ${fontSize}px Arial, sans-serif`;
+  context.lineWidth = Math.max(2, fontSize / 14);
+  context.strokeStyle = "rgba(0,0,0,0.2)";
+  context.fillStyle = "rgba(255,255,255,0.28)";
+
+  const stepX = Math.max(fontSize * 8, context.measureText(watermarkText).width + fontSize * 5);
+  const stepY = fontSize * 3.6;
+
+  for (let y = -diagonal; y <= diagonal; y += stepY) {
+    for (let x = -diagonal; x <= diagonal; x += stepX) {
+      context.strokeText(watermarkText, x, y);
+      context.fillText(watermarkText, x, y);
+    }
+  }
+  context.restore();
+
+  const badgeText = `Watermarked: ${watermarkName}`;
+  context.font = `700 ${Math.max(15, Math.round(fontSize * 0.34))}px Arial, sans-serif`;
+  const badgePaddingX = 14;
+  const badgeWidth = context.measureText(badgeText).width + badgePaddingX * 2;
+  const badgeHeight = Math.max(34, Math.round(fontSize * 0.68));
+  const badgeX = Math.max(12, width - badgeWidth - 16);
+  const badgeY = Math.max(12, height - badgeHeight - 16);
+
+  context.fillStyle = "rgba(0,0,0,0.56)";
+  context.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
+  context.fillStyle = "rgba(255,255,255,0.95)";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText(badgeText, badgeX + badgePaddingX, badgeY + badgeHeight / 2);
+
+  const preferredType = image.dataUrl.startsWith("data:image/png") ? "image/png" : "image/jpeg";
+  let dataUrl = canvas.toDataURL(preferredType, 0.9);
+  if (estimateDataUrlBytes(dataUrl) > 5 * 1024 * 1024) {
+    const qualities = [0.84, 0.76, 0.68];
+    for (const quality of qualities) {
+      dataUrl = canvas.toDataURL("image/jpeg", quality);
+      if (estimateDataUrlBytes(dataUrl) <= 5 * 1024 * 1024) break;
+    }
+  }
+
+  return {
+    ...image,
+    name: `watermarked-${image.name || "progress-update.jpg"}`,
+    dataUrl
+  };
 }
 
 async function readJsonResponse(response, fallbackMessage) {
@@ -1171,13 +1474,21 @@ function getSelectedBillingPlanKey() {
 }
 
 function selectBillingPlan(planKey) {
+  if (PUBLIC_BETA_FREE_ONLY && planKey !== "free") {
+    selectedBillingPlanKey = "free";
+    showBanner("Paid plans are coming soon. Scopey is free during public beta.", "info");
+    renderBilling();
+    return;
+  }
+
   selectedBillingPlanKey = planKey;
   renderBilling();
 }
 
 function renderBilling() {
   const planKey = getCurrentPlanKey();
-  const selectedPlanKey = getSelectedBillingPlanKey();
+  const selectedPlanKey = PUBLIC_BETA_FREE_ONLY ? "free" : getSelectedBillingPlanKey();
+  if (PUBLIC_BETA_FREE_ONLY) selectedBillingPlanKey = "free";
   const selectedPlan = getBillingPlanDefinition(selectedPlanKey) || currentBilling?.plan;
   const planName = selectedPlan?.name || getCurrentPlanName();
   const usage = getActiveProjectUsage();
@@ -1215,30 +1526,48 @@ function renderBilling() {
   if (billingPlanCtaBtn) {
     const isCurrentPlan = selectedPlanKey === planKey;
     const isFreePlan = selectedPlanKey === "free";
-    billingPlanCtaBtn.classList.toggle("hidden", isFreePlan);
+    billingPlanCtaBtn.classList.toggle("hidden", PUBLIC_BETA_FREE_ONLY || isFreePlan);
     billingPlanCtaBtn.disabled = isCurrentPlan || isFreePlan;
     billingPlanCtaBtn.textContent = isCurrentPlan
       ? `${planName} active`
       : `Get ${planName}`;
   }
   if (billingLimitNote) {
-    billingLimitNote.textContent = atLimit
+    billingLimitNote.textContent = PUBLIC_BETA_FREE_ONLY
+      ? atLimit
+        ? "Free beta includes one active project. Complete, archive, cancel or delete an active project to create another."
+        : "Paid plans are coming soon. Free is the only public sign-up plan right now."
+      : atLimit
       ? "Free is full. Archive, complete or delete a project, or upgrade to Pro."
-      : "Pro unlocks unlimited projects, automated emails, PDFs, templates and Stripe checkout.";
-    billingLimitNote.classList.toggle("hidden", planKey !== "free" && !atLimit);
+      : "Pro unlocks unlimited projects, PDFs, templates and Stripe checkout.";
+    billingLimitNote.classList.toggle("hidden", !PUBLIC_BETA_FREE_ONLY && planKey !== "free" && !atLimit);
   }
   if (upgradeProBtn) {
+    upgradeProBtn.classList.toggle("hidden", PUBLIC_BETA_FREE_ONLY);
     upgradeProBtn.classList.toggle("active", selectedPlanKey === "pro");
     upgradeProBtn.textContent = planKey === "pro" ? "Pro active" : "Pro";
   }
   if (upgradeBusinessBtn) {
+    upgradeBusinessBtn.classList.toggle("hidden", PUBLIC_BETA_FREE_ONLY);
     upgradeBusinessBtn.classList.toggle("active", selectedPlanKey === "business");
     upgradeBusinessBtn.textContent = planKey === "business" ? "Business active" : "Business";
-    upgradeBusinessBtn.disabled = false;
+    upgradeBusinessBtn.disabled = PUBLIC_BETA_FREE_ONLY;
   }
   if (createProjectBtn) {
     createProjectBtn.disabled = atLimit;
-    createProjectBtn.textContent = atLimit ? "Upgrade for more projects" : "Create project";
+    createProjectBtn.textContent = atLimit
+      ? PUBLIC_BETA_FREE_ONLY
+        ? "Free project limit reached"
+        : "Upgrade for more projects"
+      : "Create project";
+  }
+  if (projectLimitNote) {
+    projectLimitNote.textContent = atLimit
+      ? PUBLIC_BETA_FREE_ONLY
+        ? "Free beta includes one active client project. Complete, archive, cancel or delete an active project to create another."
+        : "Free includes one active client project. Complete, archive, cancel or delete an active project, or upgrade to Pro for unlimited active projects."
+      : "";
+    projectLimitNote.classList.toggle("hidden", !atLimit);
   }
   renderAccountBilling();
   renderPlanLockedStates();
@@ -1249,12 +1578,12 @@ function getPlanFeatureList(planKey) {
     free: [
       "1 active client project",
       "Shared client review page",
+      "Automatic client emails",
       "Scope and change tracking",
       "10 Scopey Rights licences"
     ],
     pro: [
       "Unlimited active projects",
-      "Automatic client emails",
       "PDF agreements, invoices and receipts",
       "Agreement templates",
       "Stripe payment links for paid approvals",
@@ -1301,8 +1630,10 @@ function renderRights() {
   if (!rightsArtworkList) return;
 
   rightsArtworkList.innerHTML = "";
+  if (rightsArtworkSelect) rightsArtworkSelect.innerHTML = "";
 
   if (!currentRights) {
+    rightsArtworkSelect?.setAttribute("disabled", "true");
     rightsArtworkList.appendChild(
       buildEmptyState({
         title: "Rights library not loaded",
@@ -1313,6 +1644,8 @@ function renderRights() {
   }
 
   if (artworks.length === 0) {
+    selectedRightsArtworkId = null;
+    rightsArtworkSelect?.setAttribute("disabled", "true");
     rightsArtworkList.appendChild(
       buildEmptyState({
         title: "No artwork records yet",
@@ -1322,9 +1655,23 @@ function renderRights() {
     return;
   }
 
-  artworks.slice(0, 4).forEach((artwork) => {
+  if (!selectedRightsArtworkId || !artworks.some((artwork) => artwork.id === selectedRightsArtworkId)) {
+    selectedRightsArtworkId = artworks[0].id;
+  }
+  rightsArtworkSelect?.removeAttribute("disabled");
+  artworks.forEach((artwork) => {
+    if (rightsArtworkSelect) {
+      const option = document.createElement("option");
+      option.value = artwork.id;
+      option.textContent = artwork.title;
+      rightsArtworkSelect.appendChild(option);
+    }
+  });
+  if (rightsArtworkSelect) rightsArtworkSelect.value = selectedRightsArtworkId;
+
+  artworks.forEach((artwork) => {
     const card = document.createElement("div");
-    card.className = "rights-artwork-card";
+    card.className = `rights-artwork-card ${artwork.id === selectedRightsArtworkId ? "active" : ""}`;
 
     const main = document.createElement("div");
     const title = document.createElement("strong");
@@ -1344,10 +1691,148 @@ function renderRights() {
     if ((artwork.licenses || []).some((license) => license.acknowledged_conflict)) {
       meta.appendChild(buildStatusPill("Conflict noted", "danger"));
     }
+    const selectBtn = document.createElement("button");
+    selectBtn.className = "btn btn-secondary btn-small";
+    selectBtn.type = "button";
+    selectBtn.textContent = artwork.id === selectedRightsArtworkId ? "Selected" : "Use";
+    selectBtn.addEventListener("click", () => {
+      selectedRightsArtworkId = artwork.id;
+      pendingRightsConflicts = [];
+      renderRights();
+    });
+    meta.appendChild(selectBtn);
 
     card.appendChild(main);
     card.appendChild(meta);
+
+    const licenses = artwork.licenses || [];
+    const licenceList = document.createElement("div");
+    licenceList.className = "rights-license-list";
+    if (!licenses.length) {
+      licenceList.appendChild(
+        buildEmptyState({
+          title: "No licences yet",
+          copy: "Add the first permission record for this artwork."
+        })
+      );
+    } else {
+      licenses.forEach((license) => {
+        const actions = document.createElement("div");
+        actions.className = "action-stack";
+        actions.appendChild(
+          buildStatusPill(
+            license.active ? "Active" : "Inactive",
+            license.active ? "success" : "neutral"
+          )
+        );
+        if (license.expiring_soon) actions.appendChild(buildStatusPill("Expiring soon", "warning"));
+        if (license.acknowledged_conflict) actions.appendChild(buildStatusPill("Conflict noted", "danger"));
+        licenceList.appendChild(
+          buildListRow(
+            license.client_name,
+            formatRightsLicenseSubtitle(license),
+            actions
+          )
+        );
+        if (license.notes) {
+          const row = licenceList.lastElementChild;
+          const notes = document.createElement("p");
+          notes.className = "item-details";
+          notes.textContent = license.notes;
+          row?.querySelector(".item-main")?.appendChild(notes);
+        }
+      });
+    }
+    card.appendChild(licenceList);
     rightsArtworkList.appendChild(card);
+  });
+
+  if (rightsConflictPanel) {
+    rightsConflictPanel.classList.toggle("hidden", pendingRightsConflicts.length === 0);
+  }
+  if (rightsConflictList) {
+    rightsConflictList.innerHTML = "";
+    pendingRightsConflicts.forEach((conflict) => {
+      const item = document.createElement("div");
+      item.className = "rights-conflict-item";
+      item.textContent = `${conflict.license?.client_name || "Existing licence"}: ${(conflict.reasons || []).join(", ")}`;
+      rightsConflictList.appendChild(item);
+    });
+  }
+}
+
+function getLaunchReadinessChecks(setup = {}) {
+  return [
+    {
+      label: "Stripe checkout",
+      complete: Boolean(setup.stripeBillingConfigured),
+      detail: setup.stripeBillingConfigured
+        ? "Plan checkout keys and price IDs are configured."
+        : "Add real Stripe secret and plan price IDs before selling paid tiers."
+    },
+    {
+      label: "Stripe webhooks",
+      complete: Boolean(setup.webhookConfigured),
+      detail: setup.webhookConfigured
+        ? "Webhook secret is configured for payment events."
+        : "Add STRIPE_WEBHOOK_SECRET so payment state can be trusted."
+    },
+    {
+      label: "Client emails",
+      complete: Boolean(setup.emailConfigured),
+      detail: setup.emailConfigured
+        ? "Transactional email sending is configured."
+        : "Add a real Resend API key before relying on automatic client emails."
+    },
+    {
+      label: "Upload storage",
+      complete: Boolean(setup.storageConfigured),
+      detail: setup.storageConfigured
+        ? `Storage bucket "${setup.storageBucket || "scopey-uploads"}" is available.`
+        : `Create or expose the "${setup.storageBucket || "scopey-uploads"}" storage bucket.`
+    },
+    {
+      label: "Public app URL",
+      complete: Boolean(setup.frontendPublicConfigured),
+      detail: setup.frontendPublicConfigured
+        ? "Frontend URL points at a public production address."
+        : "Set FRONTEND_URL to the deployed Scopey domain before sending real client links."
+    },
+    {
+      label: "Policy documents",
+      complete: Boolean(setup.legalDraftsPresent),
+      detail: "Privacy, terms, acceptable use, refunds, cookies, sub-processors and DPA notes are present."
+    },
+    {
+      label: "Report review",
+      complete: Boolean(setup.reportReviewEnabled),
+      detail: "Client and freelancer reports can be reviewed from project workspaces."
+    },
+    {
+      label: "PDF exports",
+      complete: Boolean(setup.pdfExportsEnabled),
+      detail: "Agreement and payment document export paths are available."
+    }
+  ];
+}
+
+function renderLaunchReadiness(setup = {}) {
+  if (!developerLaunchList) return;
+
+  const checks = getLaunchReadinessChecks(setup);
+  const completeCount = checks.filter((check) => check.complete).length;
+  const score = Math.round((completeCount / checks.length) * 100);
+
+  if (developerLaunchScore) {
+    developerLaunchScore.textContent = `${score}%`;
+    developerLaunchScore.className = `status-chip status-${score >= 88 ? "success" : score >= 62 ? "warning" : "danger"}`;
+  }
+
+  developerLaunchList.innerHTML = "";
+  checks.forEach((check) => {
+    developerLaunchList.appendChild(
+      buildReadinessItem(check.label, check.complete, check.detail)
+    );
   });
 }
 
@@ -1358,7 +1843,6 @@ function renderAccountBilling() {
   const planName = getCurrentPlanName();
   const usage = getActiveProjectUsage();
   const limitLabel = usage.limit === null ? "Unlimited" : usage.limit;
-  const setup = currentBilling.setup || {};
 
   if (accountPlanName) accountPlanName.textContent = planName;
   if (accountPlanCopy) {
@@ -1367,25 +1851,20 @@ function renderAccountBilling() {
   }
   if (accountProjectUsage) accountProjectUsage.textContent = `${usage.used} / ${limitLabel}`;
   if (accountProjectNote) {
-    accountProjectNote.textContent =
-      usage.limit === null
-        ? "Your plan can run unlimited active projects."
-        : "Upgrade to Pro for unlimited active projects.";
-  }
-  if (accountStripeStatus) {
-    const ready = Boolean(setup.stripeBillingConfigured);
-    accountStripeStatus.textContent = ready ? "Ready" : "Needs setup";
-    accountStripeStatus.className = `status-chip status-${ready ? "success" : "warning"}`;
-  }
-  if (accountEmailStatus) {
-    const ready = Boolean(setup.emailConfigured);
-    accountEmailStatus.textContent = ready ? "Ready" : "Not configured";
-    accountEmailStatus.className = `status-chip status-${ready ? "success" : "warning"}`;
+    accountProjectNote.textContent = PUBLIC_BETA_FREE_ONLY
+      ? "Free beta includes one active client project."
+      : usage.limit === null
+      ? "Your plan can run unlimited active projects."
+      : "Upgrade to Pro for unlimited active projects.";
   }
   if (!accountPlanGrid) return;
 
   accountPlanGrid.innerHTML = "";
-  (currentBilling.plans || []).forEach((plan) => {
+  const plans = PUBLIC_BETA_FREE_ONLY
+    ? (currentBilling.plans || []).filter((plan) => plan.key === "free")
+    : currentBilling.plans || [];
+
+  plans.forEach((plan) => {
     const card = document.createElement("section");
     card.className = `account-plan-card ${plan.key === planKey ? "active" : ""}`;
 
@@ -1601,6 +2080,14 @@ function getShareTokenQuery() {
   return text ? `?${text}` : "";
 }
 
+function getClientAccessPayload() {
+  return {
+    section: clientSection,
+    token: clientToken || null,
+    accessCode: clientAccessCodeValue || null
+  };
+}
+
 function getAgreementFormPayload() {
   return {
     agreementSummary: agreementSummary?.value,
@@ -1791,6 +2278,7 @@ function getGuidedAction(project, scopeItems = [], changes = [], suggestions = [
   const pendingPayments = payments.filter((payment) => payment.status === "pending");
   const overduePayments = payments.filter(isPaymentOverdue);
   const unapprovedDeliverables = deliverables.filter((item) => item.status !== "approved");
+  const openReports = currentContentReports.filter((report) => report.status === "open");
 
   if (!project) {
     return {
@@ -1808,6 +2296,16 @@ function getGuidedAction(project, scopeItems = [], changes = [], suggestions = [
       label: "Open settings",
       type: "tab",
       tab: "overview"
+    };
+  }
+
+  if (openReports.length) {
+    return {
+      title: "Review policy reports",
+      copy: `${openReports.length} content report${openReports.length === 1 ? "" : "s"} need a decision before the project is clean.`,
+      label: "Open reports",
+      type: "tab",
+      tab: "reports"
     };
   }
 
@@ -2040,11 +2538,89 @@ function getOwnerHandoffCopy(project, scopeItems, payments, changes, deliverable
   return getClientNextAction(project, changes, payments, deliverables);
 }
 
+function getHandoffChecks(project, scopeItems = [], payments = []) {
+  const profileName = getProfileName(currentProfile);
+  const hasBusinessProfile = Boolean(
+    currentProfile?.brand_name ||
+      (profileName && profileName !== "Freelancer" && profileName !== "Scopey freelancer")
+  );
+  const hasPaymentTerms = Boolean(project?.agreement_payment_terms || payments.length);
+  const openReports = currentContentReports.filter((report) => report.status === "open");
+
+  return [
+    {
+      key: "email",
+      label: "Client email",
+      complete: Boolean(project?.client_email),
+      detail: project?.client_email || "Add the client's email in Project settings.",
+      tab: "overview"
+    },
+    {
+      key: "profile",
+      label: "Business profile",
+      complete: hasBusinessProfile,
+      detail: hasBusinessProfile
+        ? `${profileName} will appear on the client page.`
+        : "Add your business name so the client page feels trustworthy.",
+      action: "profile"
+    },
+    {
+      key: "agreement",
+      label: "Agreement",
+      complete: projectHasAgreement(project),
+      detail: projectHasAgreement(project)
+        ? "Agreement terms are ready."
+        : "Write the project terms before client acceptance.",
+      tab: "agreement"
+    },
+    {
+      key: "scope",
+      label: "Included scope",
+      complete: scopeItems.length > 0,
+      detail: scopeItems.length
+        ? `${scopeItems.length} included item${scopeItems.length === 1 ? "" : "s"} recorded.`
+        : "Add the work included in the original price.",
+      tab: "scope"
+    },
+    {
+      key: "payments",
+      label: "Payment terms",
+      complete: hasPaymentTerms,
+      detail: hasPaymentTerms
+        ? "Payment expectations are visible."
+        : "Add payment terms or a payment record if money is due.",
+      tab: "agreement"
+    },
+    {
+      key: "reports",
+      label: "Policy reports",
+      complete: openReports.length === 0,
+      detail: openReports.length
+        ? `${openReports.length} open report${openReports.length === 1 ? "" : "s"} need review.`
+        : "No open policy reports.",
+      tab: "reports"
+    }
+  ];
+}
+
+function routeToChecklistItem(check) {
+  if (!check) return;
+  if (check.action === "profile") {
+    setBusinessProfileEditing(true);
+    showBanner(check.detail, "info");
+    return;
+  }
+  if (check.tab) setCurrentProjectTab(check.tab);
+  showBanner(check.detail, "warning");
+}
+
 function renderHandoffPanel(project, scopeItems, changes, payments, deliverables) {
   if (!handoffSummaryCopy) return;
 
   const section = getShareSectionForTab();
   const email = project?.client_email || "";
+  const checks = getHandoffChecks(project, scopeItems, payments);
+  const incomplete = checks.filter((check) => !check.complete);
   handoffSummaryCopy.textContent = getOwnerHandoffCopy(project, scopeItems, payments, changes, deliverables);
 
   if (handoffStatusChip) {
@@ -2064,6 +2640,126 @@ function renderHandoffPanel(project, scopeItems, changes, payments, deliverables
   if (handoffClientAction) {
     handoffClientAction.textContent = getClientNextAction(project, changes, payments, deliverables);
   }
+
+  if (handoffReadinessList) {
+    handoffReadinessList.innerHTML = "";
+    checks.forEach((check) => {
+      const item = buildReadinessItem(check.label, check.complete, check.detail, {
+        truncateDetail: check.key === "email" && check.complete
+      });
+      item.classList.add("readiness-item-action");
+      item.addEventListener("click", () => {
+        if (!check.complete) routeToChecklistItem(check);
+      });
+      handoffReadinessList.appendChild(item);
+    });
+  }
+
+  if (handoffSendBtn) {
+    handoffSendBtn.textContent = incomplete.length ? "Finish setup" : "Send to client";
+    handoffSendBtn.classList.toggle("btn-secondary", incomplete.length > 0);
+    handoffSendBtn.classList.toggle("btn-primary", incomplete.length === 0);
+  }
+}
+
+function getCompletionChecks(project, changes = [], payments = [], deliverables = []) {
+  const pendingChanges = changes.filter((change) => change.status === "pending");
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const openReports = currentContentReports.filter((report) => report.status === "open");
+  const accepted = Boolean(
+    project?.accepted_at ||
+      ["accepted", "in_progress", "awaiting_final_approval", "complete"].includes(project?.status)
+  );
+
+  return [
+    {
+      key: "accepted",
+      label: "Agreement accepted",
+      complete: accepted,
+      detail: accepted
+        ? "The commercial scope has been accepted."
+        : "Send the project and wait for client acceptance first.",
+      tab: "client",
+      blocking: true
+    },
+    {
+      key: "payments",
+      label: "Payments clean",
+      complete: pendingPayments.length === 0,
+      detail: pendingPayments.length
+        ? `${pendingPayments.length} payment${pendingPayments.length === 1 ? "" : "s"} still pending.`
+        : "No pending project payments.",
+      tab: "payments",
+      blocking: true
+    },
+    {
+      key: "changes",
+      label: "Changes settled",
+      complete: pendingChanges.length === 0,
+      detail: pendingChanges.length
+        ? `${pendingChanges.length} paid change${pendingChanges.length === 1 ? "" : "s"} still need approval or payment.`
+        : "No pending paid changes.",
+      tab: "changes",
+      blocking: true
+    },
+    {
+      key: "deliverables",
+      label: "Deliverables shared",
+      complete: deliverables.length > 0,
+      detail: deliverables.length
+        ? `${deliverables.length} final deliverable${deliverables.length === 1 ? "" : "s"} shared.`
+        : "Add at least one final deliverable before requesting approval.",
+      tab: "deliverables",
+      blocking: true
+    },
+    {
+      key: "reports",
+      label: "Reports reviewed",
+      complete: openReports.length === 0,
+      detail: openReports.length
+        ? `${openReports.length} open policy report${openReports.length === 1 ? "" : "s"} need review.`
+        : "No open policy reports.",
+      tab: "reports",
+      blocking: true
+    }
+  ];
+}
+
+function renderCompletionReadiness(project, changes, payments, deliverables) {
+  const checks = getCompletionChecks(project, changes, payments, deliverables);
+  const blockers = checks.filter((check) => check.blocking && !check.complete);
+
+  if (completionReadinessList) {
+    completionReadinessList.innerHTML = "";
+    checks.forEach((check) => {
+      const item = buildReadinessItem(check.label, check.complete, check.detail);
+      item.classList.add("readiness-item-action");
+      item.addEventListener("click", () => {
+        if (!check.complete) routeToChecklistItem(check);
+      });
+      completionReadinessList.appendChild(item);
+    });
+  }
+
+  if (requestFinalBtn) {
+    requestFinalBtn.textContent = blockers.length ? "Finish completion setup" : "Request final approval";
+    requestFinalBtn.classList.toggle("btn-secondary", blockers.length > 0);
+    requestFinalBtn.classList.toggle("btn-primary", blockers.length === 0);
+    requestFinalBtn.disabled = ["awaiting_final_approval", "complete", "cancelled"].includes(project?.status);
+  }
+
+  if (completeProjectBtn) {
+    completeProjectBtn.textContent = project?.status === "awaiting_final_approval"
+      ? "Complete without client"
+      : "Mark complete";
+    completeProjectBtn.disabled = ["complete", "cancelled"].includes(project?.status);
+  }
+
+  if (startWorkBtn) {
+    startWorkBtn.disabled = !["accepted"].includes(project?.status);
+  }
+
+  return blockers;
 }
 
 function buildReadinessItem(label, isComplete, detail, options = {}) {
@@ -2097,6 +2793,7 @@ function renderProjectCommandCentre(project, scopeItems, changes, suggestions, p
   const outstandingTotal = getOutstandingTotal(payments);
   const overdueCount = payments.filter(isPaymentOverdue).length;
   const openSuggestions = suggestions.filter((suggestion) => suggestion.status === "suggested").length;
+  const openReports = currentContentReports.filter((report) => report.status === "open").length;
   const approvedDeliverables = deliverables.filter((item) => item.status === "approved").length;
   const [phaseTitle, phaseCopy] = getProjectPhaseCopy(project);
 
@@ -2134,6 +2831,13 @@ function renderProjectCommandCentre(project, scopeItems, changes, suggestions, p
       detail: openSuggestions
         ? `${openSuggestions} suggestion${openSuggestions === 1 ? "" : "s"} need a decision.`
         : "No unreviewed suggestions."
+    },
+    {
+      label: "Policy reports clear",
+      complete: openReports === 0,
+      detail: openReports
+        ? `${openReports} open report${openReports === 1 ? "" : "s"} need review.`
+        : "No open policy reports."
     },
     {
       label: "Deliverables controlled",
@@ -2216,6 +2920,45 @@ function renderAgreementPreview(container, project) {
   });
 }
 
+function getAgreementVersionStatusKind(status) {
+  if (status === "accepted") return "success";
+  if (status === "sent") return "warning";
+  if (status === "superseded") return "neutral";
+  return "neutral";
+}
+
+function buildAgreementVersionItem(version) {
+  const snapshot = version.agreement_snapshot || {};
+  const timestamp = version.accepted_at || version.sent_at || version.created_at;
+  const subtitle = [
+    version.status,
+    version.accepted_by_name && `Accepted by ${version.accepted_by_name}`,
+    timestamp && formatDateTime(timestamp)
+  ]
+    .filter(Boolean)
+    .join(" | ");
+  const statusPill = buildStatusPill(
+    version.status || "draft",
+    getAgreementVersionStatusKind(version.status)
+  );
+  const row = buildListRow(`Version ${version.version_number}`, subtitle, statusPill);
+  const main = row.querySelector(".item-main");
+  const previewParts = [
+    snapshot.agreement_summary && `Summary: ${snapshot.agreement_summary}`,
+    snapshot.agreement_scope && `Scope: ${snapshot.agreement_scope}`,
+    snapshot.agreement_payment_terms && `Payment: ${snapshot.agreement_payment_terms}`
+  ].filter(Boolean);
+
+  if (main && previewParts.length) {
+    const preview = document.createElement("p");
+    preview.className = "item-details agreement-version-preview";
+    preview.textContent = previewParts.join("\n");
+    main.appendChild(preview);
+  }
+
+  return row;
+}
+
 function fillAgreementForm(project) {
   if (projectCurrency) projectCurrency.value = getProjectCurrency(project);
   if (agreementSummary) agreementSummary.value = project?.agreement_summary || "";
@@ -2295,6 +3038,17 @@ function buildDeliverableRow(deliverable, options = {}) {
     approveBtn.textContent = "Approve";
     approveBtn.addEventListener("click", () => approveDeliverable(deliverable, approveBtn));
     actions.appendChild(approveBtn);
+  }
+
+  if (options.allowReport !== false) {
+    actions.appendChild(
+      buildReportButton(
+        "deliverable",
+        deliverable.id,
+        deliverable.title,
+        options.reporterRole || (isClientView ? "client" : "freelancer")
+      )
+    );
   }
 
   const details = [
@@ -2393,6 +3147,180 @@ function renderClientSummary(project, scopeItems, changes, payments, deliverable
     clientSummaryDeliverables.textContent = deliverables.length
       ? `${approvedDeliverables.length}/${deliverables.length} approved`
       : "Not shared yet";
+  }
+}
+
+function getClientPrimaryAction(project, changes = [], payments = [], deliverables = []) {
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const pendingChanges = changes.filter((change) => change.status === "pending");
+  const unapprovedDeliverables = deliverables.filter((item) => item.status !== "approved");
+
+  if (project?.status === "draft") {
+    return {
+      title: "Project is being prepared",
+      copy: "The agreement has not been sent for acceptance yet.",
+      label: "Review overview",
+      targetId: "client-project-title"
+    };
+  }
+
+  if (project?.status === "cancelled") {
+    return {
+      title: "Project cancelled",
+      copy: "This workspace is now a read-only record of the stopped commission.",
+      label: "View agreement",
+      targetId: "client-agreement-preview"
+    };
+  }
+
+  if (!project?.accepted_at && project?.status !== "cancelled") {
+    return {
+      title: "Review and accept the agreement",
+      copy: "Check the project terms, scope, payment rules and revision policy.",
+      label: "Review agreement",
+      targetId: "client-agreement-preview"
+    };
+  }
+
+  if (pendingPayments.length) {
+    return {
+      title: "Pay outstanding project payments",
+      copy: `${pendingPayments.length} payment${pendingPayments.length === 1 ? "" : "s"} need attention before the record is clean.`,
+      label: "View payments",
+      targetId: "client-payment-list"
+    };
+  }
+
+  if (pendingChanges.length) {
+    return {
+      title: "Review paid change requests",
+      copy: "Approve and pay extras before they become part of the agreed work.",
+      label: "View changes",
+      targetId: "client-pending-list"
+    };
+  }
+
+  if (project?.status === "awaiting_final_approval") {
+    return {
+      title: "Approve final completion",
+      copy: "Review the final files and sign off the completed project.",
+      label: "Approve completion",
+      targetId: "client-completion-panel"
+    };
+  }
+
+  if (unapprovedDeliverables.length) {
+    return {
+      title: "Review final deliverables",
+      copy: `${unapprovedDeliverables.length} deliverable${unapprovedDeliverables.length === 1 ? "" : "s"} can still be approved.`,
+      label: "View deliverables",
+      targetId: "client-deliverable-list"
+    };
+  }
+
+  if (project?.status === "complete") {
+    return {
+      title: "Project complete",
+      copy: "The project has been signed off and saved as a record.",
+      label: "View record",
+      targetId: "client-agreement-preview"
+    };
+  }
+
+  return {
+    title: "Send an idea or reference",
+    copy: "Use suggestions for new ideas so scope changes stay reviewed and priced.",
+    label: "Suggest change",
+    targetId: "client-suggestion-title"
+  };
+}
+
+function renderClientPrimaryAction(project, changes, payments, deliverables) {
+  const action = getClientPrimaryAction(project, changes, payments, deliverables);
+  if (clientPrimaryActionTitle) clientPrimaryActionTitle.textContent = action.title;
+  if (clientPrimaryActionCopy) clientPrimaryActionCopy.textContent = action.copy;
+  if (clientPrimaryActionBtn) {
+    clientPrimaryActionBtn.textContent = action.label;
+    clientPrimaryActionBtn.dataset.targetId = action.targetId;
+  }
+}
+
+function getClientGuidanceItems(project, changes = [], payments = [], deliverables = []) {
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const pendingChanges = changes.filter((change) => change.status === "pending");
+  const unapprovedDeliverables = deliverables.filter((item) => item.status !== "approved");
+
+  if (project?.status === "complete") {
+    return [
+      ["Completion recorded", "The project has been signed off and saved as a record."],
+      ["Review the agreement", "Accepted terms and scope remain visible for reference."],
+      ["Download records", "Use the freelancer's exported PDFs or receipts where supplied."]
+    ];
+  }
+
+  if (project?.status === "cancelled") {
+    return [
+      ["Project cancelled", "This workspace is retained as a record of the stopped commission."],
+      ["Check the agreement", "Cancellation terms and prior scope remain available."],
+      ["Contact the freelancer", "Use your existing communication channel for any dispute or follow-up."]
+    ];
+  }
+
+  if (!project?.accepted_at) {
+    return [
+      ["Read the agreement", "Check the scope, value, payment terms and revision policy."],
+      ["Accept when ready", "Acceptance records that the project terms are clear."],
+      ["Send suggestions", "Use suggestions for ideas that should be reviewed before work changes."]
+    ];
+  }
+
+  if (pendingPayments.length || pendingChanges.length) {
+    return [
+      ["Pay only approved work", "Pending changes and project payments stay separate from the original scope."],
+      ["Review each request", "Check the description and price before approving extra work."],
+      ["Keep decisions recorded", "Scopey saves paid approvals alongside the project history."]
+    ];
+  }
+
+  if (project?.status === "awaiting_final_approval" || unapprovedDeliverables.length) {
+    return [
+      ["Review final files", "Check the deliverables against the accepted agreement."],
+      ["Approve completion", "Sign off when the agreed work is complete."],
+      ["Request clarification", "Send an update or suggestion if something still needs review."]
+    ];
+  }
+
+  return [
+    ["Follow progress", "Updates and images show what has changed since the last decision."],
+    ["Suggest carefully", "New ideas can be reviewed, priced, accepted, revised or declined."],
+    ["Keep scope clean", "Approved extras stay separate from the original agreement."]
+  ];
+}
+
+function renderClientGuidance(project, changes, payments, deliverables) {
+  if (!clientGuidanceGrid) return;
+  clientGuidanceGrid.innerHTML = "";
+
+  getClientGuidanceItems(project, changes, payments, deliverables).forEach(([title, copy]) => {
+    const item = document.createElement("div");
+    const heading = document.createElement("strong");
+    const paragraph = document.createElement("p");
+    heading.textContent = title;
+    paragraph.textContent = copy;
+    item.appendChild(heading);
+    item.appendChild(paragraph);
+    clientGuidanceGrid.appendChild(item);
+  });
+}
+
+function runClientPrimaryAction() {
+  const targetId = clientPrimaryActionBtn?.dataset.targetId;
+  const target = targetId ? document.getElementById(targetId) : null;
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName)) {
+      target.focus({ preventScroll: true });
+    }
   }
 }
 
@@ -2549,10 +3477,48 @@ function closeAccountModal() {
   accountModal?.setAttribute("aria-hidden", "true");
 }
 
+function isDeveloperDiagnosticsAvailable() {
+  return ["localhost", "127.0.0.1", "::1", ""].includes(window.location.hostname);
+}
+
+function updateDeveloperDiagnosticsVisibility() {
+  developerDiagnosticsBtn?.classList.toggle("hidden", !isDeveloperDiagnosticsAvailable());
+}
+
+async function openDeveloperDiagnosticsModal() {
+  if (!isDeveloperDiagnosticsAvailable()) return;
+
+  try {
+    if (!currentBilling && currentUser) {
+      await loadBilling();
+    }
+    if (!currentBilling) {
+      openAuthModal();
+      showBanner("Sign in before viewing developer diagnostics.", "info");
+      return;
+    }
+    renderLaunchReadiness(currentBilling.setup || {});
+    developerDiagnosticsModal?.setAttribute("aria-hidden", "false");
+  } catch (error) {
+    console.error("Developer diagnostics error:", error);
+    showBanner(error.message || "Could not load developer diagnostics.", "error");
+  }
+}
+
+function closeDeveloperDiagnosticsModal() {
+  developerDiagnosticsModal?.setAttribute("aria-hidden", "true");
+}
+
 async function openRightsModal() {
   try {
     if (!currentRights && currentUser) {
       await loadRights();
+    }
+    if (rightsLicenseCurrency && !rightsLicenseCurrency.value) {
+      rightsLicenseCurrency.value = currentProject?.currency || currentProfile?.default_currency || "GBP";
+    }
+    if (rightsLicenseStart && !rightsLicenseStart.value) {
+      rightsLicenseStart.value = new Date().toISOString().slice(0, 10);
     }
     renderRights();
     rightsModal?.setAttribute("aria-hidden", "false");
@@ -2564,6 +3530,192 @@ async function openRightsModal() {
 
 function closeRightsModal() {
   rightsModal?.setAttribute("aria-hidden", "true");
+}
+
+function openContentReportModal(report) {
+  pendingContentReport = report;
+  if (reportContentTitle) reportContentTitle.textContent = `Report ${getSourceLabel(report.sourceType)}`;
+  if (reportContentContext) {
+    reportContentContext.textContent = report.title
+      ? `This report will be attached to "${report.title}".`
+      : "This report will be attached to the current project.";
+  }
+  if (reportContentEmail) reportContentEmail.value = currentUser?.email || "";
+  if (reportContentReason) reportContentReason.value = "policy";
+  if (reportContentDetails) reportContentDetails.value = "";
+  reportContentModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeContentReportModal() {
+  reportContentModal?.setAttribute("aria-hidden", "true");
+  pendingContentReport = null;
+  setButtonLoading(submitReportContentBtn, false, "Send report");
+}
+
+async function submitContentReport() {
+  if (!pendingContentReport) return;
+
+  const details = reportContentDetails?.value.trim();
+  if (!details) {
+    showBanner("Add a short note about what needs reviewing.", "error");
+    return;
+  }
+
+  setButtonLoading(submitReportContentBtn, true, "Sending...");
+
+  try {
+    const payload = {
+      sourceType: pendingContentReport.sourceType,
+      sourceId: pendingContentReport.sourceId,
+      reporterRole: pendingContentReport.reporterRole,
+      reporterEmail: reportContentEmail?.value.trim() || null,
+      reason: reportContentReason?.value || "policy",
+      details,
+      ...(isClientView ? getClientAccessPayload() : {})
+    };
+    const isPublicReport = pendingContentReport.reporterRole === "client" || isClientView;
+    const url = isPublicReport
+      ? `${API_URL}/public/project/${encodeURIComponent(shareId)}/reports`
+      : `${API_URL}/project/${encodeURIComponent(currentProjectId)}/reports`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: isPublicReport ? { "Content-Type": "application/json" } : await getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+
+    await readJsonResponse(response, "Could not send report.");
+    closeContentReportModal();
+    if (!isPublicReport) await loadProject();
+    showBanner("Report sent for review.", "success");
+  } catch (error) {
+    console.error("Content report error:", error);
+    showBanner(error.message || "Could not send report.", "error");
+  } finally {
+    setButtonLoading(submitReportContentBtn, false, "Send report");
+  }
+}
+
+function openReportReviewModal(report, status = report.status || "reviewed") {
+  pendingReportReview = report;
+  if (reportReviewTitle) reportReviewTitle.textContent = `Review ${getSourceLabel(report.source_type)}`;
+  if (reportReviewContext) {
+    reportReviewContext.textContent = `${getReportReasonLabel(report.reason)} reported by ${report.reporter_role || "unknown"}${report.reporter_email ? ` (${report.reporter_email})` : ""}.`;
+  }
+  if (reportReviewStatus) reportReviewStatus.value = status;
+  if (reportReviewNote) reportReviewNote.value = report.reviewer_note || "";
+  reportReviewModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeReportReviewModal() {
+  reportReviewModal?.setAttribute("aria-hidden", "true");
+  pendingReportReview = null;
+  setButtonLoading(submitReportReviewBtn, false, "Save review");
+}
+
+async function submitReportReview() {
+  if (!pendingReportReview?.id || !currentProjectId) return;
+
+  setButtonLoading(submitReportReviewBtn, true, "Saving...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/project/${encodeURIComponent(currentProjectId)}/reports/${encodeURIComponent(pendingReportReview.id)}`,
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          status: reportReviewStatus?.value || "reviewed",
+          reviewerNote: reportReviewNote?.value.trim() || null
+        })
+      }
+    );
+
+    await readJsonResponse(response, "Could not update report.");
+    closeReportReviewModal();
+    await loadProject();
+    showBanner("Report review saved.", "success");
+  } catch (error) {
+    console.error("Report review error:", error);
+    showBanner(error.message || "Could not update report.", "error");
+  } finally {
+    setButtonLoading(submitReportReviewBtn, false, "Save review");
+  }
+}
+
+function renderContentReports() {
+  if (!contentReportList) return;
+
+  const reports = currentContentReports || [];
+  const openCount = reports.filter((report) => report.status === "open").length;
+  const resolvedCount = reports.filter((report) => report.status === "resolved").length;
+
+  if (contentReportSummary) {
+    contentReportSummary.textContent = reports.length
+      ? `${openCount} open, ${resolvedCount} resolved, ${reports.length} total.`
+      : "Policy, image and communication reports will appear here when submitted.";
+  }
+
+  contentReportList.innerHTML = "";
+
+  if (!reports.length) {
+    contentReportList.appendChild(
+      buildEmptyState({
+        title: "No reports yet",
+        copy: "Client and freelancer reports will appear here with review actions."
+      })
+    );
+    return;
+  }
+
+  reports.forEach((report) => {
+    const actions = document.createElement("div");
+    actions.className = "action-stack";
+    actions.appendChild(buildStatusPill(report.status || "open", getReportStatusKind(report.status)));
+
+    const reviewBtn = document.createElement("button");
+    reviewBtn.className = "btn btn-secondary btn-small";
+    reviewBtn.type = "button";
+    reviewBtn.textContent = report.status === "open" ? "Review" : "Update";
+    reviewBtn.addEventListener("click", () =>
+      openReportReviewModal(report, report.status === "open" ? "reviewed" : report.status)
+    );
+    actions.appendChild(reviewBtn);
+
+    if (report.status === "open") {
+      const resolveBtn = document.createElement("button");
+      resolveBtn.className = "btn btn-primary btn-small";
+      resolveBtn.type = "button";
+      resolveBtn.textContent = "Resolve";
+      resolveBtn.addEventListener("click", () => openReportReviewModal(report, "resolved"));
+      actions.appendChild(resolveBtn);
+    }
+
+    const subtitle = [
+      getReportReasonLabel(report.reason),
+      getSourceLabel(report.source_type),
+      report.reporter_role,
+      report.reporter_email,
+      formatDateTime(report.created_at)
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    const row = buildListRow("Reported content", subtitle, actions);
+    const details = document.createElement("p");
+    details.className = "item-details";
+    details.textContent = report.details;
+    row.querySelector(".item-main")?.appendChild(details);
+
+    if (report.reviewer_note) {
+      const note = document.createElement("p");
+      note.className = "item-details report-review-note";
+      note.textContent = `Review note: ${report.reviewer_note}`;
+      row.querySelector(".item-main")?.appendChild(note);
+    }
+
+    contentReportList.appendChild(row);
+  });
 }
 
 function getProjectDeleteLabel(project = pendingDeleteProject) {
@@ -2877,6 +4029,9 @@ async function sendMagicLink() {
 }
 
 async function signOut() {
+  if (isSigningOut) return;
+  isSigningOut = true;
+
   currentUser = null;
   currentProject = null;
   currentProjectId = null;
@@ -2892,6 +4047,7 @@ async function signOut() {
   currentAgreementTemplates = [];
   currentAgreementVersions = [];
   currentDeliverables = [];
+  currentContentReports = [];
   currentProfile = null;
   currentRights = null;
   currentGuidedAction = null;
@@ -2914,16 +4070,22 @@ async function signOut() {
     if (error) throw error;
   } catch (error) {
     console.error("signOut error:", error);
+  } finally {
+    isSigningOut = false;
   }
 }
 
 async function openDashboard() {
+  if (isOpeningDashboard) return;
+  isOpeningDashboard = true;
+
   const user = currentUser || (await refreshCurrentUser());
 
   if (!user) {
     showBanner("Your session has expired. Please sign in again.", "warning");
     setView("landing");
     updateAuthButtons(false);
+    isOpeningDashboard = false;
     return;
   }
 
@@ -2933,11 +4095,13 @@ async function openDashboard() {
     setView("owner");
     renderOwnerEmptyWorkspace();
     showBanner("Opening dashboard...", "info");
-    initOwnerView();
+    await initOwnerView();
   } catch (error) {
     console.error("Dashboard button error:", error);
     showBanner("Could not open your dashboard.", "error");
     updateAuthButtons(true);
+  } finally {
+    isOpeningDashboard = false;
   }
 }
 
@@ -3126,6 +4290,7 @@ function renderOwnerEmptyWorkspace() {
   currentGallery = [];
   currentAgreementVersions = [];
   currentDeliverables = [];
+  currentContentReports = [];
 
   if (metricScopeCount) metricScopeCount.textContent = "0";
   if (metricProjectStatus) metricProjectStatus.textContent = "Draft";
@@ -3145,6 +4310,7 @@ function renderOwnerEmptyWorkspace() {
   if (projectScopeBrief) projectScopeBrief.textContent = "No scope items yet";
   if (projectDeliveryBrief) projectDeliveryBrief.textContent = "No deliverables shared";
   if (projectReadinessList) projectReadinessList.innerHTML = "";
+  renderContentReports();
 }
 
 function renderOwnerWorkspace(
@@ -3223,6 +4389,7 @@ function renderOwnerWorkspace(
       : "Review pending changes and send the share link to the client.";
 
   renderHandoffPanel(project, scopeItems, changes, payments, deliverables);
+  renderContentReports();
 
   overviewAttentionList.innerHTML = "";
   const attentionItems = [];
@@ -3234,6 +4401,13 @@ function renderOwnerWorkspace(
   if (payments.some(isPaymentOverdue)) attentionItems.push(["Overdue payment", "At least one project payment is past its due date."]);
   if (project.status === "awaiting_final_approval") attentionItems.push(["Final approval", "The client needs to approve completion."]);
   if (deliverables.some((item) => item.status !== "approved")) attentionItems.push(["Deliverables awaiting approval", "Final files have been shared but not all are approved."]);
+  const openReports = currentContentReports.filter((report) => report.status === "open");
+  if (openReports.length) {
+    attentionItems.push([
+      "Content reports open",
+      `${openReports.length} policy report${openReports.length === 1 ? "" : "s"} need review.`
+    ]);
+  }
   if (!attentionItems.length) attentionItems.push(["All clear", "No urgent project actions right now."]);
   attentionItems.forEach(([title, subtitle]) => overviewAttentionList.appendChild(buildListRow(title, subtitle)));
 
@@ -3310,22 +4484,15 @@ function renderOwnerWorkspace(
   if (agreementVersionList) {
     agreementVersionList.innerHTML = "";
     if (!agreementVersions.length) {
-      agreementVersionList.appendChild(buildEmptyState("No agreement versions yet."));
+      agreementVersionList.appendChild(
+        buildEmptyState({
+          title: "No agreement history yet",
+          copy: "Save the agreement to create the first draft version. Sent and accepted versions will appear here too."
+        })
+      );
     } else {
       agreementVersions.forEach((version) => {
-        agreementVersionList.appendChild(
-          buildListRow(
-            `Version ${version.version_number}`,
-            [
-              version.status,
-              version.accepted_by_name && `Accepted by ${version.accepted_by_name}`,
-              formatDateTime(version.accepted_at || version.sent_at || version.created_at)
-            ]
-              .filter(Boolean)
-              .join(" | "),
-            buildStatusPill(version.status, version.status === "accepted" ? "success" : "neutral")
-          )
-        );
+        agreementVersionList.appendChild(buildAgreementVersionItem(version));
       });
     }
   }
@@ -3334,7 +4501,7 @@ function renderOwnerWorkspace(
       ? `Accepted by ${project.accepted_by_name || "client"} on ${formatDateTime(project.accepted_at)}. Saving changes will create a new draft revision.`
       : project.status === "sent"
       ? "Sent for client acceptance. The client can accept from the shared project page."
-      : "Save the agreement, then send the client share link for acceptance.";
+      : "Save the agreement to create a draft history version, then send the client share link for acceptance.";
   }
 
   if (payments.length === 0) {
@@ -3383,6 +4550,7 @@ function renderOwnerWorkspace(
       declineBtn.textContent = "Decline";
       declineBtn.addEventListener("click", () => updateSuggestionStatus(suggestion, "declined", declineBtn));
       actions.appendChild(declineBtn);
+      actions.appendChild(buildReportButton("suggestion", suggestion.id, suggestion.title, "freelancer"));
 
       const details = [suggestion.details, suggestion.response_note && `Response: ${suggestion.response_note}`]
         .filter(Boolean)
@@ -3398,13 +4566,20 @@ function renderOwnerWorkspace(
         )
       );
 
+      const clientPreviewActions = document.createElement("div");
+      clientPreviewActions.className = "action-stack";
+      clientPreviewActions.appendChild(
+        buildStatusPill(suggestion.status || "suggested", getSuggestionStatusKind(suggestion.status))
+      );
+      clientPreviewActions.appendChild(buildReportButton("suggestion", suggestion.id, suggestion.title, "freelancer"));
+
       ownerClientSuggestionList.appendChild(
         buildCollaborationCard(
           suggestion.title,
           suggestionSubtitle(suggestion),
           details,
           suggestion.image_url,
-          buildStatusPill(suggestion.status || "suggested", getSuggestionStatusKind(suggestion.status))
+          clientPreviewActions
         )
       );
     });
@@ -3422,17 +4597,27 @@ function renderOwnerWorkspace(
         subtitle,
         update.message,
         update.image_url,
-        buildStatusPill(getUpdatePillText(update))
+        (() => {
+          const actions = document.createElement("div");
+          actions.className = "action-stack";
+          actions.appendChild(buildStatusPill(getUpdatePillText(update)));
+          actions.appendChild(buildReportButton("update", update.id, title, "freelancer"));
+          return actions;
+        })()
       );
 
       ownerUpdateList.appendChild(card);
+      const clientPreviewActions = document.createElement("div");
+      clientPreviewActions.className = "action-stack";
+      clientPreviewActions.appendChild(buildStatusPill(getUpdatePillText(update)));
+      clientPreviewActions.appendChild(buildReportButton("update", update.id, title, "freelancer"));
       ownerClientUpdateList.appendChild(
         buildCollaborationCard(
           title,
           subtitle,
           update.message,
           update.image_url,
-          buildStatusPill(getUpdatePillText(update))
+          clientPreviewActions
         )
       );
     });
@@ -3446,6 +4631,7 @@ function renderOwnerWorkspace(
         ? "Final approval has been requested. The client can now approve completion from the shared page."
         : "Request final approval when the agreed work is ready for the client to sign off.";
   }
+  renderCompletionReadiness(project, changes, payments, deliverables);
 
   projectTimelineList.innerHTML = "";
   const milestoneItems = [
@@ -3555,6 +4741,80 @@ async function createRightsArtwork() {
   }
 }
 
+function getRightsLicensePayload() {
+  return {
+    clientName: rightsLicenseClient?.value.trim() || "",
+    usageType: rightsLicenseUsageType?.value || "digital",
+    territory: rightsLicenseTerritory?.value || "worldwide",
+    exclusive: Boolean(rightsLicenseExclusive?.checked),
+    fee: rightsLicenseFee?.value || 0,
+    currency: rightsLicenseCurrency?.value || "GBP",
+    startDate: rightsLicenseStart?.value || "",
+    endDate: rightsLicenseEnd?.value || null,
+    notes: rightsLicenseNotes?.value.trim() || null,
+    acknowledgedConflict: Boolean(rightsAcknowledgeConflict?.checked)
+  };
+}
+
+function resetRightsLicenseForm() {
+  if (rightsLicenseClient) rightsLicenseClient.value = "";
+  if (rightsLicenseUsageType) rightsLicenseUsageType.value = "digital";
+  if (rightsLicenseTerritory) rightsLicenseTerritory.value = "worldwide";
+  if (rightsLicenseExclusive) rightsLicenseExclusive.checked = false;
+  if (rightsLicenseFee) rightsLicenseFee.value = "";
+  if (rightsLicenseCurrency) rightsLicenseCurrency.value = currentProject?.currency || "GBP";
+  if (rightsLicenseStart) rightsLicenseStart.value = new Date().toISOString().slice(0, 10);
+  if (rightsLicenseEnd) rightsLicenseEnd.value = "";
+  if (rightsLicenseNotes) rightsLicenseNotes.value = "";
+  if (rightsAcknowledgeConflict) rightsAcknowledgeConflict.checked = false;
+  pendingRightsConflicts = [];
+}
+
+async function createRightsLicense() {
+  if (!selectedRightsArtworkId) {
+    showBanner("Add or select an artwork before creating a licence.", "error");
+    return;
+  }
+
+  const payload = getRightsLicensePayload();
+  if (!payload.clientName || !payload.startDate) {
+    showBanner("Add a client name and licence start date.", "error");
+    return;
+  }
+
+  setButtonLoading(rightsCreateLicenseBtn, true, "Saving...");
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/rights/artworks/${encodeURIComponent(selectedRightsArtworkId)}/licenses`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload)
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 409 && data.conflicts?.length) {
+      pendingRightsConflicts = data.conflicts;
+      renderRights();
+      showBanner("Licence conflict found. Review it, then acknowledge if you still want to save.", "warning");
+      return;
+    }
+    if (!response.ok) throw new Error(data?.error || "Could not add licence.");
+
+    resetRightsLicenseForm();
+    await loadRights();
+    showBanner("Rights licence saved.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not add licence.", "error");
+  } finally {
+    setButtonLoading(rightsCreateLicenseBtn, false, "Add licence");
+  }
+}
+
 async function exportRightsReport() {
   if (!currentRights?.plan?.reportingEnabled) {
     showUpgradePrompt("Rights CSV export is available on Pro.", "pro");
@@ -3590,6 +4850,11 @@ async function exportRightsReport() {
 }
 
 async function startUpgradeCheckout(plan = "pro", button = null) {
+  if (PUBLIC_BETA_FREE_ONLY) {
+    showBanner("Paid plans are coming soon. Scopey is free during public beta.", "info");
+    return;
+  }
+
   if (!currentUser && !hasStoredAuthSession()) {
     openAuthModal();
     showBanner("Create your free account first, then choose a plan from the dashboard.", "info");
@@ -3844,6 +5109,7 @@ async function loadProject() {
   currentGallery = collaboration.gallery || [];
   currentAgreementVersions = collaboration.agreementVersions || [];
   currentDeliverables = collaboration.deliverables || [];
+  currentContentReports = collaboration.reports || [];
 
   renderProjectList();
   renderOwnerWorkspace(
@@ -4083,11 +5349,44 @@ async function performProjectStatusUpdate(status, button = null) {
 }
 
 function updateProjectStatus(status, button = null) {
+  if (status === "in_progress" && !currentProject?.accepted_at && currentProject?.status !== "accepted") {
+    showBanner("Wait for the client to accept the agreement before marking work in progress.", "warning");
+    setCurrentProjectTab("client");
+    return;
+  }
+
+  if (status === "awaiting_final_approval") {
+    const blockers = getCompletionChecks(
+      currentProject,
+      currentChanges,
+      currentProjectPayments,
+      currentDeliverables
+    ).filter((check) => check.blocking && !check.complete);
+
+    if (blockers.length) {
+      routeToChecklistItem(blockers[0]);
+      return;
+    }
+
+    openProjectActionModal({
+      eyebrow: "Final approval",
+      title: "Request final client approval?",
+      copy: "This tells the client the agreed work is ready for sign-off.",
+      confirmText: "Request approval",
+      loadingText: "Requesting...",
+      danger: false,
+      run: () => performProjectStatusUpdate(status, button)
+    });
+    return;
+  }
+
   if (status === "complete") {
     openProjectActionModal({
       eyebrow: "Complete project",
       title: "Mark this project complete?",
-      copy: "This will mark the project complete and move it into archived projects.",
+      copy: currentProject?.status === "awaiting_final_approval"
+        ? "Client approval is the cleanest completion record. Use this only if you need to close the project manually."
+        : "This will mark the project complete and move it into archived projects.",
       confirmText: "Mark complete",
       loadingText: "Completing...",
       danger: false,
@@ -4382,7 +5681,7 @@ async function copyShareLink() {
   }
 }
 
-function previewClientProject(event = null) {
+async function previewClientProject(event = null) {
   if (!currentProject?.share_id) {
     showBanner("Select a project first.", "error");
     return;
@@ -4390,17 +5689,35 @@ function previewClientProject(event = null) {
 
   const button = event?.target?.closest?.("button") || null;
   const section = getShareSectionForTab();
-  const link = getProjectShareLink(currentProject, section);
+  setButtonLoading(button, true, "Opening...");
 
-  if (!link) {
-    showBanner("Could not prepare the client preview link.", "error");
-    return;
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_URL}/project/${encodeURIComponent(currentProject.id)}/share-links`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ section, label: `${section} preview link` })
+      }
+    );
+    const data = await readJsonResponse(response, "Could not create client preview link.");
+    const link = data.link || getProjectShareLink(currentProject, section);
+
+    if (!link) {
+      showBanner("Could not prepare the client preview link.", "error");
+      return;
+    }
+
+    window.open(link, "_blank", "noopener,noreferrer");
+    showBanner(`Opened ${getClientSectionLabel(section)} preview in a new tab.`, "success");
+  } catch (error) {
+    console.error(error);
+    showBanner(error.message || "Could not open client preview.", "error");
+  } finally {
+    setButtonLoading(button, false);
+    if (button) button.blur();
   }
-
-  window.open(link, "_blank", "noopener,noreferrer");
-  showBanner(`Opened ${getClientSectionLabel(section)} preview in a new tab.`, "success");
-
-  if (button) button.blur();
 }
 
 async function emailClientProject(event = null) {
@@ -4408,8 +5725,6 @@ async function emailClientProject(event = null) {
     showBanner("Select a project first.", "error");
     return;
   }
-
-  if (!requirePlan("pro", "Automated client emails")) return;
 
   if (!currentProject.client_email) {
     showBanner("Add a client email address before sending the project.", "error");
@@ -4462,6 +5777,36 @@ async function emailClientProject(event = null) {
     showBanner(error.message || "Could not prepare client email.", "error");
   } finally {
     setButtonLoading(button, false);
+  }
+}
+
+async function sendClientHandoff() {
+  if (!currentProject) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  const incomplete = getHandoffChecks(
+    currentProject,
+    currentScopeItems,
+    currentProjectPayments
+  ).filter((check) => !check.complete);
+
+  if (incomplete.length) {
+    routeToChecklistItem(incomplete[0]);
+    return;
+  }
+
+  setButtonLoading(handoffSendBtn, true, "Sending...");
+
+  try {
+    if (currentProject.status === "draft") {
+      await performProjectStatusUpdate("sent", handoffSendBtn);
+    }
+
+    await emailClientProject({ target: handoffSendBtn });
+  } finally {
+    setButtonLoading(handoffSendBtn, false, "Send to client");
   }
 }
 
@@ -4543,7 +5888,7 @@ async function addOwnerUpdate() {
   setButtonLoading(ownerAddUpdateBtn, true, "Adding...");
 
   try {
-    const image = await fileToDataUrl(ownerUpdateImage);
+    const image = await watermarkFreelancerUpdateImage(await fileToDataUrl(ownerUpdateImage));
     const message = ownerUpdateMessage?.value.trim();
 
     if (!message && !image) {
@@ -4565,7 +5910,7 @@ async function addOwnerUpdate() {
     if (ownerUpdateMessage) ownerUpdateMessage.value = "";
     if (ownerUpdateImage) ownerUpdateImage.value = "";
     await loadProject();
-    showBanner("Progress update added.", "success");
+    showBanner(image ? "Progress update added with a freelancer watermark." : "Progress update added.", "success");
   } catch (error) {
     console.error(error);
     showBanner(error.message || "Could not add update.", "error");
@@ -4651,6 +5996,7 @@ async function loadSharedProject() {
   currentGallery = data.gallery || [];
   currentAgreementVersions = data.agreementVersions || [];
   currentDeliverables = data.deliverables || [];
+  currentContentReports = data.reports || [];
   renderClient(
     data.project,
     data.scopeItems,
@@ -4688,6 +6034,8 @@ function renderClient(
   clientProjectTitle.textContent = project.title;
   clientProjectSubtitle.textContent = `Client: ${project.client_name} | ${getProjectStatusLabel(project.status)} | Managed by ${getProfileName(profile)}`;
   renderClientSummary(project, scopeItems, changes, payments, deliverables);
+  renderClientPrimaryAction(project, changes, payments, deliverables);
+  renderClientGuidance(project, changes, payments, deliverables);
   renderAgreementPreview(clientAgreementPreview, project);
 
   if (clientAcceptancePanel) {
@@ -4709,6 +6057,19 @@ function renderClient(
   if (clientCompleteEmail && !clientCompleteEmail.value && project.client_email) {
     clientCompleteEmail.value = project.client_email;
   }
+  const projectClosed = ["complete", "cancelled"].includes(project.status);
+  [
+    clientSuggestionTitle,
+    clientSuggestionPrice,
+    clientSuggestionDetails,
+    clientSuggestionImage,
+    clientAddSuggestionBtn,
+    clientUpdateMessage,
+    clientUpdateImage,
+    clientAddUpdateBtn
+  ].forEach((control) => {
+    if (control) control.disabled = projectClosed;
+  });
 
   clientScopeList.innerHTML = "";
   clientPendingList.innerHTML = "";
@@ -4734,6 +6095,14 @@ function renderClient(
 
   if (pending.length === 0) {
     clientPendingList.appendChild(buildEmptyState("No paid changes are waiting for approval."));
+  } else if (projectClosed) {
+    pending.forEach((change) => {
+      const label = document.createElement("span");
+      label.appendChild(buildStatusPill("closed", "neutral"));
+      clientPendingList.appendChild(
+        buildListRow(change.title, `No longer active | ${formatCurrency(change.price)}`, label)
+      );
+    });
   } else {
     pending.forEach((change) => {
       const payBtn = document.createElement("button");
@@ -4751,7 +6120,7 @@ function renderClient(
     clientPaymentList.appendChild(buildEmptyState("No deposits, milestones or balances are due right now."));
   } else {
     payments.forEach((payment) => {
-      clientPaymentList.appendChild(buildPaymentRow(payment, { clientPay: true }));
+      clientPaymentList.appendChild(buildPaymentRow(payment, { clientPay: !projectClosed }));
     });
   }
 
@@ -4771,12 +6140,24 @@ function renderClient(
   }
 
   if (suggestions.length === 0) {
-    clientSuggestionList.appendChild(buildEmptyState("Client ideas and freelancer responses will appear here."));
+    clientSuggestionList.appendChild(
+      buildEmptyState(
+        projectClosed
+          ? "Suggestions are closed because this project is no longer active."
+          : "Client ideas and freelancer responses will appear here."
+      )
+    );
   } else {
     suggestions.forEach((suggestion) => {
       const details = [suggestion.details, suggestion.response_note && `Response: ${suggestion.response_note}`]
         .filter(Boolean)
         .join("\n");
+      const actions = document.createElement("div");
+      actions.className = "action-stack";
+      actions.appendChild(
+        buildStatusPill(suggestion.status || "suggested", getSuggestionStatusKind(suggestion.status))
+      );
+      actions.appendChild(buildReportButton("suggestion", suggestion.id, suggestion.title, "client"));
 
       clientSuggestionList.appendChild(
         buildCollaborationCard(
@@ -4784,24 +6165,34 @@ function renderClient(
           suggestionSubtitle(suggestion),
           details,
           suggestion.image_url,
-          buildStatusPill(suggestion.status || "suggested", getSuggestionStatusKind(suggestion.status))
+          actions
         )
       );
     });
   }
 
   if (updates.length === 0) {
-    clientUpdateList.appendChild(buildEmptyState("Progress notes, reference images and decision updates will appear here."));
+    clientUpdateList.appendChild(
+      buildEmptyState(
+        projectClosed
+          ? "Updates are closed because this project is no longer active."
+          : "Progress notes, reference images and decision updates will appear here."
+      )
+    );
   } else {
     updates.forEach((update) => {
       const title = getUpdateTitle(update, profile);
+      const actions = document.createElement("div");
+      actions.className = "action-stack";
+      actions.appendChild(buildStatusPill(getUpdatePillText(update, profile)));
+      actions.appendChild(buildReportButton("update", update.id, title, "client"));
       clientUpdateList.appendChild(
         buildCollaborationCard(
           title,
           formatDateTime(update.created_at),
           update.message,
           update.image_url,
-          buildStatusPill(getUpdatePillText(update, profile))
+          actions
         )
       );
     });
@@ -4823,7 +6214,7 @@ function renderClient(
     } else {
       deliverables.forEach((deliverable) => {
         clientDeliverableList.appendChild(
-          buildDeliverableRow(deliverable, { clientApprove: true })
+          buildDeliverableRow(deliverable, { clientApprove: !projectClosed })
         );
       });
     }
@@ -4875,8 +6266,7 @@ async function startPublicPayment(change, event) {
       body: JSON.stringify({
         shareId,
         changeId: change.id,
-        section: clientSection,
-        token: clientToken
+        ...getClientAccessPayload()
       })
     });
 
@@ -4911,8 +6301,7 @@ async function startProjectPayment(payment, event) {
       body: JSON.stringify({
         shareId,
         paymentId: payment.id,
-        section: clientSection,
-        token: clientToken
+        ...getClientAccessPayload()
       })
     });
 
@@ -4950,7 +6339,7 @@ async function acceptAgreement() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ clientName, clientEmail })
+        body: JSON.stringify({ clientName, clientEmail, ...getClientAccessPayload() })
       }
     );
 
@@ -4984,7 +6373,7 @@ async function approveCompletion() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ clientName, clientEmail })
+        body: JSON.stringify({ clientName, clientEmail, ...getClientAccessPayload() })
       }
     );
 
@@ -5018,7 +6407,7 @@ async function approveDeliverable(deliverable, button) {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ clientName, clientEmail })
+        body: JSON.stringify({ clientName, clientEmail, ...getClientAccessPayload() })
       }
     );
 
@@ -5058,7 +6447,8 @@ async function submitClientSuggestion() {
           title,
           details,
           proposedPrice,
-          image
+          image,
+          ...getClientAccessPayload()
         })
       }
     );
@@ -5097,7 +6487,7 @@ async function submitClientUpdate() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ message, image })
+        body: JSON.stringify({ message, image, ...getClientAccessPayload() })
       }
     );
 
@@ -5172,6 +6562,7 @@ async function initClientView() {
 
 async function init() {
   loadAccessibilitySettings();
+  updateDeveloperDiagnosticsVisibility();
   updateAuthModeUI();
   startHeroRotator();
 
@@ -5216,12 +6607,7 @@ closeAuthBtn?.addEventListener("click", closeAuthModal);
 authSubmitBtn?.addEventListener("click", handlePasswordAuth);
 authMagicLinkBtn?.addEventListener("click", sendMagicLink);
 
-signOutBtn?.addEventListener("click", signOut);
-dashboardBtn?.addEventListener("click", openDashboard);
 accountBtn?.addEventListener("click", openAccountModal);
-
-if (signOutBtn) signOutBtn.onclick = signOut;
-if (dashboardBtn) dashboardBtn.onclick = openDashboard;
 
 document.addEventListener("click", (event) => {
   const target = event.target.closest?.("#header-sign-out-btn, #header-dashboard-btn");
@@ -5243,6 +6629,8 @@ closeAccessibilityBtn?.addEventListener("click", closeAccessibilityModal);
 resetAccessibilityBtn?.addEventListener("click", resetAccessibilitySettings);
 closeLegalBtn?.addEventListener("click", closeLegalModal);
 closeAccountBtn?.addEventListener("click", closeAccountModal);
+developerDiagnosticsBtn?.addEventListener("click", openDeveloperDiagnosticsModal);
+closeDeveloperDiagnosticsBtn?.addEventListener("click", closeDeveloperDiagnosticsModal);
 openRightsBtn?.addEventListener("click", openRightsModal);
 closeRightsBtn?.addEventListener("click", closeRightsModal);
 
@@ -5262,6 +6650,7 @@ toggleProjectCreateBtn?.addEventListener("click", () => {
 copyLinkBtn?.addEventListener("click", copyShareLink);
 handoffCopyLinkBtn?.addEventListener("click", copyShareLink);
 clientReviewCopyLinkBtn?.addEventListener("click", copyShareLink);
+handoffSendBtn?.addEventListener("click", sendClientHandoff);
 previewClientBtn?.addEventListener("click", previewClientProject);
 clientPreviewBtn?.addEventListener("click", previewClientProject);
 clientPreviewBtnSecondary?.addEventListener("click", previewClientProject);
@@ -5307,6 +6696,12 @@ billingPlanCtaBtn?.addEventListener("click", () => {
 upgradeProBtn?.addEventListener("click", () => selectBillingPlan("pro"));
 upgradeBusinessBtn?.addEventListener("click", () => selectBillingPlan("business"));
 rightsCreateArtworkBtn?.addEventListener("click", createRightsArtwork);
+rightsArtworkSelect?.addEventListener("change", () => {
+  selectedRightsArtworkId = rightsArtworkSelect.value;
+  pendingRightsConflicts = [];
+  renderRights();
+});
+rightsCreateLicenseBtn?.addEventListener("click", createRightsLicense);
 rightsExportBtn?.addEventListener("click", exportRightsReport);
 saveAgreementBtn?.addEventListener("click", saveAgreement);
 sendAgreementBtn?.addEventListener("click", () => updateProjectStatus("sent", sendAgreementBtn));
@@ -5348,6 +6743,13 @@ clientAddUpdateBtn?.addEventListener("click", submitClientUpdate);
 clientAcceptAgreementBtn?.addEventListener("click", acceptAgreement);
 clientApproveCompletionBtn?.addEventListener("click", approveCompletion);
 clientVerifyBtn?.addEventListener("click", verifyClientAccess);
+clientPrimaryActionBtn?.addEventListener("click", runClientPrimaryAction);
+closeReportContentBtn?.addEventListener("click", closeContentReportModal);
+cancelReportContentBtn?.addEventListener("click", closeContentReportModal);
+submitReportContentBtn?.addEventListener("click", submitContentReport);
+closeReportReviewBtn?.addEventListener("click", closeReportReviewModal);
+cancelReportReviewBtn?.addEventListener("click", closeReportReviewModal);
+submitReportReviewBtn?.addEventListener("click", submitReportReview);
 
 db.auth.onAuthStateChange(async (event, session) => {
   currentUser = session?.user || null;
@@ -5369,7 +6771,10 @@ window.addEventListener("click", (event) => {
   if (event.target === accessibilityModal) closeAccessibilityModal();
   if (event.target === legalModal) closeLegalModal();
   if (event.target === accountModal) closeAccountModal();
+  if (event.target === developerDiagnosticsModal) closeDeveloperDiagnosticsModal();
   if (event.target === rightsModal) closeRightsModal();
+  if (event.target === reportContentModal) closeContentReportModal();
+  if (event.target === reportReviewModal) closeReportReviewModal();
   if (event.target === deleteProjectModal || event.target === deleteProjectFinalModal) {
     closeProjectDeleteModals();
   }

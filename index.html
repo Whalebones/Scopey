@@ -132,6 +132,18 @@
         </div>
       </section>
 
+      <section class="coming-soon-banner" aria-label="Scopey public beta">
+        <div>
+          <span>Coming soon</span>
+          <strong>Scopey is open for free public testing</strong>
+          <p>
+            Paid Pro and Business plans are temporarily hidden while Scopey is being prepared for launch.
+            New accounts can sign up and use the Free plan today.
+          </p>
+        </div>
+        <span class="status-chip status-warning">Free beta</span>
+      </section>
+
       <section class="premium-strip" aria-label="Scopey operating layer">
         <div>
           <span>Client portal</span>
@@ -191,7 +203,7 @@
         </div>
       </section>
 
-      <section class="pricing-grid">
+      <section class="pricing-grid pricing-grid-free-only">
         <div class="pricing-card">
           <div class="pricing-header">
             <span>Starter</span>
@@ -204,13 +216,14 @@
             <li>1 active project</li>
             <li>Scope, suggestions and updates</li>
             <li>Client review page</li>
+            <li>Automatic client emails</li>
           </ul>
           <div class="price-cta">
             <button id="landing-free-btn" class="btn btn-secondary" type="button">Start free</button>
           </div>
         </div>
 
-        <div class="pricing-card featured">
+        <div class="pricing-card featured hidden" data-paid-plan-card>
           <div class="pricing-header">
             <span>Pro</span>
             <div class="price-value">£15/mo</div>
@@ -220,15 +233,15 @@
           </p>
           <ul class="price-list">
             <li>Unlimited projects</li>
-            <li>Automated client emails</li>
-            <li>PDF agreements, invoices and templates</li>
+            <li>PDF agreements and invoices</li>
+            <li>Agreement templates</li>
           </ul>
           <div class="price-cta">
             <button id="landing-pro-btn" class="btn btn-primary" type="button">Upgrade to Pro</button>
           </div>
         </div>
 
-        <div class="pricing-card">
+        <div class="pricing-card hidden" data-paid-plan-card>
           <div class="pricing-header">
             <span>Business</span>
             <div class="price-value">£39/mo</div>
@@ -248,6 +261,9 @@
           </div>
         </div>
       </section>
+      <p class="beta-pricing-note">
+        Pro and Business plan details will return before paid subscriptions go live.
+      </p>
 
       <section class="legal-strip" aria-label="Legal and policy documents">
         <div>
@@ -459,6 +475,7 @@
                 Create project
               </button>
             </div>
+            <div id="project-limit-note" class="upgrade-note hidden"></div>
           </section>
 
           <section id="owner-empty-state" class="card empty-state-panel">
@@ -604,6 +621,7 @@
                 <button class="project-tab" type="button" data-project-tab="gallery">Gallery</button>
                 <button class="project-tab" type="button" data-project-tab="deliverables">Deliverables</button>
                 <button class="project-tab" type="button" data-project-tab="completion">Completion</button>
+                <button class="project-tab" type="button" data-project-tab="reports">Reports</button>
                 <button class="project-tab" type="button" data-project-tab="client">Client review</button>
               </div>
 
@@ -650,11 +668,16 @@
                     </div>
                   </div>
 
+                  <div id="handoff-readiness-list" class="handoff-readiness-list"></div>
+
                   <div class="modal-actions margin-top-md">
+                    <button id="handoff-send-btn" class="btn btn-primary" type="button">
+                      Send to client
+                    </button>
                     <button id="handoff-copy-link-btn" class="btn btn-secondary" type="button">
                       Copy current link
                     </button>
-                    <button id="handoff-email-client-btn" class="btn btn-primary" type="button">
+                    <button id="handoff-email-client-btn" class="btn btn-secondary" type="button">
                       Email client
                     </button>
                   </div>
@@ -978,6 +1001,7 @@
                     <div class="card-title">Add progress update</div>
                     <p class="card-copy card-copy-small">
                       Share progress, context, screenshots or images that help the client understand the commission.
+                      Freelancer update images are watermarked with your Business Profile name before sharing.
                     </p>
 
                     <label class="field-label" for="owner-update-message">Update note</label>
@@ -1059,6 +1083,7 @@
                         Cancel project
                       </button>
                     </div>
+                    <div id="completion-readiness-list" class="handoff-readiness-list"></div>
                   </section>
 
                   <section class="card nested-card">
@@ -1066,6 +1091,21 @@
                     <div id="project-timeline-list" class="list list-compact"></div>
                   </section>
                 </div>
+              </div>
+
+              <div id="project-tab-reports" class="project-tab-panel hidden">
+                <section class="card nested-card">
+                  <div class="section-row">
+                    <div>
+                      <div class="card-title">Policy reports</div>
+                      <p id="content-report-summary" class="card-copy card-copy-small">
+                        Policy, image and communication reports will appear here when submitted.
+                      </p>
+                    </div>
+                    <span class="status-chip status-neutral">Safety queue</span>
+                  </div>
+                  <div id="content-report-list" class="list"></div>
+                </section>
               </div>
 
               <div id="project-tab-client" class="project-tab-panel hidden">
@@ -1215,9 +1255,22 @@
         </div>
       </section>
 
+      <section class="card client-action-card" data-client-section="all">
+        <div>
+          <div class="card-title">Next step</div>
+          <strong id="client-primary-action-title">Review agreement</strong>
+          <p id="client-primary-action-copy" class="card-copy card-copy-small">
+            Scopey will keep the most useful action here.
+          </p>
+        </div>
+        <button id="client-primary-action-btn" class="btn btn-primary" type="button">
+          Continue
+        </button>
+      </section>
+
       <section class="card client-guidance-card" data-client-section="all">
         <div class="card-title">How to use this page</div>
-        <div class="client-guidance-grid">
+        <div id="client-guidance-grid" class="client-guidance-grid">
           <div>
             <strong>Check the agreement</strong>
             <p>Confirm the scope, value and terms before work moves forward.</p>
@@ -1384,9 +1437,14 @@
         <button type="button" data-legal-open="refunds">Refunds</button>
         <button type="button" data-legal-open="subprocessors">Sub-processors</button>
         <button type="button" data-legal-open="dpa">DPA</button>
+        <button id="developer-diagnostics-btn" class="hidden" type="button">
+          Developer diagnostics
+        </button>
       </div>
     </div>
   </footer>
+
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="false"></div>
 
   <!-- AUTH MODAL -->
   <div id="auth-modal" class="modal" aria-hidden="true">
@@ -1555,7 +1613,7 @@
       <span class="auth-kicker">Account</span>
       <h3>Billing &amp; plan</h3>
       <p class="muted">
-        Manage the plan that controls project limits, client emails, exports and payment links.
+        Scopey is currently in free public beta. Paid plan checkout is hidden until subscriptions go live.
       </p>
 
       <div class="account-summary-grid">
@@ -1567,37 +1625,53 @@
         <section class="account-summary-tile">
           <span>Active projects</span>
           <strong id="account-project-usage">0 / 1</strong>
-          <p id="account-project-note">Upgrade to Pro for unlimited active projects.</p>
+          <p id="account-project-note">Free beta includes one active client project.</p>
         </section>
-      </div>
-
-      <div class="account-status-list">
-        <div class="account-status-item">
-          <div>
-            <span>Stripe checkout</span>
-            <p>Required for plan upgrades and client payment links.</p>
-          </div>
-          <span id="account-stripe-status" class="status-chip status-neutral">Stripe</span>
-        </div>
-        <div class="account-status-item">
-          <div>
-            <span>Client email sending</span>
-            <p>Controls whether Scopey sends review links automatically.</p>
-          </div>
-          <span id="account-email-status" class="status-chip status-neutral">Email</span>
-        </div>
       </div>
 
       <div id="account-plan-grid" class="account-plan-grid"></div>
 
       <div class="account-legal-note">
         <p>
-          Paid plans renew until cancelled. Review the cancellation and refund wording before launch.
+          Paid plans are coming soon. Cancellation and refund wording is available for launch prep.
         </p>
         <button class="btn btn-secondary btn-small" type="button" data-legal-open="refunds">
           View refunds
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- DEVELOPER DIAGNOSTICS MODAL -->
+  <div id="developer-diagnostics-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel developer-diagnostics-panel">
+      <button
+        id="close-developer-diagnostics-btn"
+        class="modal-close"
+        aria-label="Close developer diagnostics"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <span class="auth-kicker">Developer diagnostics</span>
+      <h3>Launch readiness</h3>
+      <p class="muted">
+        Local-only operational checks for deployment setup. This panel is hidden on public domains.
+      </p>
+
+      <section class="developer-diagnostics-readiness">
+        <div class="section-row">
+          <div>
+            <div class="card-title">Production checks</div>
+            <p class="card-copy card-copy-small">
+              Payments, email, storage, policy documents and review flows.
+            </p>
+          </div>
+          <span id="developer-launch-score" class="status-chip status-neutral">0%</span>
+        </div>
+        <div id="developer-launch-list" class="launch-check-list"></div>
+      </section>
     </div>
   </div>
 
@@ -1655,7 +1729,205 @@
         </button>
       </div>
 
+      <div class="rights-license-panel">
+        <div>
+          <div class="card-title">Add licence</div>
+          <p class="card-copy card-copy-small">
+            Record who can use a selected artwork, where it applies and whether the licence is exclusive.
+          </p>
+        </div>
+
+        <div class="rights-license-grid">
+          <div class="field-wide">
+            <label class="field-label" for="rights-artwork-select">Artwork</label>
+            <select id="rights-artwork-select"></select>
+          </div>
+
+          <div>
+            <label class="field-label" for="rights-license-client">Client or licensee</label>
+            <input id="rights-license-client" placeholder="Client, publisher or brand" />
+          </div>
+
+          <div>
+            <label class="field-label" for="rights-license-usage-type">Usage</label>
+            <select id="rights-license-usage-type">
+              <option value="digital">Digital</option>
+              <option value="print">Print</option>
+              <option value="merchandise">Merchandise</option>
+              <option value="packaging">Packaging</option>
+              <option value="advertising">Advertising</option>
+              <option value="all_uses">All uses</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="field-label" for="rights-license-territory">Territory</label>
+            <select id="rights-license-territory">
+              <option value="worldwide">Worldwide</option>
+              <option value="uk">UK</option>
+              <option value="eu">EU</option>
+              <option value="north_america">North America</option>
+            </select>
+          </div>
+
+          <label class="toggle-field">
+            <input id="rights-license-exclusive" type="checkbox" />
+            <span>Exclusive licence</span>
+          </label>
+
+          <div>
+            <label class="field-label" for="rights-license-fee">Fee</label>
+            <input id="rights-license-fee" type="number" min="0" step="1" placeholder="0" />
+          </div>
+
+          <div>
+            <label class="field-label" for="rights-license-currency">Currency</label>
+            <select id="rights-license-currency">
+              <option value="GBP">GBP</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="AUD">AUD</option>
+              <option value="CAD">CAD</option>
+              <option value="NZD">NZD</option>
+              <option value="SGD">SGD</option>
+              <option value="CHF">CHF</option>
+              <option value="SEK">SEK</option>
+              <option value="NOK">NOK</option>
+              <option value="DKK">DKK</option>
+              <option value="PLN">PLN</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="field-label" for="rights-license-start">Start date</label>
+            <input id="rights-license-start" type="date" />
+          </div>
+
+          <div>
+            <label class="field-label" for="rights-license-end">End date</label>
+            <input id="rights-license-end" type="date" />
+          </div>
+
+          <div class="field-wide">
+            <label class="field-label" for="rights-license-notes">Notes</label>
+            <textarea id="rights-license-notes" rows="3" placeholder="Usage limits, channels, deliverables, renewal terms or contract reference."></textarea>
+          </div>
+        </div>
+
+        <div id="rights-conflict-panel" class="rights-conflict-panel hidden">
+          <strong>Possible rights conflict</strong>
+          <p>Scopey found an overlapping licence. Review this before saving.</p>
+          <div id="rights-conflict-list" class="rights-conflict-list"></div>
+          <label class="legal-consent">
+            <input id="rights-acknowledge-conflict" type="checkbox" />
+            <span>I have reviewed this conflict and still want to save the licence.</span>
+          </label>
+        </div>
+
+        <button id="rights-create-license-btn" class="btn btn-primary btn-block" type="button">
+          Add licence
+        </button>
+      </div>
+
       <div id="rights-artwork-list" class="rights-artwork-list"></div>
+    </div>
+  </div>
+
+  <!-- CONTENT REPORT MODAL -->
+  <div id="report-content-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel report-panel">
+      <button
+        id="close-report-content-btn"
+        class="modal-close"
+        aria-label="Close report content"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <span class="auth-kicker">Policy report</span>
+      <h3 id="report-content-title">Report content</h3>
+      <p id="report-content-context" class="muted">
+        This report will be attached to the current project.
+      </p>
+
+      <div class="compose-form report-form">
+        <div>
+          <label class="field-label" for="report-content-email">Your email</label>
+          <input id="report-content-email" type="email" placeholder="Optional" />
+        </div>
+        <div>
+          <label class="field-label" for="report-content-reason">Reason</label>
+          <select id="report-content-reason">
+            <option value="policy">Policy concern</option>
+            <option value="copyright">Copyright or rights issue</option>
+            <option value="privacy">Privacy or personal data</option>
+            <option value="abuse">Abuse or harassment</option>
+            <option value="illegal">Illegal content</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="field-label" for="report-content-details">What should be reviewed?</label>
+      <textarea
+        id="report-content-details"
+        rows="5"
+        placeholder="Explain what looks wrong, unsafe or against Scopey's usage rules."
+      ></textarea>
+
+      <div class="modal-actions modal-actions-right margin-top-md">
+        <button id="cancel-report-content-btn" class="btn btn-secondary" type="button">
+          Cancel
+        </button>
+        <button id="submit-report-content-btn" class="btn btn-primary" type="button">
+          Send report
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORT REVIEW MODAL -->
+  <div id="report-review-modal" class="modal" aria-hidden="true">
+    <div class="modal-panel report-panel">
+      <button
+        id="close-report-review-btn"
+        class="modal-close"
+        aria-label="Close report review"
+        type="button"
+      >
+        &times;
+      </button>
+
+      <span class="auth-kicker">Report review</span>
+      <h3 id="report-review-title">Review report</h3>
+      <p id="report-review-context" class="muted">
+        Update the report status after reviewing the content.
+      </p>
+
+      <label class="field-label" for="report-review-status">Status</label>
+      <select id="report-review-status">
+        <option value="reviewed">Reviewed</option>
+        <option value="resolved">Resolved</option>
+        <option value="dismissed">Dismissed</option>
+        <option value="open">Reopen</option>
+      </select>
+
+      <label class="field-label" for="report-review-note">Review note</label>
+      <textarea
+        id="report-review-note"
+        rows="5"
+        placeholder="Record what was checked, what action was taken, or why the report was dismissed."
+      ></textarea>
+
+      <div class="modal-actions modal-actions-right margin-top-md">
+        <button id="cancel-report-review-btn" class="btn btn-secondary" type="button">
+          Cancel
+        </button>
+        <button id="submit-report-review-btn" class="btn btn-primary" type="button">
+          Save review
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1738,6 +2010,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260615-policy-acceptance-v45"></script>
+  <script src="app.js?v=20260615-production-hardening-v56"></script>
 </body>
 </html>
