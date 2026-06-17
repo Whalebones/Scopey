@@ -34,10 +34,7 @@ if (PAID_PLANS_ENABLED) {
   requiredEnv.push("STRIPE_SECRET", "STRIPE_WEBHOOK_SECRET");
 }
 
-const missing = requiredEnv.filter((key) => !process.env[key]);
-if (missing.length) {
-  throw new Error(`Missing env vars: ${missing.join(", ")}`);
-}
+const missingRequiredEnv = requiredEnv.filter((key) => !process.env[key]);
 
 // =======================
 // SETUP
@@ -47,8 +44,8 @@ app.disable("x-powered-by");
 
 const stripe = new Stripe(process.env.STRIPE_SECRET || "sk_test_placeholder");
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_URL || "http://localhost",
+  process.env.SUPABASE_SERVICE_KEY || "missing-service-key"
 );
 
 const PRODUCTION_FRONTEND_ORIGINS = [
@@ -65,7 +62,7 @@ const LOCAL_FRONTEND_ORIGINS = [
   "http://localhost:8080",
   "http://127.0.0.1:8080"
 ];
-const FRONTEND_URL = normalisePublicUrl(process.env.FRONTEND_URL);
+const FRONTEND_URL = normalisePublicUrl(process.env.FRONTEND_URL || "https://www.scopey.co.uk");
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "scopey-uploads";
 const PORT = Number(process.env.PORT || 3000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 600);
@@ -2434,7 +2431,21 @@ app.get("/:asset", (req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+  res.status(missingRequiredEnv.length ? 503 : 200).json({
+    status: missingRequiredEnv.length ? "configuration_required" : "ok",
+    missingEnv: missingRequiredEnv
+  });
+});
+
+app.use((req, res, next) => {
+  if (!missingRequiredEnv.length) {
+    return next();
+  }
+
+  return res.status(503).json({
+    error: `Missing server environment variables: ${missingRequiredEnv.join(", ")}. Add them in Netlify Site configuration > Environment variables, then redeploy.`,
+    missingEnv: missingRequiredEnv
+  });
 });
 
 // =======================
