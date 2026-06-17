@@ -9,6 +9,7 @@ function getDefaultApiUrl() {
   const isScopeyDomain = hostname === "scopey.co.uk" || hostname === "www.scopey.co.uk";
 
   if (isLocalStaticServer) return "http://localhost:3000";
+  if (hostname === "www.scopey.co.uk") return "https://scopey.co.uk/api";
   if (isNetlifyHost || isScopeyDomain) return `${origin}/api`;
   return origin;
 }
