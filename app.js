@@ -2,9 +2,20 @@
 
 const SUPABASE_URL = "https://nxqwrlbwnaqntuvcspln.supabase.co";
 const SUPABASE_KEY = "sb_publishable_TVcQqAhasEthm_LoHFjmYw_OUbo3i5v";
+function getDefaultApiUrl() {
+  const { hostname, origin, port } = window.location;
+  const isLocalStaticServer = port === "5500";
+  const isNetlifyHost = hostname.endsWith(".netlify.app") || hostname.endsWith(".netlify.dev");
+  const isScopeyDomain = hostname === "scopey.co.uk" || hostname === "www.scopey.co.uk";
+
+  if (isLocalStaticServer) return "http://localhost:3000";
+  if (isNetlifyHost || isScopeyDomain) return `${origin}/api`;
+  return origin;
+}
+
 const API_URL =
   window.SCOPEY_API_URL ||
-  (window.location.port === "5500" ? "http://localhost:3000" : window.location.origin);
+  getDefaultApiUrl();
 const APP_URL = window.SCOPEY_PUBLIC_URL || window.location.origin;
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
