@@ -14,8 +14,3 @@
   from = "/health"
   to = "/.netlify/functions/api/health"
   status = 200
-
-[[redirects]]
-  from = "/favicon.ico"
-  to = "/favicon.svg"
-  status = 200
