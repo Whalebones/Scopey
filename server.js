@@ -3,7 +3,7 @@ dotenv.config();
 
 import cors from "cors";
 import express from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import bodyParser from "body-parser";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
@@ -344,6 +344,14 @@ app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: RATE_LIMIT_MAX,
+    keyGenerator(req) {
+      const forwardedIp =
+        req.headers["x-nf-client-connection-ip"] ||
+        req.headers["x-forwarded-for"]?.split(",")[0]?.trim();
+
+      if (forwardedIp) return forwardedIp;
+      return req.ip ? ipKeyGenerator(req.ip) : "unknown";
+    },
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -357,6 +365,22 @@ app.use(
       FRONTEND_ASSETS.has(req.path.slice(1))
   })
 );
+
+app.use((req, _res, next) => {
+  const functionPrefix = "/.netlify/functions/api";
+
+  if (req.url === "/api") {
+    req.url = "/";
+  } else if (req.url.startsWith("/api/")) {
+    req.url = req.url.slice("/api".length);
+  } else if (req.url === functionPrefix) {
+    req.url = "/";
+  } else if (req.url.startsWith(`${functionPrefix}/`)) {
+    req.url = req.url.slice(functionPrefix.length);
+  }
+
+  next();
+});
 
 // =======================
 // HELPERS
@@ -4769,6 +4793,16 @@ app.post("/webhook", async (req, res) => {
 // =======================
 // START
 // =======================
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const SHOULD_LISTEN =
+  !process.env.NETLIFY &&
+  !process.env.AWS_LAMBDA_FUNCTION_NAME &&
+  !process.env.NETLIFY_FUNCTION_NAME;
+
+if (SHOULD_LISTEN) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
+export { app };

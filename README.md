@@ -89,7 +89,9 @@ stripe listen --forward-to localhost:3000/webhook
 
 ## Production tips
 
-- Set `FRONTEND_URL=http://www.scopey.co.uk` so generated client links, email links and checkout redirects use the public site.
+- Set `FRONTEND_URL=https://www.scopey.co.uk` so generated client links, email links and checkout redirects use the public site.
+- On Netlify, add the backend environment variables from `.env.example` in Site configuration > Environment variables. The live site needs `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `FRONTEND_URL`, and any enabled Stripe/Resend values there because local `.env` is not deployed.
+- Netlify routes browser API calls through `/api/*` into `netlify/functions/api.js`, which wraps the Express server. If create/edit/delete actions return 404 on the public site, check the Netlify deploy includes `netlify.toml` and the function built successfully.
 - Add `http://www.scopey.co.uk`, `http://scopey.co.uk`, `https://www.scopey.co.uk` and `https://scopey.co.uk` to Supabase Auth URL settings while DNS/SSL settles.
 - In Supabase, set the Site URL to `http://www.scopey.co.uk` and add the same variants as redirect URLs.
 - Set `SCOPEY_ADMIN_EMAILS` to your own Scopey/Supabase login email. Only those signed-in accounts can view the launch readiness checklist on the public site.
