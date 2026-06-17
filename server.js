@@ -9,7 +9,6 @@ import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 import PDFDocument from "pdfkit";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   MODULE_NAME as RIGHTS_MODULE_NAME,
   RIGHTS_CONFIG,
@@ -67,7 +66,7 @@ const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "scopey-uploads";
 const PORT = Number(process.env.PORT || 3000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 600);
 const ADMIN_EMAILS = parseAdminEmails(process.env.SCOPEY_ADMIN_EMAILS);
-const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
+const APP_DIR = process.cwd();
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const FRONTEND_ASSETS = new Set([
   "app.js",
