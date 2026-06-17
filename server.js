@@ -455,25 +455,39 @@ function publicPlanDefinition(plan) {
     priceLabel: plan.priceLabel,
     limits: plan.limits,
     features: plan.features,
-    checkoutConfigured: !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS[plan.key])
+    checkoutConfigured: !hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS[plan.key])
   };
 }
 
-function hasPlaceholderStripeValue(value) {
+function hasPlaceholderEnvValue(value) {
   return !value || /xxx|dummy|placeholder|\*/i.test(value);
 }
 
 function assertStripeSecretConfigured(message = "Stripe is not configured yet. Add a real STRIPE_SECRET in .env.") {
-  if (hasPlaceholderStripeValue(process.env.STRIPE_SECRET)) {
+  if (hasPlaceholderEnvValue(process.env.STRIPE_SECRET)) {
     const err = new Error(message);
     err.statusCode = 503;
     throw err;
   }
 }
 
+function isStripeConnectSignupRequired(error) {
+  return /signed up for Connect|dashboard\.stripe\.com\/connect/i.test(error?.message || "");
+}
+
+function createStripeConnectSetupError() {
+  const err = new Error(
+    "Stripe Connect needs enabling on Scopey's Stripe account before freelancers can connect their own payout accounts."
+  );
+  err.statusCode = 503;
+  err.code = "stripe_connect_not_enabled";
+  err.actionUrl = "https://dashboard.stripe.com/connect";
+  return err;
+}
+
 function assertStripeBillingConfigured(plan) {
   assertStripeSecretConfigured("Stripe billing is not configured yet. Add a real STRIPE_SECRET in .env.");
-  if (hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS[plan])) {
+  if (hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS[plan])) {
     const planName = PLAN_DEFINITIONS[plan]?.name || "this plan";
     const err = new Error(`Stripe checkout for ${planName} is not configured yet. Add the plan price ID in .env.`);
     err.statusCode = 503;
@@ -617,11 +631,11 @@ async function getLaunchSetupStatus() {
   ]);
   const stripeBillingConfigured =
     PAID_PLANS_ENABLED &&
-    !hasPlaceholderStripeValue(process.env.STRIPE_SECRET) &&
-    !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.pro) &&
-    !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.business);
-  const webhookConfigured = !hasPlaceholderStripeValue(process.env.STRIPE_WEBHOOK_SECRET);
-  const emailConfigured = !hasPlaceholderStripeValue(process.env.RESEND_API_KEY);
+    !hasPlaceholderEnvValue(process.env.STRIPE_SECRET) &&
+    !hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS.pro) &&
+    !hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS.business);
+  const webhookConfigured = !hasPlaceholderEnvValue(process.env.STRIPE_WEBHOOK_SECRET);
+  const emailConfigured = !hasPlaceholderEnvValue(process.env.RESEND_API_KEY);
   const frontendPublicConfigured =
     Boolean(FRONTEND_URL) && !/localhost|127\.0\.0\.1/i.test(FRONTEND_URL);
 
@@ -1233,7 +1247,7 @@ function paypalRedirectUrl(account) {
 async function syncStripePaymentAccount(userId, account = null) {
   const existing = account || (await getPaymentAccountForUser(userId));
 
-  if (!existing.stripe_account_id || hasPlaceholderStripeValue(process.env.STRIPE_SECRET)) {
+  if (!existing.stripe_account_id || hasPlaceholderEnvValue(process.env.STRIPE_SECRET)) {
     return existing;
   }
 
@@ -2029,7 +2043,7 @@ function buildClientEmail({ project, profile, link, section, accessCode = null }
 }
 
 async function sendEmail({ to, subject, text }) {
-  if (!process.env.RESEND_API_KEY) {
+  if (hasPlaceholderEnvValue(process.env.RESEND_API_KEY)) {
     return { sent: false, provider: "not_configured" };
   }
 
@@ -2472,9 +2486,18 @@ app.post("/payment-accounts/stripe/onboarding", async (req, res) => {
     });
   } catch (error) {
     console.error("Stripe Connect onboarding error:", error.message);
+    if (isStripeConnectSignupRequired(error)) {
+      const setupError = createStripeConnectSetupError();
+      return res.status(setupError.statusCode).json({
+        error: setupError.message,
+        code: setupError.code,
+        actionUrl: setupError.actionUrl
+      });
+    }
+
     res
       .status(error.statusCode || 500)
-      .json({ error: error.message || "Could not start Stripe setup" });
+      .json({ error: error.message || "Could not start Stripe setup", code: error.code });
   }
 });
 

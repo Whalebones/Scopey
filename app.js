@@ -137,7 +137,6 @@ const legalModal = document.getElementById("legal-modal");
 const closeLegalBtn = document.getElementById("close-legal-btn");
 const legalTitle = document.getElementById("legal-title");
 const legalUpdated = document.getElementById("legal-updated");
-const legalReviewNote = document.getElementById("legal-review-note");
 const legalContent = document.getElementById("legal-content");
 const accountModal = document.getElementById("account-modal");
 const closeAccountBtn = document.getElementById("close-account-btn");
@@ -323,6 +322,7 @@ const handoffLinkScope = document.getElementById("handoff-link-scope");
 const handoffEmailState = document.getElementById("handoff-email-state");
 const handoffClientAction = document.getElementById("handoff-client-action");
 const handoffReadinessList = document.getElementById("handoff-readiness-list");
+const handoffPaymentReadinessNote = document.getElementById("handoff-payment-readiness-note");
 const handoffSendBtn = document.getElementById("handoff-send-btn");
 const editProjectTitle = document.getElementById("edit-project-title");
 const editProjectClient = document.getElementById("edit-project-client");
@@ -402,6 +402,11 @@ const clientProfileImage = document.getElementById("client-profile-image");
 const clientProfileInitial = document.getElementById("client-profile-initial");
 const clientProfileName = document.getElementById("client-profile-name");
 const clientProfileBio = document.getElementById("client-profile-bio");
+const clientLinkProblemCard = document.getElementById("client-link-problem-card");
+const clientLinkProblemCopy = document.getElementById("client-link-problem-copy");
+const clientLinkHomeBtn = document.getElementById("client-link-home-btn");
+const clientScopedContextCard = document.getElementById("client-scoped-context-card");
+const clientScopedContextCopy = document.getElementById("client-scoped-context-copy");
 const clientProjectTitle = document.getElementById("client-project-title");
 const clientProjectSubtitle = document.getElementById("client-project-subtitle");
 const clientNextAction = document.getElementById("client-next-action");
@@ -445,6 +450,8 @@ const clientCompletionPanel = document.getElementById("client-completion-panel")
 const clientCompleteName = document.getElementById("client-complete-name");
 const clientCompleteEmail = document.getElementById("client-complete-email");
 const clientApproveCompletionBtn = document.getElementById("client-approve-completion-btn");
+const clientDeliverableName = document.getElementById("client-deliverable-name");
+const clientDeliverableEmail = document.getElementById("client-deliverable-email");
 const clientDeliverableList = document.getElementById("client-deliverable-list");
 
 // =======================
@@ -468,92 +475,85 @@ const LEGAL_DOCUMENTS = {
   privacy: {
     title: "Privacy Policy",
     updated: "Last updated: 15 June 2026",
-    status: "MVP-ready once your legal name, contact details, providers and retention periods are confirmed.",
     intro:
-      "This policy explains how Scopey collects and uses personal data. Replace placeholders before launch.",
+      "Scopey is operated by Scopey. For privacy questions or requests, contact info@scopey.co.uk.",
     sections: [
       {
         heading: "Who we are",
         body: [
-          "Scopey is operated by [your legal name / company name], [company number if applicable], at [registered or trading address].",
-          "For privacy questions, contact [privacy contact email]."
+          "Scopey is contactable at info@scopey.co.uk for all privacy-related questions and requests.",
+          "ICO registration details will be added once registration is complete."
         ]
       },
       {
         heading: "Personal data we collect",
         body: [
-          "Account details such as name, email address, authentication identifiers and plan information.",
-          "Project data added by users, including client names, client email addresses, project scope, agreement text, payments, suggestions, uploaded images and deliverables.",
-          "Billing data needed to process subscriptions and payment links. Card details are handled by Stripe and are not stored by Scopey.",
-          "Technical data such as device/browser information, security logs and essential session data."
+          "Account details: name, email address, authentication identifiers and plan information.",
+          "Project data added by users: client names, client email addresses, project scope, agreement text, payments, suggestions, uploaded images and deliverables.",
+          "Billing data required to process subscriptions and payment links. Card details are handled directly by Stripe or PayPal and are not stored by Scopey.",
+          "Technical data: device and browser information, security logs and essential session data needed to keep the service running securely."
         ]
       },
       {
         heading: "Why we use personal data",
         body: [
-          "To provide Scopey accounts, dashboards, shared client pages and collaboration tools.",
+          "To provide and operate Scopey accounts, dashboards and shared client pages.",
           "To process subscriptions, payment links, invoices and receipts.",
-          "To send service emails such as sign-in links, project review links and account notices.",
-          "To keep Scopey secure, diagnose faults, prevent misuse and improve the product."
+          "To send service emails including sign-in links, project review links and account notices.",
+          "To keep Scopey secure, diagnose faults, prevent misuse and improve the product over time."
         ]
       },
       {
         heading: "Lawful bases",
         body: [
-          "Contract: to provide the Scopey service and paid plans.",
+          "Contract: to provide the Scopey service and fulfil paid plan commitments.",
           "Legitimate interests: to secure, maintain and improve Scopey and prevent abuse.",
           "Legal obligation: to keep records required for tax, accounting, compliance or dispute handling.",
-          "Consent: where optional cookies, marketing or optional integrations are used."
+          "Consent: where optional cookies or optional integrations are used, consent is obtained separately."
         ]
       },
       {
         heading: "Who we share data with",
         body: [
-          "Supabase for authentication, database, file storage and related infrastructure.",
-          "Stripe for subscriptions, checkout, payment processing and billing records.",
-          "Resend or another configured email provider for service emails.",
-          "Hosting, monitoring and support providers used to operate Scopey.",
-          "AI providers such as Anthropic or OpenAI only if an AI feature is enabled and the user submits content to that feature."
+          "Supabase: authentication, database, file storage and related backend infrastructure.",
+          "Stripe: subscription billing, checkout, payment processing and billing records.",
+          "PayPal: payment links and payment processing where used by freelancers on the platform.",
+          "Resend: transactional emails including sign-in links, project notifications and client review links.",
+          "Netlify: web hosting, server runtime and access logs.",
+          "Ionos: domain management and domain email services.",
+          "Scopey does not sell personal data to third parties and does not use personal data for advertising purposes."
         ]
       },
       {
-        heading: "International transfers and retention",
+        heading: "International transfers",
         body: [
-          "Some providers may process data outside the UK. Scopey should rely on appropriate safeguards where required.",
-          "Account and project data is kept while an account is active. Some billing, security and legal records may be kept longer where required.",
-          "Users should be able to request deletion, subject to legal or fraud-prevention retention requirements."
+          "Some providers may process data outside the UK.",
+          "Where this occurs, Scopey relies on appropriate safeguards such as standard contractual clauses or adequacy decisions to protect that data in line with UK GDPR requirements."
+        ]
+      },
+      {
+        heading: "Data retention",
+        body: [
+          "Account and project data is retained while an account is active. When an account is deleted, all associated project data is removed immediately.",
+          "Some billing, security and legal records may be retained for longer where required by law, tax obligations or legitimate fraud-prevention purposes."
         ]
       },
       {
         heading: "Your rights",
         body: [
-          "Individuals may have rights to access, correct, delete, restrict or object to processing of their personal data, and to data portability where applicable.",
-          "UK users can complain to the ICO if they are unhappy with how their data is handled."
-        ]
-      },
-      {
-        heading: "Data requests",
-        body: [
-          "To request access, correction, deletion or export of personal data, contact [privacy contact email].",
-          "Scopey should respond to privacy requests within the legal timeframe that applies to the request.",
-          "Some information may need to be retained for billing, tax, security, fraud prevention or dispute reasons."
-        ]
-      },
-      {
-        heading: "ICO registration",
-        body: [
-          "Scopey should complete the ICO data protection fee self-assessment and register/pay the fee unless an exemption applies.",
-          "Once registered, add the ICO registration number or company privacy contact details here."
+          "UK users have rights under UK GDPR including the right to access, correct, delete, restrict or object to processing of their personal data, and the right to data portability where applicable.",
+          "To exercise any of these rights, contact info@scopey.co.uk. Scopey will respond within the legally required timeframe.",
+          "Some data may need to be retained for billing, tax, security or dispute reasons even after a deletion request.",
+          "UK users who are unhappy with how their data has been handled may complain to the Information Commissioner's Office at ico.org.uk."
         ]
       }
     ]
   },
   terms: {
     title: "Terms of Service",
-    updated: "Review draft last updated: 15 June 2026",
-    status: "Needs legal review before relying on it for liability, disputes, paid plans and account termination.",
+    updated: "Last updated: 15 June 2026",
     intro:
-      "These terms set the commercial and ownership rules for using Scopey. They should be legally reviewed before launch.",
+      "These terms set the core rules for using Scopey and explain the responsibilities of users, clients and Scopey.",
     sections: [
       {
         heading: "The service",
@@ -565,38 +565,42 @@ const LEGAL_DOCUMENTS = {
       {
         heading: "Accounts and responsibilities",
         body: [
-          "Users are responsible for keeping account credentials secure and for the accuracy of project, client, payment and rights information they add.",
+          "Users are responsible for keeping account credentials secure and for the accuracy of project, client, payment and rights information they add to Scopey.",
           "Users must have permission to upload, process and share any client data, images, artwork, references or deliverables they place in Scopey."
         ]
       },
       {
         heading: "Ownership",
         body: [
-          "Users and their clients keep ownership of their artwork, project files, client materials and uploaded content.",
-          "Users grant Scopey a limited licence to host, process, display and transmit that content only as needed to provide the service.",
-          "Scopey owns the Scopey product, software, code, brand, interface, documentation and related intellectual property."
+          "Users and their clients keep full ownership of their artwork, project files, client materials and uploaded content.",
+          "By using Scopey, users grant Scopey a limited licence to host, process, display and transmit that content only as necessary to provide the service.",
+          "This licence ends when the content is deleted or the account is closed.",
+          "Scopey owns the Scopey product, software, code, brand, interface, documentation and all related intellectual property."
         ]
       },
       {
         heading: "Plans and billing",
         body: [
-          "Free, Pro and Business plans may have different limits for projects, storage, exports, automated emails, payment links and rights records.",
-          "Paid subscriptions renew until cancelled. Prices, taxes and billing cycles should be shown before checkout.",
-          "Users remain responsible for freelancer-client contracts, taxes, invoice accuracy and any payment disputes with their clients."
+          "Free, Pro and Business plans have different limits for active projects, storage, exports, automated emails, payment links and rights records.",
+          "Current plan details are shown on the Scopey website.",
+          "Paid subscriptions renew automatically until cancelled. Prices, applicable taxes and billing cycles are displayed before checkout.",
+          "Users remain solely responsible for freelancer-client contracts, taxes, invoice accuracy and any payment disputes with their own clients.",
+          "Scopey is a workflow tool and is not a party to freelancer-client agreements."
         ]
       },
       {
         heading: "Termination",
         body: [
-          "Users may cancel their account or subscription according to the product controls and cancellation policy.",
-          "Scopey may suspend or terminate accounts that breach these terms, misuse the service, create security risk or fail to pay."
+          "Users may cancel their account or subscription at any time using the controls available in their Scopey account settings.",
+          "Scopey may suspend or terminate accounts that breach these terms, misuse the service, create a security risk or fail to pay for a paid plan.",
+          "Where reasonably practicable, Scopey will notify the user before taking action."
         ]
       },
       {
         heading: "Limits of liability",
         body: [
-          "Scopey is a workflow and record-keeping tool. It does not replace legal, tax, financial or intellectual property advice.",
-          "To the extent permitted by law, Scopey is not responsible for user-client disputes, inaccurate project records, rights decisions or losses caused by misuse of the service."
+          "Scopey is a workflow and record-keeping tool. It does not replace legal, tax, financial or intellectual property advice, and nothing in Scopey constitutes such advice.",
+          "To the extent permitted by applicable law, Scopey is not liable for user-client disputes, inaccurate project records, rights decisions or losses arising from misuse of the service."
         ]
       }
     ]
@@ -604,33 +608,28 @@ const LEGAL_DOCUMENTS = {
   "acceptable-use": {
     title: "Acceptable Use Policy",
     updated: "Last updated: 15 June 2026",
-    status: "MVP-ready as product rules once final wording is reviewed against your Terms.",
     intro:
-      "This can live inside the Terms, but keeping the rules visible is useful.",
+      "Scopey is a professional tool for freelancers and their clients. Users agree not to use Scopey for the following.",
     sections: [
       {
-        heading: "You must not use Scopey to",
+        heading: "Prohibited use",
         body: [
-          "Upload or share content you do not own or do not have permission to use.",
-          "Infringe copyright, trade marks, privacy rights, publicity rights or other intellectual property rights.",
-          "Upload illegal, exploitative, abusive, hateful, harassing, defamatory or fraudulent content.",
-          "Upload malware, attempt unauthorised access, scrape the service, overload systems or bypass security controls.",
-          "Use Scopey for spam, deceptive activity, money laundering, sanctions evasion or other unlawful activity."
+          "Uploading, sharing or storing content that is unlawful, harmful, threatening, abusive, defamatory or otherwise objectionable.",
+          "Infringing the intellectual property rights of any third party, including uploading artwork or materials without the right to do so.",
+          "Misrepresenting project scope, agreement terms or payment records to deceive clients or third parties.",
+          "Attempting to gain unauthorised access to other users' accounts, project data or client information.",
+          "Using Scopey to facilitate spam, phishing or any form of fraudulent communication.",
+          "Circumventing, disabling or otherwise interfering with security features of the service.",
+          "Reselling, sublicensing or otherwise commercialising access to Scopey without permission."
         ]
       },
       {
-        heading: "Sensitive content",
-        body: [
-          "Users should avoid adding special-category personal data or unnecessary sensitive client information unless they have a lawful basis and appropriate safeguards.",
-          "Scopey may remove content or restrict accounts where content creates legal, security or platform risk."
-        ]
-      },
-      {
-        heading: "Reporting content",
+        heading: "Reports and enforcement",
         body: [
           "Freelancers and clients can report project messages, suggestions or uploaded images that may breach Scopey's usage rules.",
           "Reports are recorded against the project so the account owner can review the concern, preserve context and take action where needed.",
-          "Scopey may later use reports to investigate platform abuse, remove content or restrict access in line with these rules and the Terms."
+          "Scopey reserves the right to remove content or suspend accounts that breach this policy.",
+          "Serious or repeated breaches may result in permanent account termination."
         ]
       }
     ]
@@ -638,59 +637,68 @@ const LEGAL_DOCUMENTS = {
   cookies: {
     title: "Cookie Policy",
     updated: "Last updated: 15 June 2026",
-    status: "MVP-ready if Scopey only uses essential auth/session/preference storage.",
     intro:
-      "Scopey currently appears to rely on essential app storage only. A consent banner becomes important if analytics, advertising or other non-essential cookies are added.",
+      "Scopey uses a small number of essential cookies and similar technologies required for the service to function.",
     sections: [
       {
-        heading: "Essential cookies and local storage",
+        heading: "What cookies Scopey uses",
         body: [
-          "Scopey may use essential cookies, local storage or similar technologies to keep users signed in, remember accessibility preferences and operate the app securely.",
-          "These are necessary for the service and do not require optional consent."
+          "Scopey uses essential cookies and session storage that keep users signed in and protect account access.",
+          "Scopey does not currently use advertising cookies, third-party tracking cookies or non-essential analytics cookies.",
+          "If this changes, this policy and the Privacy Policy will be updated and consent will be requested where required."
         ]
       },
       {
-        heading: "Optional cookies",
+        heading: "Managing cookies",
         body: [
-          "If Scopey later adds analytics, marketing, heatmaps, advertising pixels or similar non-essential tools, users should be given clear information and a choice before those tools run.",
-          "The cookie banner should let users accept, reject and manage optional cookies."
+          "Essential cookies cannot be disabled without affecting how Scopey works.",
+          "Browser settings can be used to block or delete cookies, but doing so may prevent sign-in and other core features from functioning correctly."
         ]
       }
     ]
   },
   refunds: {
-    title: "Cancellation and Refund Policy",
+    title: "Refund and Cancellation Policy",
     updated: "Last updated: 15 June 2026",
-    status: "MVP-ready checkout wording, but review once final prices, customer type and payment flow are settled.",
     intro:
-      "This policy is for Scopey paid tiers and future add-ons. It should be reviewed against the final checkout flow.",
+      "This policy explains how Scopey subscriptions, cancellations and refunds are handled.",
     sections: [
       {
         heading: "Subscriptions",
         body: [
-          "Paid plans renew automatically unless cancelled before the next renewal date.",
-          "Cancelling a paid plan should stop future renewals. Access may continue until the end of the paid billing period unless required otherwise by law or stated at checkout."
+          "Paid plans renew automatically at the end of each billing period unless cancelled beforehand.",
+          "Cancelling a paid plan will stop future renewals.",
+          "Access to paid features continues until the end of the current paid billing period."
         ]
       },
       {
         heading: "UK consumer cooling-off period",
         body: [
-          "If a customer buys as a consumer, they may have a 14-day cooling-off right for distance purchases.",
-          "If the customer asks for immediate access to digital services during the cooling-off period, they may be asked to acknowledge that cancellation rights can be affected once the service has started or been fully supplied.",
-          "Business customers may not have the same consumer cancellation rights."
+          "If a user purchases a Scopey paid plan as a consumer, they may have a statutory 14-day cooling-off right under UK distance selling regulations.",
+          "At checkout, users who request immediate access to Scopey's digital services will be asked to acknowledge that exercising this right to start the service may affect their ability to cancel once the service has begun or been fully supplied.",
+          "Business customers purchasing Scopey for professional use may not have the same statutory cancellation rights as individual consumers."
         ]
       },
       {
         heading: "Refunds",
         body: [
-          "Refunds may be provided where required by law, where there has been a billing error, or where Scopey chooses to offer one as a goodwill gesture.",
-          "Client payments made through freelancer project links may involve the freelancer, their client and Stripe. Scopey should explain whether it is only providing payment tooling or is merchant of record for any payment."
+          "Refunds will be provided where required by law or where a billing error has occurred.",
+          "Outside of statutory rights, refunds are not offered as a matter of routine but may be considered at Scopey's discretion in exceptional circumstances."
         ]
       },
       {
-        heading: "Checkout wording",
+        heading: "Client payments",
         body: [
-          "Suggested checkout notice: By subscribing, you agree to the Terms, Privacy Policy and Cancellation and Refund Policy. You request immediate access to Scopey digital services and understand this may affect any cooling-off cancellation rights once access begins."
+          "Payments made between freelancers and their clients through Scopey payment links are processed by Stripe or PayPal.",
+          "Scopey provides payment link tooling only and is not the merchant of record for freelancer-client transactions.",
+          "Disputes relating to those payments are between the freelancer, their client and the payment provider."
+        ]
+      },
+      {
+        heading: "Checkout notice",
+        body: [
+          "At the point of subscription, users will be shown the following notice.",
+          "By subscribing, you agree to Scopey's Terms, Privacy Policy and Refund and Cancellation Policy. You are requesting immediate access to Scopey digital services and understand that this may affect any statutory cooling-off cancellation rights once access has begun."
         ]
       }
     ]
@@ -698,64 +706,61 @@ const LEGAL_DOCUMENTS = {
   subprocessors: {
     title: "Sub-processor List",
     updated: "Last updated: 15 June 2026",
-    status: "MVP-ready once you confirm the exact providers and regions used in production.",
     intro:
-      "This list explains which providers may process personal data so Scopey can run the service.",
+      "This list identifies the third-party providers that may process personal data in order for Scopey to operate.",
     sections: [
       {
-        heading: "Current expected providers",
+        heading: "Current providers",
         body: [
           "Supabase: authentication, database, file storage and related backend infrastructure.",
           "Stripe: subscription billing, checkout, payment links and payment records.",
-          "Resend or configured email provider: transactional emails and client review links.",
-          "Hosting provider: web hosting, server runtime and operational logs.",
-          "Monitoring or logging provider, if enabled: security, diagnostics and reliability monitoring."
+          "PayPal: payment links and payment processing where used by freelancers on the platform.",
+          "Resend: transactional emails including sign-in links, project notifications and client review links.",
+          "Netlify: web hosting, server runtime and operational access logs.",
+          "Ionos: domain management and domain email services."
         ]
       },
       {
         heading: "Conditional providers",
         body: [
-          "Anthropic, OpenAI or another AI provider should only be listed if Scopey enables AI features and sends user-submitted content to that provider.",
-          "Analytics providers should only be listed if non-essential analytics are added and reflected in the Cookie Policy."
+          "An AI provider such as Anthropic or OpenAI will only be added if AI-assisted features are introduced that process user content.",
+          "An analytics provider will only be added if non-essential analytics are enabled and reflected in the Cookie Policy."
         ]
       },
       {
-        heading: "Changes",
+        heading: "Changes to this list",
         body: [
           "Scopey may update this list when providers change.",
-          "Business-tier customers may be given notice of material sub-processor changes where required by contract."
+          "Business-tier customers will be given reasonable notice of material sub-processor changes where required by their plan terms."
         ]
       }
     ]
   },
   dpa: {
     title: "Data Processing Addendum Note",
-    updated: "Review note last updated: 15 June 2026",
-    status: "Keep as a review-needed Business-tier document until a full DPA is prepared.",
+    updated: "Last updated: 15 June 2026",
     intro:
-      "This is a lower-priority starter note for Business customers. A full DPA should be reviewed professionally.",
+      "This note applies to Business-tier customers and organisations that require a formal Data Processing Addendum as part of their own GDPR or data protection compliance.",
     sections: [
       {
-        heading: "Likely roles",
+        heading: "Roles",
         body: [
-          "For freelancer/client project data, the Scopey user is likely the controller and Scopey is likely a processor providing hosted software.",
-          "For Scopey's own account, billing, security and product analytics data, Scopey may act as controller."
+          "For project data added by Scopey users and shared with their clients, the Scopey user is the data controller and Scopey acts as a data processor providing hosted software.",
+          "For Scopey's own account, billing, security and product data, Scopey acts as an independent data controller."
         ]
       },
       {
-        heading: "DPA topics to cover",
+        heading: "Current status",
         body: [
-          "Processing subject matter, duration, nature and purpose.",
-          "Categories of personal data and data subjects.",
-          "Controller instructions, confidentiality, security measures, sub-processors, breach assistance and deletion/return of data.",
-          "International transfer safeguards and audit/support process."
+          "A full, professionally reviewed DPA will be made available to Business-tier customers before paid Business subscriptions go live.",
+          "Organisations requiring a DPA before that point should contact info@scopey.co.uk to discuss their requirements."
         ]
       },
       {
         heading: "Sub-processors",
         body: [
-          "Prepare a public sub-processor list covering Supabase, Stripe, email provider, hosting, monitoring and any AI providers used by enabled features.",
-          "Business-tier customers may expect notice of material sub-processor changes."
+          "A public sub-processor list covering all current providers is available in the Sub-processor List and on the Scopey website.",
+          "Business-tier customers will receive reasonable notice of material sub-processor changes."
         ]
       }
     ]
@@ -1491,7 +1496,10 @@ async function readJsonResponse(response, fallbackMessage) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data?.error || fallbackMessage);
+    const error = new Error(data?.error || fallbackMessage);
+    error.code = data?.code;
+    error.actionUrl = data?.actionUrl;
+    throw error;
   }
 
   return data;
@@ -2091,6 +2099,38 @@ function renderPaymentAccountSetup() {
   }
 }
 
+function getClientPaymentReadiness() {
+  const account = currentPaymentAccount || {};
+  const stripeReady = Boolean(account.stripe?.ready);
+  const paypalReady = Boolean(account.paypal?.enabled);
+
+  if (stripeReady && paypalReady) {
+    return {
+      ready: true,
+      label: "Stripe and PayPal are ready for client payments."
+    };
+  }
+
+  if (stripeReady) {
+    return {
+      ready: true,
+      label: "Stripe is ready for client card payments."
+    };
+  }
+
+  if (paypalReady) {
+    return {
+      ready: true,
+      label: "PayPal is ready for manual client payments."
+    };
+  }
+
+  return {
+    ready: false,
+    label: "Connect Stripe or add a PayPal payment link in Account before sending payment requests."
+  };
+}
+
 async function loadPaymentAccount() {
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(`${API_URL}/payment-accounts`, { headers });
@@ -2115,7 +2155,15 @@ async function connectStripePayments() {
     window.location.href = data.url;
   } catch (error) {
     console.error(error);
-    showBanner(error.message || "Could not start Stripe setup.", "error");
+    if (error.code === "stripe_connect_not_enabled" && error.actionUrl) {
+      showBanner(
+        "Stripe Connect needs enabling for Scopey before freelancer payout accounts can be linked. Opening Stripe Connect setup...",
+        "warning"
+      );
+      window.open(error.actionUrl, "_blank", "noopener");
+    } else {
+      showBanner(error.message || "Could not start Stripe setup.", "error");
+    }
     setButtonLoading(connectStripeBtn, false);
   }
 }
@@ -2897,6 +2945,9 @@ function renderHandoffPanel(project, scopeItems, changes, payments, deliverables
   const email = project?.client_email || "";
   const checks = getHandoffChecks(project, scopeItems, payments);
   const incomplete = checks.filter((check) => !check.complete);
+  const paymentReadiness = getClientPaymentReadiness();
+  const handoffNeedsPayment = ["all", "changes", "payments"].includes(section)
+    && (payments.some((payment) => payment.status === "pending") || changes.some((change) => change.status === "pending"));
   handoffSummaryCopy.textContent = getOwnerHandoffCopy(project, scopeItems, payments, changes, deliverables);
 
   if (handoffStatusChip) {
@@ -2929,6 +2980,14 @@ function renderHandoffPanel(project, scopeItems, changes, payments, deliverables
       });
       handoffReadinessList.appendChild(item);
     });
+  }
+
+  if (handoffPaymentReadinessNote) {
+    handoffPaymentReadinessNote.textContent = handoffNeedsPayment
+      ? paymentReadiness.label
+      : "";
+    handoffPaymentReadinessNote.classList.toggle("hidden", !handoffNeedsPayment);
+    handoffPaymentReadinessNote.classList.toggle("payment-warning", handoffNeedsPayment && !paymentReadiness.ready);
   }
 
   if (handoffSendBtn) {
@@ -3356,13 +3415,67 @@ function buildDeliverableRow(deliverable, options = {}) {
   );
 }
 
+function getScopedClientAction(section = clientSection) {
+  const actions = {
+    agreement: {
+      title: "Review the agreement",
+      copy: "This link is focused on the terms, scope and acceptance record for this project.",
+      label: "View agreement",
+      targetId: "client-agreement-preview"
+    },
+    scope: {
+      title: "Review the included scope",
+      copy: "This link is focused on the work currently included in the original agreement.",
+      label: "View scope",
+      targetId: "client-scope-list"
+    },
+    changes: {
+      title: "Review paid changes",
+      copy: "This link is focused on pending and approved change requests for this project.",
+      label: "View changes",
+      targetId: "client-pending-list"
+    },
+    payments: {
+      title: "Review project payments",
+      copy: "This link is focused on deposits, milestones or final balances requested for this project.",
+      label: "View payments",
+      targetId: "client-payment-list"
+    },
+    suggestions: {
+      title: "Send or review suggestions",
+      copy: "This link is focused on client ideas, references and freelancer responses.",
+      label: "View suggestions",
+      targetId: "client-suggestion-title"
+    },
+    updates: {
+      title: "Review project updates",
+      copy: "This link is focused on progress notes, images, references and the project gallery.",
+      label: "View updates",
+      targetId: "client-update-list"
+    },
+    completion: {
+      title: "Review final approval",
+      copy: "This link is focused on final approval and deliverables for this project.",
+      label: "View final files",
+      targetId: "client-deliverable-list"
+    }
+  };
+
+  return actions[section] || null;
+}
+
 function applyClientSectionScope(section = clientSection) {
   const normalised = section || "all";
   document.querySelectorAll("[data-client-section]").forEach((panel) => {
     const panelSection = panel.dataset.clientSection;
-    const visible = normalised === "all" || panelSection === normalised;
+    const visible = normalised === "all" || panelSection === normalised || panelSection === "all";
     panel.classList.toggle("hidden", !visible);
   });
+
+  clientScopedContextCard?.classList.toggle("hidden", normalised === "all");
+  if (clientScopedContextCopy && normalised !== "all") {
+    clientScopedContextCopy.textContent = `This ${getClientSectionLabel(normalised)} link keeps the project summary visible, then focuses on the section the freelancer sent you.`;
+  }
 
   if (normalised !== "all") {
     showBanner(`Showing ${getClientSectionLabel(normalised)} for this project.`, "info");
@@ -3371,11 +3484,27 @@ function applyClientSectionScope(section = clientSection) {
 
 function setClientVerificationMode(isVerifying) {
   clientVerificationCard?.classList.toggle("hidden", !isVerifying);
+  clientLinkProblemCard?.classList.add("hidden");
 
   document.querySelectorAll("#client-view > section").forEach((section) => {
     if (section === clientVerificationCard) return;
+    if (section === clientLinkProblemCard) return;
     section.classList.toggle("hidden", isVerifying);
   });
+}
+
+function renderClientLinkProblem(message) {
+  isClientView = true;
+  updateAuthButtons(false);
+  setView("client");
+  clientVerificationCard?.classList.add("hidden");
+  document.querySelectorAll("#client-view > section").forEach((section) => {
+    section.classList.toggle("hidden", section !== clientLinkProblemCard);
+  });
+  if (clientLinkProblemCopy) {
+    clientLinkProblemCopy.textContent =
+      message || "The link may have expired, been replaced, or been copied incorrectly. Ask the freelancer for a fresh Scopey link.";
+  }
 }
 
 function renderClientVerification(project = {}) {
@@ -3525,7 +3654,8 @@ function getClientPrimaryAction(project, changes = [], payments = [], deliverabl
 }
 
 function renderClientPrimaryAction(project, changes, payments, deliverables) {
-  const action = getClientPrimaryAction(project, changes, payments, deliverables);
+  const scopedAction = clientSection !== "all" ? getScopedClientAction(clientSection) : null;
+  const action = scopedAction || getClientPrimaryAction(project, changes, payments, deliverables);
   if (clientPrimaryActionTitle) clientPrimaryActionTitle.textContent = action.title;
   if (clientPrimaryActionCopy) clientPrimaryActionCopy.textContent = action.copy;
   if (clientPrimaryActionBtn) {
@@ -3825,7 +3955,6 @@ function renderLegalDocument(key = "privacy") {
 
   if (legalTitle) legalTitle.textContent = doc.title;
   if (legalUpdated) legalUpdated.textContent = doc.updated;
-  if (legalReviewNote) legalReviewNote.textContent = doc.status;
   if (!legalContent) return;
 
   document.querySelectorAll("[data-legal-doc]").forEach((button) => {
@@ -5915,7 +6044,7 @@ async function performProjectStatusUpdate(status, button = null) {
     await loadProject();
     showBanner(
       status === "sent"
-        ? "Project marked sent. Use Email client to send the review link."
+        ? "Project marked sent for client acceptance."
         : status === "complete"
         ? "Project marked complete and moved to archived projects."
         : status === "cancelled"
@@ -6355,6 +6484,36 @@ async function emailClientProject(event = null) {
   }
 }
 
+async function sendAgreementForAcceptance() {
+  if (!currentProject) {
+    showBanner("Select a project first.", "error");
+    return;
+  }
+
+  if (!projectHasAgreement(currentProject)) {
+    showBanner("Save agreement terms before sending this project to the client.", "error");
+    return;
+  }
+
+  if (!currentProject.client_email) {
+    showBanner("Add a client email address before sending the agreement.", "error");
+    return;
+  }
+
+  setButtonLoading(sendAgreementBtn, true, "Sending...");
+
+  try {
+    if (currentProject.status === "draft") {
+      await performProjectStatusUpdate("sent", sendAgreementBtn);
+      if (currentProject?.status === "draft") return;
+    }
+
+    await emailClientProject({ target: sendAgreementBtn });
+  } finally {
+    setButtonLoading(sendAgreementBtn, false, "Send for acceptance");
+  }
+}
+
 async function sendClientHandoff() {
   if (!currentProject) {
     showBanner("Select a project first.", "error");
@@ -6377,6 +6536,7 @@ async function sendClientHandoff() {
   try {
     if (currentProject.status === "draft") {
       await performProjectStatusUpdate("sent", handoffSendBtn);
+      if (currentProject?.status === "draft") return;
     }
 
     await emailClientProject({ target: handoffSendBtn });
@@ -6633,6 +6793,9 @@ function renderClient(
   }
   if (clientCompleteEmail && !clientCompleteEmail.value && project.client_email) {
     clientCompleteEmail.value = project.client_email;
+  }
+  if (clientDeliverableEmail && !clientDeliverableEmail.value && project.client_email) {
+    clientDeliverableEmail.value = project.client_email;
   }
   const projectClosed = ["complete", "cancelled"].includes(project.status);
   [
@@ -6974,11 +7137,17 @@ async function approveCompletion() {
 }
 
 async function approveDeliverable(deliverable, button) {
-  const clientName = clientCompleteName?.value.trim() || clientAcceptName?.value.trim();
-  const clientEmail = clientCompleteEmail?.value.trim() || clientAcceptEmail?.value.trim();
+  const clientName =
+    clientDeliverableName?.value.trim() ||
+    clientCompleteName?.value.trim() ||
+    clientAcceptName?.value.trim();
+  const clientEmail =
+    clientDeliverableEmail?.value.trim() ||
+    clientCompleteEmail?.value.trim() ||
+    clientAcceptEmail?.value.trim();
 
   if (!clientName) {
-    showBanner("Add your name in the final approval section before approving deliverables.", "error");
+    showBanner("Add your name before approving this deliverable.", "error");
     return;
   }
 
@@ -7099,11 +7268,12 @@ async function initOwnerView() {
     setView("owner");
     renderOwnerEmptyWorkspace();
 
-    const [billingResult, profileResult, templatesResult, projectsResult] =
+    const [billingResult, profileResult, templatesResult, paymentAccountResult, projectsResult] =
       await Promise.allSettled([
         loadBilling(),
         loadProfile(),
         loadAgreementTemplates(),
+        loadPaymentAccount(),
         loadProjects()
       ]);
 
@@ -7121,6 +7291,12 @@ async function initOwnerView() {
       console.error("Template load error:", templatesResult.reason);
       currentAgreementTemplates = [];
       renderTemplateOptions();
+    }
+
+    if (paymentAccountResult.status === "rejected") {
+      console.error("Payment account load error:", paymentAccountResult.reason);
+      currentPaymentAccount = null;
+      renderPaymentAccountSetup();
     }
 
     if (projectsResult.status === "rejected") {
@@ -7160,13 +7336,11 @@ async function initClientView() {
     setView("client");
   } catch (error) {
     console.error(error);
-    showBanner(
-      error?.message
-        ? `This shared project could not be loaded: ${error.message}`
-        : "This shared project could not be loaded.",
-      "error"
-    );
-    setView("landing");
+    const message = error?.message
+      ? `This shared project could not be loaded: ${error.message}`
+      : "This shared project could not be loaded.";
+    renderClientLinkProblem(message);
+    showBanner(message, "error");
   }
 }
 
@@ -7252,6 +7426,9 @@ closeAccessibilityBtn?.addEventListener("click", closeAccessibilityModal);
 resetAccessibilityBtn?.addEventListener("click", resetAccessibilitySettings);
 closeLegalBtn?.addEventListener("click", closeLegalModal);
 closeAccountBtn?.addEventListener("click", closeAccountModal);
+clientLinkHomeBtn?.addEventListener("click", () => {
+  window.location.href = getAppUrl();
+});
 connectStripeBtn?.addEventListener("click", connectStripePayments);
 savePaypalBtn?.addEventListener("click", savePaypalPayments);
 betaFeedbackBtn?.addEventListener("click", openBetaFeedbackModal);
@@ -7334,7 +7511,7 @@ rightsArtworkSelect?.addEventListener("change", () => {
 rightsCreateLicenseBtn?.addEventListener("click", createRightsLicense);
 rightsExportBtn?.addEventListener("click", exportRightsReport);
 saveAgreementBtn?.addEventListener("click", saveAgreement);
-sendAgreementBtn?.addEventListener("click", () => updateProjectStatus("sent", sendAgreementBtn));
+sendAgreementBtn?.addEventListener("click", sendAgreementForAcceptance);
 applyTemplateBtn?.addEventListener("click", applySelectedTemplate);
 saveTemplateBtn?.addEventListener("click", saveAgreementTemplate);
 exportAgreementBtn?.addEventListener("click", exportAgreement);
