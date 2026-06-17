@@ -205,6 +205,8 @@ const projectListEl = document.getElementById("project-list");
 const archivedProjectListEl = document.getElementById("archived-project-list");
 const toggleProjectCreateBtn = document.getElementById("toggle-project-create-btn");
 const projectCreateCard = document.getElementById("project-create-card");
+const projectCreationState = document.getElementById("project-creation-state");
+const projectCreationCopy = document.getElementById("project-creation-copy");
 
 const newProjectTitle = document.getElementById("new-project-title");
 const newProjectClient = document.getElementById("new-project-client");
@@ -2208,6 +2210,7 @@ async function savePaypalPayments() {
 
 function setProjectCreateVisible(isVisible, rememberChoice = false) {
   isCreatingProject = isVisible;
+  projectCreationState?.classList.add("hidden");
   projectCreateCard?.classList.toggle("hidden", !isVisible);
   if (toggleProjectCreateBtn) {
     toggleProjectCreateBtn.textContent = isVisible ? "Back to project" : "New project";
@@ -2227,6 +2230,32 @@ function setProjectCreateVisible(isVisible, rememberChoice = false) {
   }
 
   renderProjectList();
+}
+
+function setProjectCreationLoading(isLoading, projectTitle = "") {
+  projectCreationState?.classList.toggle("hidden", !isLoading);
+  if (!isLoading) {
+    if (toggleProjectCreateBtn) {
+      toggleProjectCreateBtn.disabled = false;
+      toggleProjectCreateBtn.textContent = currentProject ? "New project" : "New project";
+    }
+    return;
+  }
+
+  projectCreateCard?.classList.add("hidden");
+  ownerEmptyState?.classList.add("hidden");
+  projectWorkspace?.classList.add("hidden");
+
+  if (projectCreationCopy) {
+    projectCreationCopy.textContent = projectTitle
+      ? `Preparing "${projectTitle}" with a client-ready workspace, setup path and handoff tools.`
+      : "Scopey is preparing the project record, client handoff and first setup steps.";
+  }
+
+  if (toggleProjectCreateBtn) {
+    toggleProjectCreateBtn.textContent = "Creating...";
+    toggleProjectCreateBtn.disabled = true;
+  }
 }
 
 function syncProjectCreateVisibility() {
@@ -5872,6 +5901,7 @@ async function createProject() {
   }
 
   setButtonLoading(createProjectBtn, true, "Creating...");
+  setProjectCreationLoading(true, title);
 
   try {
     const headers = await getAuthHeaders();
@@ -5893,20 +5923,24 @@ async function createProject() {
     if (newProjectCurrency) newProjectCurrency.value = currentProfile?.default_currency || "GBP";
     currentProjectId = data.project.id;
     if (projectCreateCard) projectCreateCard.dataset.userOpened = "false";
-    setProjectCreateVisible(false);
 
     await loadBilling();
     await loadProjects();
 
     try {
       await loadProject();
-      showBanner("Project created successfully.", "success");
+      setProjectCreationLoading(false);
+      showBanner("Project created. Start with the agreement, scope and client handoff when you are ready.", "success");
     } catch (loadError) {
       console.error("Project created but could not open:", loadError);
+      setProjectCreationLoading(false);
+      setProjectCreateVisible(false);
       showBanner("Project created, but could not open the workspace yet.", "warning");
     }
   } catch (error) {
     console.error(error);
+    setProjectCreationLoading(false);
+    setProjectCreateVisible(true, true);
     showBanner(error.message || "Could not create project.", "error");
   } finally {
     setButtonLoading(createProjectBtn, false, "Create project");
