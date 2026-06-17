@@ -23,6 +23,7 @@ import {
 // ENV CHECK
 // =======================
 const PAID_PLANS_ENABLED = process.env.PAID_PLANS_ENABLED === "true";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const requiredEnv = [
   "SUPABASE_URL",
   "SUPABASE_SERVICE_KEY",
@@ -81,6 +82,50 @@ const FRONTEND_ASSETS = new Set([
   "scopey-logo.svg",
   "scopey-logo-dark.svg"
 ]);
+const REQUIRED_SCHEMA_TABLES = [
+  "projects",
+  "scope_items",
+  "changes",
+  "change_payments",
+  "processed_events",
+  "freelancer_profiles",
+  "freelancer_payment_accounts",
+  "user_plans",
+  "policy_acceptances",
+  "agreement_templates",
+  "suggestions",
+  "project_updates",
+  "content_reports",
+  "beta_feedback",
+  "project_payments",
+  "project_activity",
+  "project_share_links",
+  "project_agreement_versions",
+  "project_deliverables",
+  "rights_artworks",
+  "rights_licenses"
+];
+const REQUIRED_OWNER_POLICY_TABLES = [
+  "projects",
+  "scope_items",
+  "changes",
+  "freelancer_profiles",
+  "freelancer_payment_accounts",
+  "user_plans",
+  "policy_acceptances",
+  "agreement_templates",
+  "content_reports",
+  "suggestions",
+  "project_updates",
+  "project_activity",
+  "project_share_links",
+  "project_agreement_versions",
+  "project_deliverables",
+  "project_payments",
+  "rights_artworks",
+  "rights_licenses"
+];
+const SERVICE_ROLE_ONLY_TABLES = new Set(["processed_events", "beta_feedback"]);
 const ALLOWED_ORIGINS = Array.from(
   new Set([
     getUrlOrigin(FRONTEND_URL),
@@ -123,6 +168,22 @@ const PROJECT_SELECT = [
 const PUBLIC_PROJECT_SELECT = PROJECT_SELECT;
 const PROJECT_PAYMENT_SELECT =
   "id,project_id,label,payment_type,amount,currency,status,payment_method,stripe_session_id,invoice_number,due_date,paid_at,created_at";
+const PUBLIC_PROJECT_PAYMENT_SELECT =
+  "id,project_id,label,payment_type,amount,currency,status,payment_method,due_date,paid_at,created_at";
+const PAYMENT_ACCOUNT_SELECT = [
+  "user_id",
+  "preferred_provider",
+  "stripe_account_id",
+  "stripe_onboarding_complete",
+  "stripe_charges_enabled",
+  "stripe_payouts_enabled",
+  "stripe_details_submitted",
+  "stripe_requirements",
+  "paypal_email",
+  "paypal_url",
+  "paypal_enabled",
+  "updated_at"
+].join(",");
 const PROFILE_SELECT = [
   "user_id",
   "brand_name",
@@ -332,20 +393,9 @@ function parseAdminEmails(value = "") {
   );
 }
 
-function getRequestOrigin(req) {
-  return req.get("origin") || req.get("referer") || "";
-}
-
 function isLocalRequest(req) {
-  const origin = getRequestOrigin(req);
-  if (!origin) return false;
-
-  try {
-    const { hostname } = new URL(origin);
-    return ["localhost", "127.0.0.1", "::1"].includes(hostname);
-  } catch (_error) {
-    return false;
-  }
+  const remoteAddress = req.socket?.remoteAddress || req.ip || "";
+  return ["::1", "127.0.0.1", "::ffff:127.0.0.1"].includes(remoteAddress);
 }
 
 function isAdminUser(user) {
@@ -353,7 +403,7 @@ function isAdminUser(user) {
 }
 
 function assertAdminAccess(user, req) {
-  if (isAdminUser(user) || isLocalRequest(req)) return;
+  if (isAdminUser(user) || (!IS_PRODUCTION && isLocalRequest(req))) return;
 
   const err = new Error("Admin access is required.");
   err.statusCode = 403;
@@ -405,22 +455,39 @@ function publicPlanDefinition(plan) {
     priceLabel: plan.priceLabel,
     limits: plan.limits,
     features: plan.features,
-    checkoutConfigured: !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS[plan.key])
+    checkoutConfigured: !hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS[plan.key])
   };
 }
 
-function hasPlaceholderStripeValue(value) {
-  return !value || /xxx|dummy|\*/i.test(value);
+function hasPlaceholderEnvValue(value) {
+  return !value || /xxx|dummy|placeholder|\*/i.test(value);
 }
 
-function assertStripeBillingConfigured(plan) {
-  if (hasPlaceholderStripeValue(process.env.STRIPE_SECRET)) {
-    const err = new Error("Stripe billing is not configured yet. Add a real STRIPE_SECRET in .env.");
+function assertStripeSecretConfigured(message = "Stripe is not configured yet. Add a real STRIPE_SECRET in .env.") {
+  if (hasPlaceholderEnvValue(process.env.STRIPE_SECRET)) {
+    const err = new Error(message);
     err.statusCode = 503;
     throw err;
   }
+}
 
-  if (hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS[plan])) {
+function isStripeConnectSignupRequired(error) {
+  return /signed up for Connect|dashboard\.stripe\.com\/connect/i.test(error?.message || "");
+}
+
+function createStripeConnectSetupError() {
+  const err = new Error(
+    "Stripe Connect needs enabling on Scopey's Stripe account before freelancers can connect their own payout accounts."
+  );
+  err.statusCode = 503;
+  err.code = "stripe_connect_not_enabled";
+  err.actionUrl = "https://dashboard.stripe.com/connect";
+  return err;
+}
+
+function assertStripeBillingConfigured(plan) {
+  assertStripeSecretConfigured("Stripe billing is not configured yet. Add a real STRIPE_SECRET in .env.");
+  if (hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS[plan])) {
     const planName = PLAN_DEFINITIONS[plan]?.name || "this plan";
     const err = new Error(`Stripe checkout for ${planName} is not configured yet. Add the plan price ID in .env.`);
     err.statusCode = 503;
@@ -492,15 +559,83 @@ async function getStorageSetupStatus() {
   }
 }
 
+async function probeSchemaTables() {
+  const missingTables = [];
+
+  for (const table of REQUIRED_SCHEMA_TABLES) {
+    const { error } = await supabase
+      .from(table)
+      .select("*", { head: true, count: "exact" });
+
+    if (isMissingRelationError(error)) {
+      missingTables.push(table);
+    } else if (error) {
+      throw error;
+    }
+  }
+
+  return missingTables;
+}
+
+async function getSchemaSetupStatus() {
+  try {
+    const { data, error } = await supabase.rpc("scopey_schema_health");
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    const rowByTable = new Map(rows.map((row) => [row.table_name, row]));
+    const missingTables = REQUIRED_SCHEMA_TABLES.filter(
+      (table) => !rowByTable.get(table)?.table_exists
+    );
+    const rlsDisabledTables = rows
+      .filter((row) => row.table_exists && !row.rls_enabled)
+      .map((row) => row.table_name);
+    const missingOwnerPolicyTables = REQUIRED_OWNER_POLICY_TABLES.filter((table) => {
+      const row = rowByTable.get(table);
+      return row?.table_exists && Number(row.policy_count || 0) === 0;
+    });
+
+    return {
+      configured:
+        missingTables.length === 0 &&
+        rlsDisabledTables.length === 0 &&
+        missingOwnerPolicyTables.length === 0,
+      healthFunctionAvailable: true,
+      checkedTables: rows.length,
+      serviceRoleOnlyTables: Array.from(SERVICE_ROLE_ONLY_TABLES),
+      missingTables,
+      rlsDisabledTables,
+      missingOwnerPolicyTables
+    };
+  } catch (error) {
+    console.warn("Schema health RPC fallback:", error.message);
+    const missingTables = await probeSchemaTables();
+
+    return {
+      configured: missingTables.length === 0,
+      healthFunctionAvailable: false,
+      checkedTables: REQUIRED_SCHEMA_TABLES.length - missingTables.length,
+      serviceRoleOnlyTables: Array.from(SERVICE_ROLE_ONLY_TABLES),
+      missingTables,
+      rlsDisabledTables: [],
+      missingOwnerPolicyTables: [],
+      warning: "Install scopey_schema_health by running supabase-rls-policy-update.sql."
+    };
+  }
+}
+
 async function getLaunchSetupStatus() {
-  const storageSetup = await getStorageSetupStatus();
+  const [storageSetup, schemaSetup] = await Promise.all([
+    getStorageSetupStatus(),
+    getSchemaSetupStatus()
+  ]);
   const stripeBillingConfigured =
     PAID_PLANS_ENABLED &&
-    !hasPlaceholderStripeValue(process.env.STRIPE_SECRET) &&
-    !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.pro) &&
-    !hasPlaceholderStripeValue(STRIPE_PLAN_PRICE_IDS.business);
-  const webhookConfigured = !hasPlaceholderStripeValue(process.env.STRIPE_WEBHOOK_SECRET);
-  const emailConfigured = !hasPlaceholderStripeValue(process.env.RESEND_API_KEY);
+    !hasPlaceholderEnvValue(process.env.STRIPE_SECRET) &&
+    !hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS.pro) &&
+    !hasPlaceholderEnvValue(STRIPE_PLAN_PRICE_IDS.business);
+  const webhookConfigured = !hasPlaceholderEnvValue(process.env.STRIPE_WEBHOOK_SECRET);
+  const emailConfigured = !hasPlaceholderEnvValue(process.env.RESEND_API_KEY);
   const frontendPublicConfigured =
     Boolean(FRONTEND_URL) && !/localhost|127\.0\.0\.1/i.test(FRONTEND_URL);
 
@@ -511,10 +646,164 @@ async function getLaunchSetupStatus() {
     emailConfigured,
     storageConfigured: storageSetup.configured,
     storageBucket: storageSetup.bucket,
+    schema: schemaSetup,
     frontendPublicConfigured,
     legalDraftsPresent: true,
     reportReviewEnabled: true,
     pdfExportsEnabled: true
+  };
+}
+
+async function createDemoProjectForUser(user) {
+  const profile = await getProfileForUser(user.id);
+  const currency = normaliseCurrency(profile.default_currency || "GBP");
+  const demoStamp = new Date().toISOString().slice(0, 10);
+  const agreement = {
+    agreement_summary:
+      "A polished landing page refresh for a fictional client, including direction, build notes and launch handoff.",
+    agreement_scope:
+      "One responsive landing page, three content sections, contact call-to-action, basic accessibility pass and launch handoff notes.",
+    agreement_exclusions:
+      "Brand strategy, copywriting beyond supplied text, ecommerce, booking systems and ongoing maintenance are not included unless separately approved.",
+    agreement_timeline:
+      "Concept within 3 working days, review round within 2 working days, final handoff after approval.",
+    agreement_payment_terms:
+      "50% deposit before work begins. Remaining balance due before final files are released.",
+    agreement_revision_terms:
+      "Two revision rounds are included. Extra revisions are reviewed as paid changes before work continues.",
+    agreement_cancellation_terms:
+      "If cancelled after work begins, completed work and approved changes remain payable."
+  };
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .insert([
+      {
+        title: `Scopey demo project ${demoStamp}`,
+        client_name: "Demo Client",
+        client_email: user.email || "client@example.com",
+        currency,
+        user_id: user.id,
+        share_id: crypto.randomUUID(),
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        ...agreement
+      }
+    ])
+    .select(PROJECT_SELECT)
+    .single();
+
+  if (projectError) throw projectError;
+
+  const scopeItems = [
+    { project_id: project.id, title: "Responsive landing page design", price: 450 },
+    { project_id: project.id, title: "Frontend build and mobile pass", price: 650 },
+    { project_id: project.id, title: "Launch handoff checklist", price: 150 }
+  ];
+  const { error: scopeError } = await supabase.from("scope_items").insert(scopeItems);
+  if (scopeError) throw scopeError;
+
+  const payments = [
+    {
+      project_id: project.id,
+      label: "Deposit",
+      payment_type: "deposit",
+      amount: 625,
+      currency,
+      status: "pending",
+      due_date: new Date().toISOString().slice(0, 10)
+    },
+    {
+      project_id: project.id,
+      label: "Final balance",
+      payment_type: "final",
+      amount: 625,
+      currency,
+      status: "pending"
+    }
+  ];
+  const { error: paymentsError } = await supabase.from("project_payments").insert(payments);
+  if (paymentsError) throw paymentsError;
+
+  const { error: changesError } = await supabase.from("changes").insert([
+    {
+      project_id: project.id,
+      title: "Add animated testimonial strip",
+      price: 180,
+      status: "pending"
+    }
+  ]);
+  if (changesError) throw changesError;
+
+  const { error: suggestionsError } = await supabase.from("suggestions").insert([
+    {
+      project_id: project.id,
+      title: "Try a warmer hero image",
+      details: "Client wants to compare the current hero with a softer, people-focused visual direction.",
+      proposed_price: 0,
+      status: "suggested"
+    }
+  ]);
+  if (suggestionsError) throw suggestionsError;
+
+  const { error: updatesError } = await supabase.from("project_updates").insert([
+    {
+      project_id: project.id,
+      author_role: "freelancer",
+      message: "Initial direction is ready for review. Agreement, scope and deposit are prepared for client sign-off."
+    },
+    {
+      project_id: project.id,
+      author_role: "client",
+      message: "The project structure looks clear. I added one visual suggestion for review."
+    }
+  ]);
+  if (updatesError) throw updatesError;
+
+  const { error: deliverablesError } = await supabase.from("project_deliverables").insert([
+    {
+      project_id: project.id,
+      title: "Preview handoff note",
+      note: "Demo deliverable used to test the client approval area.",
+      status: "shared"
+    }
+  ]);
+  if (deliverablesError) throw deliverablesError;
+
+  await createAgreementVersion(project, {
+    status: "sent",
+    sent_at: project.sent_at,
+    agreement_snapshot: buildAgreementSnapshot(project)
+  });
+
+  await recordProjectActivity(project.id, {
+    actorRole: "system",
+    eventType: "demo_project_created",
+    title: "Demo project created",
+    detail: "Scopey generated a full demo workspace for admin testing."
+  });
+
+  const accessCode = "123456";
+  const { data: shareLink, error: linkError } = await supabase
+    .from("project_share_links")
+    .insert([
+      {
+        project_id: project.id,
+        section: "all",
+        label: "Demo full client review link",
+        access_code: accessCode
+      }
+    ])
+    .select("id,token,section,label,expires_at,revoked_at,created_at")
+    .single();
+
+  if (linkError) throw linkError;
+
+  return {
+    project,
+    shareLink,
+    link: buildShareUrl(project.share_id, "all", shareLink.token),
+    accessCode
   };
 }
 
@@ -825,6 +1114,186 @@ async function getProfileForUser(userId) {
   return data || fallback;
 }
 
+function paymentAccountFallback(userId) {
+  return {
+    user_id: userId,
+    preferred_provider: "manual",
+    stripe_account_id: null,
+    stripe_onboarding_complete: false,
+    stripe_charges_enabled: false,
+    stripe_payouts_enabled: false,
+    stripe_details_submitted: false,
+    stripe_requirements: {},
+    paypal_email: null,
+    paypal_url: null,
+    paypal_enabled: false,
+    updated_at: null
+  };
+}
+
+function isValidEmailValue(value) {
+  return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalisePaypalUrl(value) {
+  if (!value?.trim()) return null;
+  const trimmed = value.trim();
+  let url;
+
+  try {
+    url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+  } catch {
+    const err = new Error("Enter a valid PayPal.me or PayPal payment URL.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const host = url.hostname.toLowerCase();
+  const allowed =
+    host === "paypal.me" ||
+    host === "www.paypal.me" ||
+    host === "paypal.com" ||
+    host === "www.paypal.com";
+
+  if (!allowed) {
+    const err = new Error("PayPal links must use paypal.me or paypal.com.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return url.toString();
+}
+
+function publicPaymentAccount(account = {}) {
+  const stripeReady = Boolean(
+    account.stripe_account_id &&
+      account.stripe_charges_enabled &&
+      account.stripe_payouts_enabled
+  );
+  const paypalReady = Boolean(account.paypal_enabled && account.paypal_url);
+
+  return {
+    preferredProvider: account.preferred_provider || "manual",
+    stripe: {
+      connected: Boolean(account.stripe_account_id),
+      ready: stripeReady,
+      onboardingComplete: Boolean(account.stripe_onboarding_complete),
+      chargesEnabled: Boolean(account.stripe_charges_enabled),
+      payoutsEnabled: Boolean(account.stripe_payouts_enabled),
+      detailsSubmitted: Boolean(account.stripe_details_submitted),
+      requirements: account.stripe_requirements || {}
+    },
+    paypal: {
+      enabled: paypalReady,
+      email: account.paypal_email || null,
+      url: account.paypal_url || null
+    },
+    canAcceptOnlinePayments: stripeReady || paypalReady,
+    automaticProvider: stripeReady ? "stripe" : null,
+    manualProvider: paypalReady ? "paypal" : "manual",
+    updatedAt: account.updated_at || null
+  };
+}
+
+async function getPaymentAccountForUser(userId) {
+  const { data, error } = await supabase
+    .from("freelancer_payment_accounts")
+    .select(PAYMENT_ACCOUNT_SELECT)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || paymentAccountFallback(userId);
+}
+
+async function upsertPaymentAccount(userId, patch) {
+  const { data, error } = await supabase
+    .from("freelancer_payment_accounts")
+    .upsert(
+      {
+        user_id: userId,
+        ...patch,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "user_id" }
+    )
+    .select(PAYMENT_ACCOUNT_SELECT)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+function stripeAccountPatch(account) {
+  return {
+    stripe_onboarding_complete: Boolean(account.details_submitted),
+    stripe_charges_enabled: Boolean(account.charges_enabled),
+    stripe_payouts_enabled: Boolean(account.payouts_enabled),
+    stripe_details_submitted: Boolean(account.details_submitted),
+    stripe_requirements: account.requirements || {}
+  };
+}
+
+function paypalRedirectUrl(account) {
+  if (account.paypal_url) {
+    return account.paypal_url;
+  }
+
+  const err = new Error("The freelancer needs to add a PayPal.me or PayPal payment link before PayPal payments can be opened.");
+  err.statusCode = 409;
+  throw err;
+}
+
+async function syncStripePaymentAccount(userId, account = null) {
+  const existing = account || (await getPaymentAccountForUser(userId));
+
+  if (!existing.stripe_account_id || hasPlaceholderEnvValue(process.env.STRIPE_SECRET)) {
+    return existing;
+  }
+
+  const stripeAccount = await stripe.accounts.retrieve(existing.stripe_account_id);
+  const preferredProvider =
+    stripeAccount.charges_enabled && stripeAccount.payouts_enabled
+      ? "stripe"
+      : existing.preferred_provider || "manual";
+
+  return upsertPaymentAccount(userId, {
+    ...stripeAccountPatch(stripeAccount),
+    preferred_provider: preferredProvider
+  });
+}
+
+async function getSyncedPaymentAccount(userId) {
+  const account = await getPaymentAccountForUser(userId);
+  return syncStripePaymentAccount(userId, account);
+}
+
+async function getPreferredClientPaymentRoute(userId) {
+  const account = await getSyncedPaymentAccount(userId);
+  const publicAccount = publicPaymentAccount(account);
+
+  if (publicAccount.stripe.ready) {
+    return {
+      provider: "stripe",
+      account,
+      accountId: account.stripe_account_id
+    };
+  }
+
+  if (publicAccount.paypal.enabled) {
+    return {
+      provider: "paypal",
+      account,
+      url: account.paypal_url
+    };
+  }
+
+  return {
+    provider: "manual",
+    account
+  };
+}
+
 async function getSharedProject(shareId) {
   const { data: project, error: projectError } = await supabase
     .from("projects")
@@ -842,7 +1311,11 @@ async function getSharedProject(shareId) {
 }
 
 async function validateShareToken(projectId, token, accessCode = null) {
-  if (!token) return null;
+  if (!token) {
+    const err = new Error("Use the latest secure client link for this project.");
+    err.statusCode = 401;
+    throw err;
+  }
 
   const { data, error } = await supabase
     .from("project_share_links")
@@ -872,17 +1345,6 @@ async function validateShareToken(projectId, token, accessCode = null) {
   }
 
   return data;
-}
-
-async function hasActiveShareLinks(projectId) {
-  const { count, error } = await supabase
-    .from("project_share_links")
-    .select("id", { count: "exact", head: true })
-    .eq("project_id", projectId)
-    .is("revoked_at", null);
-
-  if (error) throw error;
-  return (count || 0) > 0;
 }
 
 function getPublicAccessCredentials(req) {
@@ -1132,11 +1594,102 @@ async function getProjectPayments(projectId) {
   return data || [];
 }
 
-async function getOptionalProjectPayments(projectId) {
+async function getProjectPaymentSafety(projectId) {
+  const [payments, changesResult, deliverablesResult] = await Promise.all([
+    getProjectPayments(projectId),
+    supabase
+      .from("changes")
+      .select("id,title,price,status,paid")
+      .eq("project_id", projectId)
+      .eq("status", "pending"),
+    supabase
+      .from("project_deliverables")
+      .select("id")
+      .eq("project_id", projectId)
+  ]);
+
+  if (changesResult.error) throw changesResult.error;
+  if (deliverablesResult.error) throw deliverablesResult.error;
+
+  const pendingPayments = payments.filter((payment) => payment.status === "pending");
+  const pendingDeposits = pendingPayments.filter(
+    (payment) => payment.payment_type === "deposit"
+  );
+
+  return {
+    pendingDeposits,
+    pendingPayments,
+    pendingChanges: changesResult.data || [],
+    deliverables: deliverablesResult.data || []
+  };
+}
+
+function createProjectSafetyError(message, safety) {
+  const err = new Error(message);
+  err.statusCode = 409;
+  err.safety = {
+    pendingDeposits: safety.pendingDeposits.length,
+    pendingPayments: safety.pendingPayments.length,
+    pendingChanges: safety.pendingChanges.length,
+    deliverables: safety.deliverables.length
+  };
+  return err;
+}
+
+async function assertProjectPaymentSafety(projectId, status) {
+  if (!["in_progress", "awaiting_final_approval", "complete"].includes(status)) {
+    return;
+  }
+
+  const safety = await getProjectPaymentSafety(projectId);
+
+  if (status === "in_progress" && safety.pendingDeposits.length) {
+    throw createProjectSafetyError(
+      "Deposit payment must be marked paid before work can move in progress.",
+      safety
+    );
+  }
+
+  if (["awaiting_final_approval", "complete"].includes(status)) {
+    if (safety.pendingPayments.length) {
+      throw createProjectSafetyError(
+        "All project payments must be paid or cancelled before final approval.",
+        safety
+      );
+    }
+
+    if (safety.pendingChanges.length) {
+      throw createProjectSafetyError(
+        "Pending paid changes must be approved, paid, revised or declined before final approval.",
+        safety
+      );
+    }
+
+    if (!safety.deliverables.length) {
+      throw createProjectSafetyError(
+        "Add at least one final deliverable before final approval.",
+        safety
+      );
+    }
+  }
+}
+
+async function getPublicProjectPayments(projectId) {
+  const { data, error } = await supabase
+    .from("project_payments")
+    .select(PUBLIC_PROJECT_PAYMENT_SELECT)
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function getOptionalPublicProjectPayments(projectId) {
   try {
-    return await getProjectPayments(projectId);
+    return await getPublicProjectPayments(projectId);
   } catch (error) {
-    console.warn("Project payments lookup fallback:", error.message);
+    console.warn("Public project payments lookup fallback:", error.message);
     return [];
   }
 }
@@ -1490,7 +2043,7 @@ function buildClientEmail({ project, profile, link, section, accessCode = null }
 }
 
 async function sendEmail({ to, subject, text }) {
-  if (!process.env.RESEND_API_KEY) {
+  if (hasPlaceholderEnvValue(process.env.RESEND_API_KEY)) {
     return { sent: false, provider: "not_configured" };
   }
 
@@ -1876,6 +2429,106 @@ app.get("/billing", async (req, res) => {
   }
 });
 
+app.get("/payment-accounts", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const account = await getSyncedPaymentAccount(user.id);
+    res.json({ paymentAccount: publicPaymentAccount(account) });
+  } catch (error) {
+    console.error("Payment account load error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not load payment setup" });
+  }
+});
+
+app.post("/payment-accounts/stripe/onboarding", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    assertStripeSecretConfigured("Stripe Connect is not configured yet. Add a real STRIPE_SECRET in .env.");
+
+    let account = await getPaymentAccountForUser(user.id);
+    let stripeAccountId = account.stripe_account_id;
+
+    if (!stripeAccountId) {
+      const stripeAccount = await stripe.accounts.create({
+        type: "express",
+        email: user.email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true }
+        },
+        metadata: {
+          scopey_user_id: user.id
+        }
+      });
+
+      stripeAccountId = stripeAccount.id;
+      account = await upsertPaymentAccount(user.id, {
+        stripe_account_id: stripeAccountId,
+        preferred_provider: "stripe",
+        ...stripeAccountPatch(stripeAccount)
+      });
+    } else {
+      account = await syncStripePaymentAccount(user.id, account);
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: stripeAccountId,
+      refresh_url: `${FRONTEND_URL}?payments=stripe-refresh`,
+      return_url: `${FRONTEND_URL}?payments=stripe-return`,
+      type: "account_onboarding"
+    });
+
+    res.json({
+      url: accountLink.url,
+      paymentAccount: publicPaymentAccount(account)
+    });
+  } catch (error) {
+    console.error("Stripe Connect onboarding error:", error.message);
+    if (isStripeConnectSignupRequired(error)) {
+      const setupError = createStripeConnectSetupError();
+      return res.status(setupError.statusCode).json({
+        error: setupError.message,
+        code: setupError.code,
+        actionUrl: setupError.actionUrl
+      });
+    }
+
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not start Stripe setup", code: error.code });
+  }
+});
+
+app.put("/payment-accounts/paypal", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    const paypalEmail = req.body?.paypalEmail?.trim() || null;
+    const paypalUrl = normalisePaypalUrl(req.body?.paypalUrl || "");
+    const preferredProvider = req.body?.preferredProvider === "paypal" ? "paypal" : "manual";
+
+    if (paypalEmail && !isValidEmailValue(paypalEmail)) {
+      return res.status(400).json({ error: "Enter a valid PayPal email address." });
+    }
+
+    const paypalEnabled = Boolean(paypalEmail || paypalUrl);
+    const account = await upsertPaymentAccount(user.id, {
+      paypal_email: paypalEmail,
+      paypal_url: paypalUrl,
+      paypal_enabled: paypalEnabled,
+      preferred_provider: paypalEnabled ? preferredProvider : "manual"
+    });
+
+    res.json({ paymentAccount: publicPaymentAccount(account) });
+  } catch (error) {
+    console.error("PayPal setup save error:", error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not save PayPal setup" });
+  }
+});
+
 app.get("/admin/readiness", async (req, res) => {
   try {
     const user = await getUserFromRequest(req);
@@ -1895,6 +2548,28 @@ app.get("/admin/readiness", async (req, res) => {
     res
       .status(error.statusCode || 500)
       .json({ error: error.message || "Could not load admin readiness" });
+  }
+});
+
+app.post("/admin/demo-project", async (req, res) => {
+  try {
+    const user = await getUserFromRequest(req);
+    assertAdminAccess(user, req);
+
+    const demo = await createDemoProjectForUser(user);
+    res.status(201).json({
+      project: demo.project,
+      shareLink: demo.shareLink,
+      link: demo.link,
+      accessCode: demo.accessCode
+    });
+  } catch (error) {
+    if (error.statusCode !== 403) {
+      console.error("Admin demo project error:", error.message);
+    }
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.message || "Could not create demo project" });
   }
 });
 
@@ -2481,11 +3156,6 @@ app.get("/public/project/:shareId", async (req, res) => {
 
     try {
       shareLink = await validateShareToken(project.id, token, accessCode);
-      if (!shareLink && (await hasActiveShareLinks(project.id))) {
-        const err = new Error("Use the latest secure client link for this project.");
-        err.statusCode = 401;
-        throw err;
-      }
     } catch (error) {
       if (error.requiresVerification) {
         return res.status(401).json({
@@ -2521,7 +3191,7 @@ app.get("/public/project/:shareId", async (req, res) => {
     const publicCollaboration = { ...collaboration };
     delete publicCollaboration.reports;
     const profile = await getProfileForUser(project.user_id);
-    const projectPayments = await getOptionalProjectPayments(project.id);
+    const projectPayments = await getOptionalPublicProjectPayments(project.id);
 
     res.json({
       project: publicProjectPayload(project),
@@ -3013,7 +3683,7 @@ app.patch("/project/:projectId/status", async (req, res) => {
     const project = await getOwnedProject(projectId, user);
     const allowedTransitions = {
       draft: ["sent", "cancelled"],
-      sent: ["draft", "accepted", "cancelled"],
+      sent: ["draft", "cancelled"],
       accepted: ["in_progress", "awaiting_final_approval", "cancelled"],
       in_progress: ["awaiting_final_approval", "cancelled"],
       awaiting_final_approval: ["complete", "in_progress", "cancelled"],
@@ -3028,14 +3698,19 @@ app.patch("/project/:projectId/status", async (req, res) => {
       });
     }
 
+    if (["in_progress", "awaiting_final_approval", "complete"].includes(status) && !project.accepted_at) {
+      return res.status(409).json({
+        error: "Client agreement acceptance is required before work can move forward."
+      });
+    }
+
+    await assertProjectPaymentSafety(project.id, status);
+
     const update = { status };
 
     if (status === "sent") {
       update.sent_at = new Date().toISOString();
       update.cancelled_at = null;
-    }
-    if (status === "in_progress" && !project.accepted_at) {
-      update.status = "in_progress";
     }
     if (status === "awaiting_final_approval") {
       update.final_approval_requested_at = new Date().toISOString();
@@ -3078,7 +3753,10 @@ app.patch("/project/:projectId/status", async (req, res) => {
     console.error("Project status update error:", error.message);
     res
       .status(error.statusCode || 500)
-      .json({ error: error.message || "Could not update project status" });
+      .json({
+        error: error.message || "Could not update project status",
+        safety: error.safety
+      });
   }
 });
 
@@ -3543,6 +4221,18 @@ app.post("/public/project/:shareId/accept-agreement", async (req, res) => {
     const project = await getSharedProject(shareId);
     await validatePublicActionAccess(req, project, ["agreement"]);
 
+    if (project.accepted_at) {
+      return res.status(409).json({
+        error: "This agreement has already been accepted. Ask the freelancer to revise it before accepting again."
+      });
+    }
+
+    if (project.status === "cancelled" || project.status === "complete") {
+      return res.status(409).json({
+        error: "This project is no longer accepting agreement changes."
+      });
+    }
+
     if (!clientName?.trim()) {
       return res.status(400).json({ error: "Client name is required" });
     }
@@ -3606,6 +4296,8 @@ app.post("/public/project/:shareId/approve-completion", async (req, res) => {
       return res.status(400).json({ error: "This project is not awaiting final approval" });
     }
 
+    await assertProjectPaymentSafety(project.id, "complete");
+
     const completedAt = new Date().toISOString();
     const { data, error } = await supabase
       .from("projects")
@@ -3633,7 +4325,10 @@ app.post("/public/project/:shareId/approve-completion", async (req, res) => {
     console.error("Completion approval error:", error.message);
     res
       .status(error.statusCode || 500)
-      .json({ error: error.message || "Could not approve completion" });
+      .json({
+        error: error.message || "Could not approve completion",
+        safety: error.safety
+      });
   }
 });
 
@@ -3703,7 +4398,6 @@ app.post("/create-change-checkout", async (req, res) => {
     }
 
     const { change, project } = await getOwnedChange(changeId, user);
-    await assertPlan(user.id, "pro", "Stripe checkout for paid changes");
 
     if (change.status === "approved" || change.paid) {
       return res
@@ -3711,6 +4405,25 @@ app.post("/create-change-checkout", async (req, res) => {
         .json({ error: "This change is already paid or approved." });
     }
 
+    const paymentRoute = await getPreferredClientPaymentRoute(user.id);
+
+    if (paymentRoute.provider === "paypal") {
+      res.json({
+        provider: "paypal",
+        manual: true,
+        url: paypalRedirectUrl(paymentRoute.account),
+        message: "PayPal payments open outside Scopey. Mark this change paid after confirming receipt."
+      });
+      return;
+    }
+
+    if (paymentRoute.provider !== "stripe") {
+      return res.status(409).json({
+        error: "Set up Stripe or PayPal payments in Account before creating payment links."
+      });
+    }
+
+    assertStripeSecretConfigured("Stripe checkout is not configured yet.");
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -3724,6 +4437,11 @@ app.post("/create-change-checkout", async (req, res) => {
           quantity: 1
         }
       ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: paymentRoute.accountId
+        }
+      },
       metadata: {
         change_id: change.id
       },
@@ -3757,7 +4475,6 @@ app.post("/public/create-change-checkout", async (req, res) => {
 
     const { project, change } = await getSharedChange(shareId, changeId);
     await validatePublicActionAccess(req, project, ["changes"]);
-    await assertPlan(project.user_id, "pro", "Stripe checkout for paid changes");
 
     if (change.status === "approved" || change.paid) {
       return res
@@ -3765,7 +4482,26 @@ app.post("/public/create-change-checkout", async (req, res) => {
         .json({ error: "This change is already paid or approved." });
     }
 
+    const paymentRoute = await getPreferredClientPaymentRoute(project.user_id);
     const returnUrl = buildShareUrl(shareId, normaliseShareSection(section), token || null);
+
+    if (paymentRoute.provider === "paypal") {
+      res.json({
+        provider: "paypal",
+        manual: true,
+        url: paypalRedirectUrl(paymentRoute.account),
+        message: "PayPal payments open outside Scopey. The freelancer will mark this change paid after confirming receipt."
+      });
+      return;
+    }
+
+    if (paymentRoute.provider !== "stripe") {
+      return res.status(409).json({
+        error: "The freelancer has not set up Stripe or PayPal payments yet."
+      });
+    }
+
+    assertStripeSecretConfigured("Stripe checkout is not configured yet.");
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -3779,6 +4515,11 @@ app.post("/public/create-change-checkout", async (req, res) => {
           quantity: 1
         }
       ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: paymentRoute.accountId
+        }
+      },
       metadata: {
         change_id: change.id,
         share_id: shareId
@@ -3810,13 +4551,38 @@ app.post("/public/create-project-payment-checkout", async (req, res) => {
 
     const { project, payment } = await getSharedProjectPayment(shareId, paymentId);
     await validatePublicActionAccess(req, project, ["payments"]);
-    await assertPlan(project.user_id, "pro", "Stripe checkout for project payments");
 
     if (payment.status === "paid") {
       return res.status(400).json({ error: "This payment is already marked paid" });
     }
 
+    const paymentRoute = await getPreferredClientPaymentRoute(project.user_id);
     const returnUrl = buildShareUrl(shareId, normaliseShareSection(section), token || null);
+
+    if (paymentRoute.provider === "paypal") {
+      await supabase
+        .from("project_payments")
+        .update({
+          payment_method: "paypal"
+        })
+        .eq("id", payment.id);
+
+      res.json({
+        provider: "paypal",
+        manual: true,
+        url: paypalRedirectUrl(paymentRoute.account),
+        message: "PayPal payments open outside Scopey. The freelancer will mark this payment paid after confirming receipt."
+      });
+      return;
+    }
+
+    if (paymentRoute.provider !== "stripe") {
+      return res.status(409).json({
+        error: "The freelancer has not set up Stripe or PayPal payments yet."
+      });
+    }
+
+    assertStripeSecretConfigured("Stripe checkout is not configured yet.");
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -3830,6 +4596,11 @@ app.post("/public/create-project-payment-checkout", async (req, res) => {
           quantity: 1
         }
       ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: paymentRoute.accountId
+        }
+      },
       metadata: {
         project_payment_id: payment.id,
         share_id: shareId

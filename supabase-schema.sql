@@ -4,6 +4,68 @@
 
 create extension if not exists pgcrypto;
 
+create or replace function public.scopey_schema_health()
+returns table (
+  table_name text,
+  table_exists boolean,
+  rls_enabled boolean,
+  policy_count integer
+)
+language sql
+security definer
+set search_path = public, pg_catalog
+as $$
+  with required(table_name) as (
+    values
+      ('projects'),
+      ('scope_items'),
+      ('changes'),
+      ('change_payments'),
+      ('processed_events'),
+      ('freelancer_profiles'),
+      ('freelancer_payment_accounts'),
+      ('user_plans'),
+      ('policy_acceptances'),
+      ('agreement_templates'),
+      ('suggestions'),
+      ('project_updates'),
+      ('content_reports'),
+      ('beta_feedback'),
+      ('project_payments'),
+      ('project_activity'),
+      ('project_share_links'),
+      ('project_agreement_versions'),
+      ('project_deliverables'),
+      ('rights_artworks'),
+      ('rights_licenses')
+  ),
+  relation_state as (
+    select
+      required.table_name,
+      pg_class.oid,
+      coalesce(pg_class.relrowsecurity, false) as rls_enabled
+    from required
+    left join pg_class
+      on pg_class.oid = to_regclass('public.' || quote_ident(required.table_name))
+  )
+  select
+    relation_state.table_name,
+    relation_state.oid is not null as table_exists,
+    relation_state.rls_enabled,
+    coalesce(count(pg_policies.policyname)::integer, 0) as policy_count
+  from relation_state
+  left join pg_policies
+    on pg_policies.schemaname = 'public'
+    and pg_policies.tablename = relation_state.table_name
+  group by relation_state.table_name, relation_state.oid, relation_state.rls_enabled
+  order by relation_state.table_name;
+$$;
+
+revoke all on function public.scopey_schema_health() from public;
+revoke all on function public.scopey_schema_health() from anon;
+revoke all on function public.scopey_schema_health() from authenticated;
+grant execute on function public.scopey_schema_health() to service_role;
+
 create table if not exists public.projects (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade,
@@ -125,6 +187,36 @@ alter table public.freelancer_profiles
   add column if not exists default_agreement_revision_terms text,
   add column if not exists default_agreement_cancellation_terms text;
 
+create table if not exists public.freelancer_payment_accounts (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  preferred_provider text not null default 'manual'
+    check (preferred_provider in ('manual', 'stripe', 'paypal')),
+  stripe_account_id text,
+  stripe_onboarding_complete boolean not null default false,
+  stripe_charges_enabled boolean not null default false,
+  stripe_payouts_enabled boolean not null default false,
+  stripe_details_submitted boolean not null default false,
+  stripe_requirements jsonb not null default '{}'::jsonb,
+  paypal_email text,
+  paypal_url text,
+  paypal_enabled boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.freelancer_payment_accounts
+  add column if not exists preferred_provider text not null default 'manual',
+  add column if not exists stripe_account_id text,
+  add column if not exists stripe_onboarding_complete boolean not null default false,
+  add column if not exists stripe_charges_enabled boolean not null default false,
+  add column if not exists stripe_payouts_enabled boolean not null default false,
+  add column if not exists stripe_details_submitted boolean not null default false,
+  add column if not exists stripe_requirements jsonb not null default '{}'::jsonb,
+  add column if not exists paypal_email text,
+  add column if not exists paypal_url text,
+  add column if not exists paypal_enabled boolean not null default false,
+  add column if not exists updated_at timestamptz not null default now();
+
 create table if not exists public.user_plans (
   user_id uuid primary key references auth.users(id) on delete cascade,
   plan text not null default 'free'
@@ -240,7 +332,7 @@ create table if not exists public.project_payments (
   status text not null default 'pending'
     check (status in ('pending', 'paid', 'cancelled')),
   payment_method text not null default 'manual'
-    check (payment_method in ('manual', 'stripe')),
+    check (payment_method in ('manual', 'stripe', 'paypal')),
   stripe_session_id text,
   invoice_number text,
   due_date date,
@@ -254,6 +346,15 @@ alter table public.project_payments
   add column if not exists currency text not null default 'GBP',
   add column if not exists invoice_number text,
   add column if not exists due_date date;
+
+do $$
+begin
+  alter table public.project_payments
+    drop constraint if exists project_payments_payment_method_check;
+  alter table public.project_payments
+    add constraint project_payments_payment_method_check
+    check (payment_method in ('manual', 'stripe', 'paypal'));
+end $$;
 
 alter table public.change_payments
   add column if not exists currency text not null default 'GBP';
@@ -523,6 +624,9 @@ create index if not exists agreement_templates_user_id_created_at_idx
 create index if not exists user_plans_stripe_subscription_id_idx
   on public.user_plans(stripe_subscription_id);
 
+create index if not exists freelancer_payment_accounts_stripe_account_id_idx
+  on public.freelancer_payment_accounts(stripe_account_id);
+
 create index if not exists policy_acceptances_accepted_at_idx
   on public.policy_acceptances(accepted_at desc);
 
@@ -566,6 +670,7 @@ alter table public.changes enable row level security;
 alter table public.change_payments enable row level security;
 alter table public.processed_events enable row level security;
 alter table public.freelancer_profiles enable row level security;
+alter table public.freelancer_payment_accounts enable row level security;
 alter table public.user_plans enable row level security;
 alter table public.policy_acceptances enable row level security;
 alter table public.agreement_templates enable row level security;
@@ -764,6 +869,232 @@ begin
       for all
       using (auth.uid() = user_id)
       with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'freelancer_payment_accounts'
+      and policyname = 'Users can read their own payment account'
+  ) then
+    create policy "Users can read their own payment account"
+      on public.freelancer_payment_accounts
+      for select
+      using (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'freelancer_payment_accounts'
+      and policyname = 'Users can insert their own payment account'
+  ) then
+    create policy "Users can insert their own payment account"
+      on public.freelancer_payment_accounts
+      for insert
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'freelancer_payment_accounts'
+      and policyname = 'Users can update their own payment account'
+  ) then
+    create policy "Users can update their own payment account"
+      on public.freelancer_payment_accounts
+      for update
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'suggestions'
+      and policyname = 'Users can manage suggestions for their projects'
+  ) then
+    create policy "Users can manage suggestions for their projects"
+      on public.suggestions
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = suggestions.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = suggestions.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'project_updates'
+      and policyname = 'Users can manage updates for their projects'
+  ) then
+    create policy "Users can manage updates for their projects"
+      on public.project_updates
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_updates.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_updates.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'project_activity'
+      and policyname = 'Users can manage activity for their projects'
+  ) then
+    create policy "Users can manage activity for their projects"
+      on public.project_activity
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_activity.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_activity.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'project_share_links'
+      and policyname = 'Users can manage share links for their projects'
+  ) then
+    create policy "Users can manage share links for their projects"
+      on public.project_share_links
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_share_links.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_share_links.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'project_agreement_versions'
+      and policyname = 'Users can manage agreement versions for their projects'
+  ) then
+    create policy "Users can manage agreement versions for their projects"
+      on public.project_agreement_versions
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_agreement_versions.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_agreement_versions.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'project_deliverables'
+      and policyname = 'Users can manage deliverables for their projects'
+  ) then
+    create policy "Users can manage deliverables for their projects"
+      on public.project_deliverables
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_deliverables.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_deliverables.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'project_payments'
+      and policyname = 'Users can manage payments for their projects'
+  ) then
+    create policy "Users can manage payments for their projects"
+      on public.project_payments
+      for all
+      using (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_payments.project_id
+            and projects.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1
+          from public.projects
+          where projects.id = project_payments.project_id
+            and projects.user_id = auth.uid()
+        )
+      );
   end if;
 
   if not exists (
