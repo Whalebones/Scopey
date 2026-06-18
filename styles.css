@@ -80,19 +80,21 @@ body.theme-dark{
 
 body.theme-high-contrast{
   --bg:#000000;
-  --surface:#111111;
-  --surface-2:#111111;
-  --muted:#e5e7eb;
+  --surface:#000000;
+  --surface-2:#050505;
+  --surface-3:#000000;
+  --muted:#f3f4f6;
   --text:#ffffff;
-  --accent:#ffffff;
-  --accent-600:#f2f2f2;
+  --accent:#facc15;
+  --accent-600:#fde047;
   --border:#ffffff;
   --border-strong:#ffffff;
-  --success:#22c55e;
-  --warning:#facc15;
-  --danger:#fb7185;
-  --shadow:0 18px 40px rgba(255,255,255,0.12);
-  --shadow-soft:0 12px 28px rgba(255,255,255,0.08);
+  --success:#86efac;
+  --warning:#fde047;
+  --danger:#fda4af;
+  --shadow:none;
+  --shadow-soft:none;
+  color-scheme:dark;
 }
 
 *{
@@ -1920,6 +1922,89 @@ body.theme-dark .first-run-steps div{
   gap:18px;
 }
 
+.client-shell{
+  grid-template-columns:minmax(190px,230px) minmax(0,1fr);
+  align-items:start;
+}
+
+.client-shell > .card{
+  grid-column:2;
+}
+
+.client-shell > #client-verification-card,
+.client-shell > #client-link-problem-card{
+  grid-column:1 / -1;
+}
+
+.client-contents-card{
+  grid-column:1 !important;
+  position:sticky;
+  top:96px;
+  z-index:12;
+  align-self:start;
+  max-height:calc(100vh - 120px);
+  overflow:auto;
+  padding:18px;
+}
+
+.client-contents-nav{
+  display:grid;
+  gap:8px;
+  margin-top:14px;
+}
+
+.client-contents-link{
+  width:100%;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--surface);
+  color:var(--text);
+  cursor:pointer;
+  font:inherit;
+  font-weight:750;
+  line-height:1.2;
+  padding:10px 12px;
+  text-align:left;
+  transition:background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.client-contents-link:hover{
+  transform:translateY(-1px);
+  border-color:var(--border-strong);
+  background:var(--surface-2);
+}
+
+.client-contents-link:focus-visible{
+  outline:3px solid var(--accent);
+  outline-offset:3px;
+}
+
+.client-contents-link.active{
+  border-color:rgba(255,77,46,0.38);
+  background:rgba(255,77,46,0.1);
+  color:var(--accent-600);
+}
+
+.client-agreement-contents{
+  display:grid;
+  gap:6px;
+  margin:-2px 0 2px;
+  padding-left:10px;
+  border-left:2px solid var(--border);
+}
+
+.client-contents-sublink{
+  border-radius:10px;
+  color:var(--muted);
+  font-size:.88rem;
+  font-weight:700;
+  padding:8px 10px;
+}
+
+#client-view [data-client-section]{
+  scroll-margin-top:112px;
+}
+
 .dashboard-main{
   align-content:start;
 }
@@ -3627,9 +3712,9 @@ body.theme-dark .auth-mode-switch .btn:not(.active){
 }
 
 body.theme-high-contrast .theme-buttons .btn.active{
-  background:#fff;
+  background:#facc15;
   color:#000;
-  border-color:#fff;
+  border-color:#facc15;
 }
 
 /* =========================
@@ -3903,6 +3988,204 @@ body.theme-dusk .footer-links button:hover{
   color:#ffb3a5;
 }
 
+body.theme-high-contrast .topbar,
+body.theme-high-contrast .card,
+body.theme-high-contrast .nested-card,
+body.theme-high-contrast .command-card,
+body.theme-high-contrast .modal-panel,
+body.theme-high-contrast .coming-soon-banner,
+body.theme-high-contrast .pricing-card,
+body.theme-high-contrast .step-card,
+body.theme-high-contrast .hero-panel,
+body.theme-high-contrast .hero-proof-strip div,
+body.theme-high-contrast .premium-strip div,
+body.theme-high-contrast .panel-card,
+body.theme-high-contrast .workflow-outcome,
+body.theme-high-contrast .health-score,
+body.theme-high-contrast .command-grid div,
+body.theme-high-contrast .readiness-item,
+body.theme-high-contrast .project-journey-step,
+body.theme-high-contrast .guided-action,
+body.theme-high-contrast .handoff-grid div,
+body.theme-high-contrast .client-summary-grid div,
+body.theme-high-contrast .client-guidance-grid div,
+body.theme-high-contrast .client-attention-item,
+body.theme-high-contrast .client-flow-step,
+body.theme-high-contrast .first-run-steps div,
+body.theme-high-contrast .list-item,
+body.theme-high-contrast .agreement-row,
+body.theme-high-contrast .project-list-item,
+body.theme-high-contrast .project-tab,
+body.theme-high-contrast .setup-step,
+body.theme-high-contrast .account-summary-tile,
+body.theme-high-contrast .developer-diagnostics-readiness,
+body.theme-high-contrast .demo-project-result,
+body.theme-high-contrast .account-plan-card,
+body.theme-high-contrast .usage-meter,
+body.theme-high-contrast .billing-card,
+body.theme-high-contrast .account-payment-setup,
+body.theme-high-contrast .account-legal-note,
+body.theme-high-contrast .empty-state,
+body.theme-high-contrast .status-chip,
+body.theme-high-contrast .creation-skeleton,
+body.theme-high-contrast .site-footer,
+body.theme-high-contrast .legal-strip,
+body.theme-high-contrast .legal-section,
+body.theme-high-contrast .danger-panel{
+  background:#000 !important;
+  background-image:none !important;
+  color:#fff;
+  border-color:#fff !important;
+  box-shadow:none !important;
+}
+
+body.theme-high-contrast .topbar,
+body.theme-high-contrast .site-footer{
+  border-width:0 0 2px;
+}
+
+body.theme-high-contrast .site-footer{
+  border-width:2px 0 0;
+}
+
+body.theme-high-contrast .btn,
+body.theme-high-contrast .btn-ghost,
+body.theme-high-contrast .btn-secondary,
+body.theme-high-contrast .project-tab,
+body.theme-high-contrast .setup-step,
+body.theme-high-contrast .client-contents-link,
+body.theme-high-contrast input,
+body.theme-high-contrast select,
+body.theme-high-contrast textarea{
+  background:#000 !important;
+  background-image:none !important;
+  color:#fff;
+  border:2px solid #fff !important;
+  box-shadow:none !important;
+}
+
+body.theme-high-contrast .btn-primary,
+body.theme-high-contrast .btn.active,
+body.theme-high-contrast .project-list-item.active,
+body.theme-high-contrast .project-tab.active,
+body.theme-high-contrast .setup-step.active,
+body.theme-high-contrast .client-contents-link.active,
+body.theme-high-contrast .billing-actions .btn.active,
+body.theme-high-contrast .account-plan-card.active,
+body.theme-high-contrast .project-journey-step.active{
+  background:#facc15 !important;
+  color:#000 !important;
+  border-color:#facc15 !important;
+}
+
+body.theme-high-contrast .btn-danger,
+body.theme-high-contrast .danger-panel{
+  border-color:#fda4af !important;
+}
+
+body.theme-high-contrast .btn-danger{
+  background:#000 !important;
+  color:#fda4af !important;
+}
+
+body.theme-high-contrast .btn:hover,
+body.theme-high-contrast .btn-ghost:hover,
+body.theme-high-contrast .btn-secondary:hover,
+body.theme-high-contrast .project-list-item:hover,
+body.theme-high-contrast .project-tab:hover,
+body.theme-high-contrast .setup-step:hover,
+body.theme-high-contrast .client-contents-link:hover,
+body.theme-high-contrast .list-item:hover{
+  background:#111 !important;
+  border-color:#facc15 !important;
+}
+
+body.theme-high-contrast .btn-primary:hover,
+body.theme-high-contrast .btn.active:hover,
+body.theme-high-contrast .project-tab.active:hover,
+body.theme-high-contrast .setup-step.active:hover{
+  background:#fde047 !important;
+  border-color:#fde047 !important;
+  color:#000 !important;
+}
+
+body.theme-high-contrast input::placeholder,
+body.theme-high-contrast textarea::placeholder{
+  color:#d1d5db;
+}
+
+body.theme-high-contrast input:focus-visible,
+body.theme-high-contrast select:focus-visible,
+body.theme-high-contrast textarea:focus-visible,
+body.theme-high-contrast .btn:focus-visible,
+body.theme-high-contrast .project-tab:focus-visible,
+body.theme-high-contrast .setup-step:focus-visible,
+body.theme-high-contrast .client-contents-link:focus-visible{
+  outline:3px solid #facc15;
+  outline-offset:3px;
+  border-color:#facc15 !important;
+  box-shadow:none !important;
+}
+
+body.theme-high-contrast .banner,
+body.theme-high-contrast .toast{
+  background:#000 !important;
+  color:#fff;
+  border:2px solid #fff !important;
+  box-shadow:none !important;
+}
+
+body.theme-high-contrast .banner.success,
+body.theme-high-contrast .toast.success{
+  border-color:#86efac !important;
+}
+
+body.theme-high-contrast .banner.warning,
+body.theme-high-contrast .toast.warning{
+  border-color:#fde047 !important;
+}
+
+body.theme-high-contrast .banner.error,
+body.theme-high-contrast .toast.error{
+  border-color:#fda4af !important;
+}
+
+body.theme-high-contrast .status-chip,
+body.theme-high-contrast .pill,
+body.theme-high-contrast .badge,
+body.theme-high-contrast .project-card-delete{
+  background:#000 !important;
+  color:#fff;
+  border:2px solid #fff !important;
+  box-shadow:none !important;
+}
+
+body.theme-high-contrast a,
+body.theme-high-contrast .btn-link,
+body.theme-high-contrast .footer-links button{
+  color:#facc15;
+}
+
+body.theme-high-contrast .muted,
+body.theme-high-contrast .brand-tagline,
+body.theme-high-contrast .small,
+body.theme-high-contrast .form-help,
+body.theme-high-contrast .empty-state p,
+body.theme-high-contrast .workflow-outcome,
+body.theme-high-contrast .legal-strip p,
+body.theme-high-contrast .site-footer,
+body.theme-high-contrast .footer-inner{
+  color:#f3f4f6;
+}
+
+body.theme-high-contrast .modal{
+  background:rgba(0,0,0,0.92);
+}
+
+body.theme-high-contrast .creation-skeleton span{
+  background:#1f2937;
+}
+
 @media (prefers-reduced-motion:reduce){
   *,
   *::before,
@@ -3975,6 +4258,37 @@ body.theme-dusk .footer-links button:hover{
 
   .dashboard-shell{
     grid-template-columns:1fr;
+  }
+
+  .client-shell{
+    grid-template-columns:1fr;
+  }
+
+  .client-shell > .card,
+  .client-shell > #client-verification-card,
+  .client-shell > #client-link-problem-card,
+  .client-contents-card{
+    grid-column:1;
+  }
+
+  .client-contents-card{
+    top:82px;
+    max-height:none;
+    overflow:visible;
+  }
+
+  .client-contents-nav{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:4px;
+    scrollbar-width:thin;
+  }
+
+  .client-contents-link{
+    flex:0 0 auto;
+    width:auto;
+    white-space:nowrap;
   }
 
   .billing-card{

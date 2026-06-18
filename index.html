@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scopey</title>
@@ -1250,6 +1251,40 @@
 
     <!-- CLIENT VIEW -->
     <section id="client-view" class="hidden client-shell">
+      <aside id="client-contents-card" class="card client-contents-card hidden" aria-label="Client page contents">
+        <div class="card-title">Contents</div>
+        <p class="card-copy card-copy-small">
+          Jump to the part of the project you want to review.
+        </p>
+        <nav class="client-contents-nav">
+          <button class="client-contents-link" type="button" data-client-nav-section="all" data-client-jump="client-summary-section">
+            Overview
+          </button>
+          <button class="client-contents-link" type="button" data-client-nav-section="agreement" data-client-jump="client-agreement-section">
+            Agreement
+          </button>
+          <div id="client-agreement-contents" class="client-agreement-contents hidden" aria-label="Agreement sections"></div>
+          <button class="client-contents-link" type="button" data-client-nav-section="scope" data-client-jump="client-scope-section">
+            Scope
+          </button>
+          <button class="client-contents-link" type="button" data-client-nav-section="changes" data-client-jump="client-changes-section">
+            Changes
+          </button>
+          <button class="client-contents-link" type="button" data-client-nav-section="payments" data-client-jump="client-payments-section">
+            Payments
+          </button>
+          <button class="client-contents-link" type="button" data-client-nav-section="suggestions" data-client-jump="client-suggestions-section">
+            Suggestions
+          </button>
+          <button class="client-contents-link" type="button" data-client-nav-section="updates" data-client-jump="client-updates-section">
+            Updates
+          </button>
+          <button class="client-contents-link" type="button" data-client-nav-section="completion" data-client-jump="client-completion-section">
+            Final approval
+          </button>
+        </nav>
+      </aside>
+
       <section id="client-verification-card" class="card hidden">
         <div class="card-title">Client access</div>
         <p class="card-copy">
@@ -1309,7 +1344,7 @@
         </p>
       </section>
 
-      <section class="card client-summary-card" data-client-section="all">
+      <section id="client-summary-section" class="card client-summary-card" data-client-section="all">
         <div class="section-row">
           <div>
             <div class="card-title">Review at a glance</div>
@@ -1376,7 +1411,7 @@
         </div>
       </section>
 
-      <section class="card" data-client-section="agreement">
+      <section id="client-agreement-section" class="card" data-client-section="agreement">
         <div class="card-title">Project agreement</div>
         <div id="client-agreement-preview" class="agreement-snapshot"></div>
         <div id="client-acceptance-panel" class="acceptance-panel">
@@ -1402,12 +1437,12 @@
         <p id="client-acceptance-status" class="card-copy card-copy-small"></p>
       </section>
 
-      <section class="card" data-client-section="scope">
+      <section id="client-scope-section" class="card" data-client-section="scope">
         <div class="card-title">Included scope</div>
         <div id="client-scope-list" class="list"></div>
       </section>
 
-      <section class="card" data-client-section="changes">
+      <section id="client-changes-section" class="card" data-client-section="changes">
         <div class="card-title">Pending changes</div>
         <p class="card-copy card-copy-small">
           Payment is required before a pending change becomes approved.
@@ -1415,7 +1450,7 @@
         <div id="client-pending-list" class="list"></div>
       </section>
 
-      <section class="card" data-client-section="payments">
+      <section id="client-payments-section" class="card" data-client-section="payments">
         <div class="card-title">Project payments</div>
         <p class="card-copy card-copy-small">
           Pay deposits, milestones or final balances requested for this project.
@@ -1423,7 +1458,7 @@
         <div id="client-payment-list" class="list"></div>
       </section>
 
-      <section class="card" data-client-section="suggestions">
+      <section id="client-suggestions-section" class="card" data-client-section="suggestions">
         <div class="card-title">Suggest a change</div>
         <p class="card-copy card-copy-small">
           Send an idea, inspiration image or requested alteration for review.
@@ -1454,7 +1489,7 @@
         <div id="client-suggestion-list" class="list"></div>
       </section>
 
-      <section class="card" data-client-section="updates">
+      <section id="client-updates-section" class="card" data-client-section="updates">
         <div class="card-title">Shared updates</div>
         <p class="card-copy card-copy-small">
           Review progress or add inspiration and context for the commission.
@@ -1475,12 +1510,12 @@
         <div id="client-update-list" class="list"></div>
       </section>
 
-      <section class="card" data-client-section="updates">
+      <section id="client-gallery-section" class="card" data-client-section="updates">
         <div class="card-title">Project gallery</div>
         <div id="client-gallery-list" class="gallery-grid"></div>
       </section>
 
-      <section class="card" data-client-section="completion">
+      <section id="client-completion-section" class="card" data-client-section="completion">
         <div class="card-title">Final approval</div>
         <p id="client-completion-copy" class="card-copy">
           Final approval will appear here when the project is ready for sign-off.
@@ -1504,7 +1539,7 @@
         </div>
       </section>
 
-      <section class="card" data-client-section="completion">
+      <section id="client-deliverables-section" class="card" data-client-section="completion">
         <div class="card-title">Final deliverables</div>
         <p class="card-copy card-copy-small">
           Add your name here before approving individual final files.
@@ -1522,7 +1557,7 @@
         <div id="client-deliverable-list" class="list"></div>
       </section>
 
-      <section class="card" data-client-section="changes">
+      <section id="client-approved-changes-section" class="card" data-client-section="changes">
         <div class="card-title">Approved changes</div>
         <div id="client-approved-list" class="list"></div>
       </section>

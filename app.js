@@ -416,6 +416,8 @@ const clientProfileImage = document.getElementById("client-profile-image");
 const clientProfileInitial = document.getElementById("client-profile-initial");
 const clientProfileName = document.getElementById("client-profile-name");
 const clientProfileBio = document.getElementById("client-profile-bio");
+const clientContentsCard = document.getElementById("client-contents-card");
+const clientAgreementContents = document.getElementById("client-agreement-contents");
 const clientLinkProblemCard = document.getElementById("client-link-problem-card");
 const clientLinkProblemCopy = document.getElementById("client-link-problem-copy");
 const clientLinkHomeBtn = document.getElementById("client-link-home-btn");
@@ -3282,6 +3284,13 @@ function agreementRows(project) {
   ].filter(([, value]) => value);
 }
 
+function getAgreementAnchorId(label) {
+  return `client-agreement-${label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")}`;
+}
+
 function renderAgreementPreview(container, project) {
   if (!container) return;
   container.innerHTML = "";
@@ -3295,6 +3304,9 @@ function renderAgreementPreview(container, project) {
   rows.forEach(([label, value]) => {
     const item = document.createElement("div");
     item.className = "agreement-row";
+    if (container === clientAgreementPreview) {
+      item.id = getAgreementAnchorId(label);
+    }
     const strong = document.createElement("strong");
     strong.textContent = label;
     const paragraph = document.createElement("p");
@@ -3512,6 +3524,7 @@ function applyClientSectionScope(section = clientSection) {
     const visible = normalised === "all" || panelSection === normalised || panelSection === "all";
     panel.classList.toggle("hidden", !visible);
   });
+  updateClientContents(normalised);
 
   clientScopedContextCard?.classList.toggle("hidden", normalised === "all");
   if (clientScopedContextCopy && normalised !== "all") {
@@ -3523,9 +3536,70 @@ function applyClientSectionScope(section = clientSection) {
   }
 }
 
+function updateClientContents(section = clientSection) {
+  if (!clientContentsCard) return;
+
+  const normalised = section || "all";
+  const links = document.querySelectorAll("[data-client-jump]");
+  let visibleCount = 0;
+
+  links.forEach((link) => {
+    const linkSection = link.dataset.clientNavSection || "all";
+    const target = document.getElementById(link.dataset.clientJump);
+    const targetVisible = target && !target.classList.contains("hidden");
+    const visible =
+      normalised === "all"
+        ? Boolean(target)
+        : linkSection === "all" || linkSection === normalised;
+
+    link.classList.toggle("hidden", !visible || !targetVisible);
+    link.classList.toggle("active", linkSection === normalised && normalised !== "all");
+    if (visible && targetVisible) visibleCount += 1;
+  });
+
+  if (clientAgreementContents) {
+    const showAgreementLinks =
+      !clientAgreementContents.dataset.empty &&
+      (normalised === "all" || normalised === "agreement");
+    clientAgreementContents.classList.toggle("hidden", !showAgreementLinks);
+  }
+
+  clientContentsCard.classList.toggle("hidden", visibleCount < 2);
+}
+
+function renderClientAgreementContents(project) {
+  if (!clientAgreementContents) return;
+
+  clientAgreementContents.innerHTML = "";
+  const rows = agreementRows(project);
+  clientAgreementContents.dataset.empty = rows.length ? "" : "true";
+
+  rows.forEach(([label]) => {
+    const button = document.createElement("button");
+    button.className = "client-contents-link client-contents-sublink";
+    button.type = "button";
+    button.dataset.clientNavSection = "agreement";
+    button.dataset.clientJump = getAgreementAnchorId(label);
+    button.textContent = label;
+    clientAgreementContents.appendChild(button);
+  });
+}
+
+function jumpToClientSection(targetId) {
+  const target = document.getElementById(targetId);
+  if (!target || target.classList.contains("hidden")) return;
+
+  document.querySelectorAll("[data-client-jump]").forEach((link) => {
+    link.classList.toggle("active", link.dataset.clientJump === targetId);
+  });
+
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function setClientVerificationMode(isVerifying) {
   clientVerificationCard?.classList.toggle("hidden", !isVerifying);
   clientLinkProblemCard?.classList.add("hidden");
+  clientContentsCard?.classList.add("hidden");
 
   document.querySelectorAll("#client-view > section").forEach((section) => {
     if (section === clientVerificationCard) return;
@@ -3539,6 +3613,7 @@ function renderClientLinkProblem(message) {
   updateAuthButtons(false);
   setView("client");
   clientVerificationCard?.classList.add("hidden");
+  clientContentsCard?.classList.add("hidden");
   document.querySelectorAll("#client-view > section").forEach((section) => {
     section.classList.toggle("hidden", section !== clientLinkProblemCard);
   });
@@ -6820,6 +6895,7 @@ function renderClient(
   renderClientFlowSteps(project, changes, payments, deliverables);
   renderClientGuidance(project, changes, payments, deliverables);
   renderAgreementPreview(clientAgreementPreview, project);
+  renderClientAgreementContents(project);
 
   if (clientAcceptancePanel) {
     clientAcceptancePanel.classList.toggle(
@@ -7493,6 +7569,14 @@ document.querySelectorAll("[data-legal-open]").forEach((button) => {
 
 document.querySelectorAll("[data-legal-doc]").forEach((button) => {
   button.addEventListener("click", () => renderLegalDocument(button.dataset.legalDoc));
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target.closest?.("[data-client-jump]");
+  if (!target) return;
+
+  event.preventDefault();
+  jumpToClientSection(target.dataset.clientJump);
 });
 
 toggleProjectCreateBtn?.addEventListener("click", () => {
