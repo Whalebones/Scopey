@@ -52,6 +52,7 @@ let selectedRightsArtworkId = null;
 let pendingRightsConflicts = [];
 let pendingContentReport = null;
 let pendingReportReview = null;
+let pendingDeclineFlashId = null;
 let isCreatingProject = false;
 let isOpeningDashboard = false;
 let isSigningOut = false;
@@ -111,6 +112,28 @@ const POLICY_VERSIONS = {
   privacy: "2026-06-15"
 };
 const PUBLIC_BETA_FREE_ONLY = true;
+const SCOPEY_BADGE_EMBED = `<a href="https://scopey.co.uk?utm_source=badge&utm_medium=referral"
+   target="_blank" rel="noopener"
+   style="display:inline-flex;align-items:center;gap:7px;
+          padding:6px 12px;border-radius:6px;
+          background:#0F1117;text-decoration:none;
+          font-family:-apple-system,BlinkMacSystemFont,
+          'Segoe UI',sans-serif;">
+  <svg width="16" height="16" viewBox="0 0 96 96" aria-hidden="true">
+    <defs>
+      <mask id="scopey-badge-eclipse-mask">
+        <circle cx="48" cy="48" r="44" fill="white"/>
+        <circle cx="35" cy="35" r="28" fill="black"/>
+      </mask>
+    </defs>
+    <circle cx="48" cy="48" r="44" fill="#FD4E2F" mask="url(#scopey-badge-eclipse-mask)"/>
+    <circle cx="48" cy="48" r="20" fill="#FD4E2F"/>
+  </svg>
+  <span style="font-size:12px;font-weight:600;color:#F9FAFB;
+               letter-spacing:0.01em;">
+    Commissions managed by Scopey
+  </span>
+</a>`;
 
 // =======================
 // DOM REFERENCES
@@ -182,6 +205,9 @@ const submitBetaFeedbackBtn = document.getElementById("submit-beta-feedback-btn"
 const betaFeedbackCategory = document.getElementById("beta-feedback-category");
 const betaFeedbackEmail = document.getElementById("beta-feedback-email");
 const betaFeedbackMessage = document.getElementById("beta-feedback-message");
+const scopeyScrollProgress = document.querySelector(".scopey-scroll-progress");
+const scopeyBadgePreview = document.getElementById("scopey-badge-preview");
+const copyScopeyBadgeBtn = document.getElementById("copy-scopey-badge-btn");
 
 const deleteProjectModal = document.getElementById("delete-project-modal");
 const deleteProjectFinalModal = document.getElementById("delete-project-final-modal");
@@ -204,7 +230,10 @@ const projectActionCopy = document.getElementById("project-action-copy");
 const projectListEl = document.getElementById("project-list");
 const archivedProjectListEl = document.getElementById("archived-project-list");
 const toggleProjectCreateBtn = document.getElementById("toggle-project-create-btn");
+const emptyCreateProjectBtn = document.getElementById("empty-create-project-btn");
 const projectCreateCard = document.getElementById("project-create-card");
+const projectCreationState = document.getElementById("project-creation-state");
+const projectCreationCopy = document.getElementById("project-creation-copy");
 
 const newProjectTitle = document.getElementById("new-project-title");
 const newProjectClient = document.getElementById("new-project-client");
@@ -414,6 +443,8 @@ const clientProfileImage = document.getElementById("client-profile-image");
 const clientProfileInitial = document.getElementById("client-profile-initial");
 const clientProfileName = document.getElementById("client-profile-name");
 const clientProfileBio = document.getElementById("client-profile-bio");
+const clientContentsCard = document.getElementById("client-contents-card");
+const clientAgreementContents = document.getElementById("client-agreement-contents");
 const clientLinkProblemCard = document.getElementById("client-link-problem-card");
 const clientLinkProblemCopy = document.getElementById("client-link-problem-copy");
 const clientLinkHomeBtn = document.getElementById("client-link-home-btn");
@@ -782,14 +813,36 @@ const LEGAL_DOCUMENTS = {
 let heroTopIndex = 0;
 let heroBottomIndex = 0;
 
+function setHeroLineText(el, nextText) {
+  const copy = el?.querySelector(".hero-line-copy");
+  if (copy) {
+    copy.textContent = nextText;
+    return;
+  }
+  if (el) el.textContent = nextText;
+}
+
+function restartHeroUnderline(el) {
+  if (!el?.classList.contains("hero-underline-target")) return;
+  el.classList.remove("is-active");
+  void el.offsetWidth;
+  el.classList.add("is-active");
+}
+
 function swapHeroLine(el, nextText) {
   if (!el) return;
 
   el.classList.add("fade-out");
+  if (el.classList.contains("hero-underline-target")) {
+    el.classList.add("is-exiting");
+    el.classList.remove("is-active");
+  }
 
   setTimeout(() => {
-    el.textContent = nextText;
+    setHeroLineText(el, nextText);
     el.classList.remove("fade-out");
+    el.classList.remove("is-exiting");
+    restartHeroUnderline(el);
   }, 420);
 }
 
@@ -800,11 +853,8 @@ function startHeroRotator() {
 
   setInterval(() => {
     heroTopIndex = (heroTopIndex + 1) % heroTopLines.length;
-    swapHeroLine(topEl, heroTopLines[heroTopIndex]);
-  }, 2600);
-
-  setInterval(() => {
     heroBottomIndex = (heroBottomIndex + 1) % heroBottomLines.length;
+    swapHeroLine(topEl, heroTopLines[heroTopIndex]);
     swapHeroLine(bottomEl, heroBottomLines[heroBottomIndex]);
   }, 3900);
 }
@@ -1024,6 +1074,11 @@ function setView(mode) {
   ownerView?.classList.add("hidden");
   clientView?.classList.add("hidden");
   document.body.classList.toggle("app-view-active", mode === "owner" || mode === "client");
+  scopeyScrollProgress?.classList.toggle("hidden", mode !== "client");
+  if (mode !== "client") {
+    hideClientExitToast();
+    document.querySelectorAll(".scopey-tooltip").forEach((tooltip) => tooltip.remove());
+  }
 
   if (mode === "landing") landingView?.classList.remove("hidden");
   if (mode === "owner") ownerView?.classList.remove("hidden");
@@ -1344,6 +1399,94 @@ function formatRightsLicenseSubtitle(license) {
   return bits.join(" | ");
 }
 
+function cleanPdfText(value) {
+  return String(value || "")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapePdfText(value) {
+  return cleanPdfText(value).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function slugify(value) {
+  return cleanPdfText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "artwork";
+}
+
+function buildPdfDocument(contentStream) {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
+
+function textPdfLine(x, y, text, font = "F1", size = 10, colour = "0.067 0.094 0.153") {
+  return `BT /${font} ${size} Tf ${colour} rg ${x} ${y} Td (${escapePdfText(text)}) Tj ET`;
+}
+
+function downloadRightsCertificate(artwork, license) {
+  const today = new Date().toISOString().slice(0, 10);
+  const businessName = getProfileName(currentProfile);
+  const usage = `${formatRightsLabel(license.usage_type, RIGHTS_USAGE_LABELS)} - ${formatRightsLabel(license.territory, RIGHTS_TERRITORY_LABELS)}`;
+  const period = `${license.start_date || "Not set"} - ${license.end_date || "Ongoing"}`;
+  const rows = [
+    ["ARTWORK", artwork.title],
+    ["LICENSED TO", license.client_name],
+    ["USAGE", usage],
+    ["EXCLUSIVITY", license.exclusive ? "Exclusive" : "Non-exclusive"],
+    ["LICENCE PERIOD", period],
+    ["FEE", formatCurrency(license.fee || 0, license.currency || "GBP")]
+  ];
+  if (license.notes) rows.push(["NOTES", license.notes]);
+
+  const stream = [
+    "q 0.992 0.306 0.184 RG 2 w 1 J 48 786 m 58 786 66 778 66 768 c 66 758 58 750 48 750 c 38 750 30 758 30 768 c S Q",
+    textPdfLine(78, 770, "SCOPEY RIGHTS", "F2", 15),
+    "0.992 0.306 0.184 RG 1 w 48 744 m 547 744 l S",
+    textPdfLine(48, 700, "LICENCE CERTIFICATE", "F2", 9, "0.612 0.639 0.686"),
+    ...rows.flatMap(([label, value], index) => {
+      const y = 656 - index * 48;
+      return [
+        textPdfLine(48, y, label, "F2", 9, "0.612 0.639 0.686"),
+        textPdfLine(188, y - 3, value, "F2", 14, "0.067 0.094 0.153")
+      ];
+    }),
+    textPdfLine(48, 92, `Issued by ${businessName}`, "F1", 9, "0.612 0.639 0.686"),
+    textPdfLine(48, 76, `via Scopey - ${today}`, "F1", 9, "0.612 0.639 0.686")
+  ].join("\n");
+
+  const blob = new Blob([buildPdfDocument(stream)], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `scopey-licence-${slugify(artwork.title)}-${today}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function getSuggestionStatusKind(status) {
   if (status === "accepted") return "success";
   if (status === "declined") return "danger";
@@ -1420,6 +1563,22 @@ function estimateDataUrlBytes(dataUrl) {
   return Math.ceil((base64.length * 3) / 4);
 }
 
+function drawEclipseWatermarkMark(context, x, y, size, strokeStyle, lineWidth) {
+  context.save();
+  context.translate(x, y - size / 2);
+  context.scale(size / 16, size / 16);
+  context.beginPath();
+  context.moveTo(8, 4);
+  context.bezierCurveTo(11, 4, 13, 6, 13, 9);
+  context.bezierCurveTo(13, 12, 11, 14, 8, 14);
+  context.bezierCurveTo(5, 14, 3, 12, 3, 9);
+  context.strokeStyle = strokeStyle;
+  context.lineWidth = Math.max(1.2, lineWidth * (16 / size));
+  context.lineCap = "round";
+  context.stroke();
+  context.restore();
+}
+
 async function watermarkFreelancerUpdateImage(image) {
   if (!image?.dataUrl) return image;
 
@@ -1454,7 +1613,7 @@ async function watermarkFreelancerUpdateImage(image) {
   context.save();
   context.translate(width / 2, height / 2);
   context.rotate(-Math.PI / 7);
-  context.textAlign = "center";
+  context.textAlign = "left";
   context.textBaseline = "middle";
   context.font = `700 ${fontSize}px Arial, sans-serif`;
   context.lineWidth = Math.max(2, fontSize / 14);
@@ -1463,11 +1622,17 @@ async function watermarkFreelancerUpdateImage(image) {
 
   const stepX = Math.max(fontSize * 8, context.measureText(watermarkText).width + fontSize * 5);
   const stepY = fontSize * 3.6;
+  const watermarkTextWidth = context.measureText(watermarkText).width;
+  const markSize = Math.max(16, Math.round(fontSize * 0.56));
+  const markGap = Math.max(6, Math.round(fontSize * 0.18));
+  const groupWidth = markSize + markGap + watermarkTextWidth;
 
   for (let y = -diagonal; y <= diagonal; y += stepY) {
     for (let x = -diagonal; x <= diagonal; x += stepX) {
-      context.strokeText(watermarkText, x, y);
-      context.fillText(watermarkText, x, y);
+      const startX = x - groupWidth / 2;
+      drawEclipseWatermarkMark(context, startX, y, markSize, "rgba(0,0,0,0.2)", context.lineWidth);
+      context.strokeText(watermarkText, startX + markSize + markGap, y);
+      context.fillText(watermarkText, startX + markSize + markGap, y);
     }
   }
   context.restore();
@@ -1475,7 +1640,9 @@ async function watermarkFreelancerUpdateImage(image) {
   const badgeText = `Watermarked: ${watermarkName}`;
   context.font = `700 ${Math.max(15, Math.round(fontSize * 0.34))}px Arial, sans-serif`;
   const badgePaddingX = 14;
-  const badgeWidth = context.measureText(badgeText).width + badgePaddingX * 2;
+  const badgeMarkSize = 16;
+  const badgeGap = 6;
+  const badgeWidth = context.measureText(badgeText).width + badgeMarkSize + badgeGap + badgePaddingX * 2;
   const badgeHeight = Math.max(34, Math.round(fontSize * 0.68));
   const badgeX = Math.max(12, width - badgeWidth - 16);
   const badgeY = Math.max(12, height - badgeHeight - 16);
@@ -1485,7 +1652,15 @@ async function watermarkFreelancerUpdateImage(image) {
   context.fillStyle = "rgba(255,255,255,0.95)";
   context.textAlign = "left";
   context.textBaseline = "middle";
-  context.fillText(badgeText, badgeX + badgePaddingX, badgeY + badgeHeight / 2);
+  drawEclipseWatermarkMark(
+    context,
+    badgeX + badgePaddingX,
+    badgeY + badgeHeight / 2,
+    badgeMarkSize,
+    "rgba(255,255,255,0.95)",
+    2
+  );
+  context.fillText(badgeText, badgeX + badgePaddingX + badgeMarkSize + badgeGap, badgeY + badgeHeight / 2);
 
   const preferredType = image.dataUrl.startsWith("data:image/png") ? "image/png" : "image/jpeg";
   let dataUrl = canvas.toDataURL(preferredType, 0.9);
@@ -1842,6 +2017,12 @@ function renderRights() {
         );
         if (license.expiring_soon) actions.appendChild(buildStatusPill("Expiring soon", "warning"));
         if (license.acknowledged_conflict) actions.appendChild(buildStatusPill("Conflict noted", "danger"));
+        const certificateLink = document.createElement("button");
+        certificateLink.className = "rights-certificate-link";
+        certificateLink.type = "button";
+        certificateLink.textContent = "Download certificate";
+        certificateLink.addEventListener("click", () => downloadRightsCertificate(artwork, license));
+        actions.appendChild(certificateLink);
         licenceList.appendChild(
           buildListRow(
             license.client_name,
@@ -2208,9 +2389,12 @@ async function savePaypalPayments() {
 
 function setProjectCreateVisible(isVisible, rememberChoice = false) {
   isCreatingProject = isVisible;
+  projectCreationState?.classList.add("hidden");
   projectCreateCard?.classList.toggle("hidden", !isVisible);
   if (toggleProjectCreateBtn) {
-    toggleProjectCreateBtn.textContent = isVisible ? "Back to project" : "New project";
+    toggleProjectCreateBtn.textContent = isVisible
+      ? currentProject ? "Back to project" : "Back"
+      : "New project";
   }
   if (rememberChoice && projectCreateCard) {
     projectCreateCard.dataset.userOpened = isVisible ? "true" : "false";
@@ -2229,10 +2413,35 @@ function setProjectCreateVisible(isVisible, rememberChoice = false) {
   renderProjectList();
 }
 
+function setProjectCreationLoading(isLoading, projectTitle = "") {
+  projectCreationState?.classList.toggle("hidden", !isLoading);
+  if (!isLoading) {
+    if (toggleProjectCreateBtn) {
+      toggleProjectCreateBtn.disabled = false;
+      toggleProjectCreateBtn.textContent = currentProject ? "New project" : "New project";
+    }
+    return;
+  }
+
+  projectCreateCard?.classList.add("hidden");
+  ownerEmptyState?.classList.add("hidden");
+  projectWorkspace?.classList.add("hidden");
+
+  if (projectCreationCopy) {
+    projectCreationCopy.textContent = projectTitle
+      ? `Preparing "${projectTitle}" with a client-ready workspace, setup path and handoff tools.`
+      : "Scopey is preparing the project record, client handoff and first setup steps.";
+  }
+
+  if (toggleProjectCreateBtn) {
+    toggleProjectCreateBtn.textContent = "Creating...";
+    toggleProjectCreateBtn.disabled = true;
+  }
+}
+
 function syncProjectCreateVisibility() {
-  const hasActiveProjects = currentProjects.length > 0;
   const userOpened = projectCreateCard?.dataset.userOpened === "true";
-  setProjectCreateVisible(!hasActiveProjects || userOpened);
+  setProjectCreateVisible(userOpened);
 }
 
 function setBusinessProfileEditing(isEditing) {
@@ -2321,6 +2530,79 @@ function isPaymentDueSoon(payment) {
   const due = new Date(payment.due_date);
   const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
   return diffDays <= 7;
+}
+
+function getProjectHealth(project) {
+  const isCurrentProject = project?.id && project.id === currentProjectId;
+  const payments = isCurrentProject ? currentProjectPayments : [];
+  const changes = isCurrentProject ? currentChanges : [];
+  const suggestions = isCurrentProject ? currentSuggestions : [];
+  const acceptedAt = isCurrentProject ? currentProject?.accepted_at : project?.accepted_at;
+
+  if (payments.some(isPaymentOverdue)) {
+    return {
+      state: "overdue",
+      label: "Payment overdue",
+      symbol: "!!"
+    };
+  }
+
+  const needsAgreementAction =
+    !acceptedAt && !["cancelled", "complete"].includes(project?.status);
+  const needsClientAction = changes.some((change) => change.status === "pending");
+  const needsSuggestionReview = suggestions.some((suggestion) => suggestion.status === "suggested");
+
+  if (needsAgreementAction || needsClientAction || needsSuggestionReview) {
+    return {
+      state: "attention",
+      label: "Needs client action",
+      symbol: "!"
+    };
+  }
+
+  return {
+    state: "healthy",
+    label: "All good",
+    symbol: "OK"
+  };
+}
+
+function buildProjectHealthIndicator(project) {
+  const health = getProjectHealth(project);
+  const dot = document.createElement("span");
+  dot.className = `project-health project-health-${health.state}`;
+  dot.title = health.label;
+  dot.setAttribute("aria-label", health.label);
+  dot.textContent = health.symbol;
+  return dot;
+}
+
+function pulseProjectStatusBadge() {
+  if (!ownerStatusChip || prefersReducedMotion()) return;
+  ownerStatusChip.classList.remove("is-completing");
+  void ownerStatusChip.offsetWidth;
+  ownerStatusChip.classList.add("is-completing");
+  ownerStatusChip.addEventListener(
+    "animationend",
+    () => ownerStatusChip.classList.remove("is-completing"),
+    { once: true }
+  );
+}
+
+function renderScopeyBadgePreview() {
+  if (scopeyBadgePreview) {
+    scopeyBadgePreview.innerHTML = SCOPEY_BADGE_EMBED;
+  }
+}
+
+async function copyScopeyBadgeEmbed() {
+  try {
+    await navigator.clipboard.writeText(SCOPEY_BADGE_EMBED);
+    showBanner("Scopey badge embed code copied.", "success");
+  } catch (error) {
+    console.error(error);
+    showBanner("Could not copy the badge code.", "error");
+  }
 }
 
 function isValidEmail(value) {
@@ -3253,6 +3535,13 @@ function agreementRows(project) {
   ].filter(([, value]) => value);
 }
 
+function getAgreementAnchorId(label) {
+  return `client-agreement-${label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")}`;
+}
+
 function renderAgreementPreview(container, project) {
   if (!container) return;
   container.innerHTML = "";
@@ -3266,6 +3555,9 @@ function renderAgreementPreview(container, project) {
   rows.forEach(([label, value]) => {
     const item = document.createElement("div");
     item.className = "agreement-row";
+    if (container === clientAgreementPreview) {
+      item.id = getAgreementAnchorId(label);
+    }
     const strong = document.createElement("strong");
     strong.textContent = label;
     const paragraph = document.createElement("p");
@@ -3483,6 +3775,7 @@ function applyClientSectionScope(section = clientSection) {
     const visible = normalised === "all" || panelSection === normalised || panelSection === "all";
     panel.classList.toggle("hidden", !visible);
   });
+  updateClientContents(normalised);
 
   clientScopedContextCard?.classList.toggle("hidden", normalised === "all");
   if (clientScopedContextCopy && normalised !== "all") {
@@ -3494,9 +3787,55 @@ function applyClientSectionScope(section = clientSection) {
   }
 }
 
+function updateClientContents(section = clientSection) {
+  if (!clientContentsCard) return;
+
+  const normalised = section || "all";
+  const links = document.querySelectorAll("[data-client-jump]");
+  let visibleCount = 0;
+
+  links.forEach((link) => {
+    const linkSection = link.dataset.clientNavSection || "all";
+    const target = document.getElementById(link.dataset.clientJump);
+    const targetVisible = target && !target.classList.contains("hidden");
+    const visible =
+      normalised === "all"
+        ? Boolean(target)
+        : linkSection === "all" || linkSection === normalised;
+
+    link.classList.toggle("hidden", !visible || !targetVisible);
+    link.classList.toggle("active", linkSection === normalised && normalised !== "all");
+    if (visible && targetVisible) visibleCount += 1;
+  });
+
+  clientAgreementContents?.classList.add("hidden");
+
+  clientContentsCard.classList.toggle("hidden", visibleCount < 2);
+}
+
+function renderClientAgreementContents() {
+  if (!clientAgreementContents) return;
+
+  clientAgreementContents.innerHTML = "";
+  clientAgreementContents.dataset.empty = "true";
+  clientAgreementContents.classList.add("hidden");
+}
+
+function jumpToClientSection(targetId) {
+  const target = document.getElementById(targetId);
+  if (!target || target.classList.contains("hidden")) return;
+
+  document.querySelectorAll("[data-client-jump]").forEach((link) => {
+    link.classList.toggle("active", link.dataset.clientJump === targetId);
+  });
+
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function setClientVerificationMode(isVerifying) {
   clientVerificationCard?.classList.toggle("hidden", !isVerifying);
   clientLinkProblemCard?.classList.add("hidden");
+  clientContentsCard?.classList.add("hidden");
 
   document.querySelectorAll("#client-view > section").forEach((section) => {
     if (section === clientVerificationCard) return;
@@ -3510,6 +3849,7 @@ function renderClientLinkProblem(message) {
   updateAuthButtons(false);
   setView("client");
   clientVerificationCard?.classList.add("hidden");
+  clientContentsCard?.classList.add("hidden");
   document.querySelectorAll("#client-view > section").forEach((section) => {
     section.classList.toggle("hidden", section !== clientLinkProblemCard);
   });
@@ -3533,6 +3873,209 @@ function renderClientVerification(project = {}) {
   updateAuthButtons(false);
   setView("client");
   if (clientAccessCode && clientAccessCodeValue) clientAccessCode.value = clientAccessCodeValue;
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+}
+
+function updateClientScrollProgress() {
+  if (!scopeyScrollProgress || !isClientView) return;
+  const total = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = total > 0 ? Math.min((window.scrollY / total) * 100, 100) : 0;
+  scopeyScrollProgress.style.width = `${progress}%`;
+}
+
+function getClientOutstandingActions(project = currentProject) {
+  const pendingPayments = currentProjectPayments.some((payment) => payment.status === "pending");
+  const pendingFinalApproval =
+    project?.status === "awaiting_final_approval" ||
+    currentDeliverables.some((deliverable) => deliverable.status !== "approved");
+
+  return {
+    agreement: Boolean(project && !project.accepted_at && project.status !== "cancelled"),
+    payments: pendingPayments,
+    finalApproval: pendingFinalApproval
+  };
+}
+
+function clientHasOutstandingActions(project = currentProject) {
+  const outstanding = getClientOutstandingActions(project);
+  return outstanding.agreement || outstanding.payments || outstanding.finalApproval;
+}
+
+function getClientExitToast() {
+  let toast = document.querySelector(".scopey-exit-toast");
+  if (toast) return toast;
+
+  toast = document.createElement("div");
+  toast.className = "scopey-exit-toast";
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-live", "polite");
+  toast.innerHTML = `
+    <span class="toast-icon" aria-hidden="true">↩</span>
+    <span class="toast-message">A couple of things still need your attention.</span>
+    <button class="toast-dismiss" type="button">Stay</button>
+  `;
+  toast.querySelector(".toast-dismiss")?.addEventListener("click", hideClientExitToast);
+  document.body.appendChild(toast);
+  return toast;
+}
+
+function showClientExitToast() {
+  if (!isClientView || !clientHasOutstandingActions()) return;
+  const toast = getClientExitToast();
+  toast.classList.add("is-visible");
+  clearTimeout(showClientExitToast.dismissTimer);
+  showClientExitToast.dismissTimer = setTimeout(hideClientExitToast, 5000);
+}
+
+function hideClientExitToast() {
+  const toast = document.querySelector(".scopey-exit-toast");
+  toast?.classList.remove("is-visible");
+}
+
+function getClientOrientationKey() {
+  return `scopey-client-orientation-${shareId || "project"}-${clientToken || "public"}`;
+}
+
+function positionScopeyTooltip(tooltip, anchor) {
+  const rect = anchor.getBoundingClientRect();
+  const top = window.scrollY + rect.bottom + 10;
+  const left = Math.min(
+    window.scrollX + rect.left,
+    window.scrollX + document.documentElement.clientWidth - 260
+  );
+  tooltip.style.top = `${Math.max(12, top)}px`;
+  tooltip.style.left = `${Math.max(12, left)}px`;
+}
+
+function showClientOrientation() {
+  if (!isClientView || !shareId) return;
+  const key = getClientOrientationKey();
+  if (localStorage.getItem(key)) return;
+
+  const steps = [
+    {
+      anchorId: "client-agreement-section",
+      copy: "This is what your freelancer has agreed to deliver. Read it before accepting."
+    },
+    {
+      anchorId: "client-suggestions-section",
+      copy: "Have a change in mind? Send it here - it won't become extra work without a price and your approval."
+    },
+    {
+      anchorId: "client-primary-action-title",
+      copy: "Scopey will always show you the most important action here."
+    }
+  ];
+
+  let index = 0;
+
+  const finish = () => {
+    localStorage.setItem(key, "done");
+    document.querySelectorAll(".scopey-tooltip").forEach((tooltip) => tooltip.remove());
+  };
+
+  const render = () => {
+    document.querySelectorAll(".scopey-tooltip").forEach((tooltip) => tooltip.remove());
+    const step = steps[index];
+    const anchor = document.getElementById(step.anchorId);
+    if (!anchor || anchor.classList.contains("hidden")) {
+      index += 1;
+      if (index >= steps.length) finish();
+      else render();
+      return;
+    }
+
+    const tooltip = document.createElement("div");
+    tooltip.className = "scopey-tooltip";
+    tooltip.innerHTML = `
+      <p>${step.copy}</p>
+      <div class="scopey-tooltip-actions">
+        ${index === 0 ? '<button type="button" data-tooltip-skip>Skip all</button>' : ""}
+        <button type="button" data-tooltip-next>${index === steps.length - 1 ? "Done" : "Got it ->"}</button>
+      </div>
+    `;
+    document.body.appendChild(tooltip);
+    positionScopeyTooltip(tooltip, anchor);
+    window.setTimeout(() => tooltip.classList.add("is-visible"), prefersReducedMotion() ? 0 : 20);
+
+    tooltip.querySelector("[data-tooltip-skip]")?.addEventListener("click", finish);
+    tooltip.querySelector("[data-tooltip-next]")?.addEventListener("click", () => {
+      index += 1;
+      if (index >= steps.length) finish();
+      else window.setTimeout(render, prefersReducedMotion() ? 0 : 400);
+    });
+  };
+
+  window.setTimeout(render, prefersReducedMotion() ? 0 : 400);
+}
+
+function initialiseClientReviewPolish() {
+  updateClientScrollProgress();
+  showClientOrientation();
+}
+
+function scopeyConfetti(originEl) {
+  if (!originEl || prefersReducedMotion()) return;
+
+  const canvas = document.createElement("canvas");
+  canvas.className = "scopey-confetti-canvas";
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    canvas.remove();
+    return;
+  }
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const rect = originEl.getBoundingClientRect();
+  const ox = rect.left + rect.width / 2;
+  const oy = rect.top + rect.height / 2;
+  const colours = ["#FD4E2F", "#FBBF24", "#F9FAFB", "#FCA5A5", "#FED7AA"];
+  const particles = Array.from({ length: 48 }, () => ({
+    x: ox,
+    y: oy,
+    vx: (Math.random() - 0.5) * 12,
+    vy: (Math.random() - 2.5) * 10,
+    size: Math.random() * 6 + 3,
+    colour: colours[Math.floor(Math.random() * colours.length)],
+    rotation: Math.random() * Math.PI * 2,
+    spin: (Math.random() - 0.5) * 0.3,
+    opacity: 1
+  }));
+
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+
+    particles.forEach((particle) => {
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+      particle.vy += 0.4;
+      particle.rotation += particle.spin;
+      particle.opacity -= 0.018;
+
+      if (particle.opacity > 0) {
+        alive = true;
+        ctx.save();
+        ctx.globalAlpha = particle.opacity;
+        ctx.translate(particle.x, particle.y);
+        ctx.rotate(particle.rotation);
+        ctx.fillStyle = particle.colour;
+        ctx.fillRect(-particle.size / 2, -particle.size / 2, particle.size, particle.size * 0.6);
+        ctx.restore();
+      }
+    });
+
+    if (alive) requestAnimationFrame(tick);
+    else canvas.remove();
+  }
+
+  tick();
 }
 
 function renderClientSummary(project, scopeItems, changes, payments, deliverables) {
@@ -3910,6 +4453,8 @@ function updateAccessibilityControlState() {
 
 function applyTheme(theme, persist = true) {
   document.body.classList.remove("theme-soft", "theme-dusk", "theme-dark", "theme-high-contrast");
+  document.documentElement.dataset.theme = theme;
+  document.body.dataset.theme = theme;
 
   if (theme === "soft") document.body.classList.add("theme-soft");
   if (theme === "dusk") document.body.classList.add("theme-dusk");
@@ -4011,6 +4556,7 @@ function closeLegalModal() {
 async function openAccountModal() {
   renderAccountBilling();
   renderPaymentAccountSetup();
+  renderScopeyBadgePreview();
   accountModal?.setAttribute("aria-hidden", "false");
 
   try {
@@ -4863,7 +5409,11 @@ function renderProjectList() {
 
     const title = document.createElement("div");
     title.className = "project-list-title";
-    title.textContent = project.title;
+    const titleText = document.createElement("span");
+    titleText.className = "title-text";
+    titleText.textContent = project.title;
+    title.appendChild(titleText);
+    title.appendChild(buildProjectHealthIndicator(project));
 
     const meta = document.createElement("div");
     meta.className = "project-list-meta";
@@ -4928,7 +5478,11 @@ function renderProjectList() {
 
     const title = document.createElement("div");
     title.className = "project-list-title";
-    title.textContent = project.title;
+    const titleText = document.createElement("span");
+    titleText.className = "title-text";
+    titleText.textContent = project.title;
+    title.appendChild(titleText);
+    title.appendChild(buildProjectHealthIndicator(project));
 
     const meta = document.createElement("div");
     meta.className = "project-list-meta";
@@ -4961,6 +5515,13 @@ function renderProjectList() {
 }
 
 function renderOwnerEmptyWorkspace() {
+  if (isCreatingProject || projectCreateCard?.dataset.userOpened === "true") {
+    ownerEmptyState?.classList.add("hidden");
+    projectWorkspace?.classList.add("hidden");
+    return;
+  }
+
+  projectCreateCard?.classList.add("hidden");
   ownerEmptyState?.classList.remove("hidden");
   projectWorkspace?.classList.add("hidden");
   currentSuggestions = [];
@@ -5236,15 +5797,24 @@ function renderOwnerWorkspace(
         .filter(Boolean)
         .join("\n");
 
-      ownerSuggestionList.appendChild(
-        buildCollaborationCard(
-          suggestion.title,
-          suggestionSubtitle(suggestion),
-          details,
-          suggestion.image_url,
-          actions
-        )
+      const suggestionCard = buildCollaborationCard(
+        suggestion.title,
+        suggestionSubtitle(suggestion),
+        details,
+        suggestion.image_url,
+        actions
       );
+      suggestionCard.classList.add("change-card");
+      if (pendingDeclineFlashId === suggestion.id) {
+        suggestionCard.classList.add("is-declining");
+        suggestionCard.addEventListener(
+          "animationend",
+          () => suggestionCard.classList.remove("is-declining"),
+          { once: true }
+        );
+        pendingDeclineFlashId = null;
+      }
+      ownerSuggestionList.appendChild(suggestionCard);
 
       const clientPreviewActions = document.createElement("div");
       clientPreviewActions.className = "action-stack";
@@ -5741,7 +6311,7 @@ async function loadProjects() {
 
   const { data, error } = await db
     .from("projects")
-    .select("id,title,client_name,client_email,currency,share_id,status,archived_at,created_at")
+    .select("id,title,client_name,client_email,currency,share_id,status,sent_at,accepted_at,archived_at,created_at")
     .eq("user_id", currentUser.id)
     .order("created_at", { ascending: false });
 
@@ -5872,6 +6442,7 @@ async function createProject() {
   }
 
   setButtonLoading(createProjectBtn, true, "Creating...");
+  setProjectCreationLoading(true, title);
 
   try {
     const headers = await getAuthHeaders();
@@ -5893,20 +6464,24 @@ async function createProject() {
     if (newProjectCurrency) newProjectCurrency.value = currentProfile?.default_currency || "GBP";
     currentProjectId = data.project.id;
     if (projectCreateCard) projectCreateCard.dataset.userOpened = "false";
-    setProjectCreateVisible(false);
 
     await loadBilling();
     await loadProjects();
 
     try {
       await loadProject();
-      showBanner("Project created successfully.", "success");
+      setProjectCreationLoading(false);
+      showBanner("Project created. Start with the agreement, scope and client handoff when you are ready.", "success");
     } catch (loadError) {
       console.error("Project created but could not open:", loadError);
+      setProjectCreationLoading(false);
+      setProjectCreateVisible(false);
       showBanner("Project created, but could not open the workspace yet.", "warning");
     }
   } catch (error) {
     console.error(error);
+    setProjectCreationLoading(false);
+    setProjectCreateVisible(true, true);
     showBanner(error.message || "Could not create project.", "error");
   } finally {
     setButtonLoading(createProjectBtn, false, "Create project");
@@ -6054,6 +6629,7 @@ async function performProjectStatusUpdate(status, button = null) {
       await loadProjects();
     }
     await loadProject();
+    if (status === "complete") pulseProjectStatusBadge();
     showBanner(
       status === "sent"
         ? "Project marked sent for client acceptance."
@@ -6576,6 +7152,9 @@ async function updateSuggestionStatus(suggestion, status, button) {
     });
 
     await readJsonResponse(response, "Could not update suggestion.");
+    if (status === "declined" && !prefersReducedMotion()) {
+      pendingDeclineFlashId = suggestion.id;
+    }
     if (suggestionResponseNote) suggestionResponseNote.value = "";
     if (suggestionResponsePrice) suggestionResponsePrice.value = "";
     await loadProject();
@@ -6756,6 +7335,7 @@ async function loadSharedProject() {
     currentDeliverables
   );
   applyClientSectionScope(clientSection);
+  initialiseClientReviewPolish();
 
   if (data.collaboration_warning) {
     showBanner(
@@ -6786,6 +7366,7 @@ function renderClient(
   renderClientFlowSteps(project, changes, payments, deliverables);
   renderClientGuidance(project, changes, payments, deliverables);
   renderAgreementPreview(clientAgreementPreview, project);
+  renderClientAgreementContents(project);
 
   if (clientAcceptancePanel) {
     clientAcceptancePanel.classList.toggle(
@@ -7104,6 +7685,7 @@ async function acceptAgreement() {
     );
 
     await readJsonResponse(response, "Could not accept agreement.");
+    scopeyConfetti(clientAcceptAgreementBtn);
     await loadSharedProject();
     showBanner("Agreement accepted.", "success");
   } catch (error) {
@@ -7433,11 +8015,30 @@ document.addEventListener("click", (event) => {
   }
 });
 
+window.addEventListener("scroll", updateClientScrollProgress, { passive: true });
+window.addEventListener("resize", updateClientScrollProgress, { passive: true });
+window.addEventListener("beforeunload", () => {
+  showClientExitToast();
+});
+
+document.addEventListener("click", (event) => {
+  if (!isClientView || !clientHasOutstandingActions()) return;
+  const link = event.target.closest?.("a[href]");
+  if (!link) return;
+
+  const url = new URL(link.href, window.location.href);
+  if (url.origin === window.location.origin) return;
+
+  event.preventDefault();
+  showClientExitToast();
+});
+
 accessibilityButton?.addEventListener("click", openAccessibilityModal);
 closeAccessibilityBtn?.addEventListener("click", closeAccessibilityModal);
 resetAccessibilityBtn?.addEventListener("click", resetAccessibilitySettings);
 closeLegalBtn?.addEventListener("click", closeLegalModal);
 closeAccountBtn?.addEventListener("click", closeAccountModal);
+copyScopeyBadgeBtn?.addEventListener("click", copyScopeyBadgeEmbed);
 clientLinkHomeBtn?.addEventListener("click", () => {
   window.location.href = getAppUrl();
 });
@@ -7461,9 +8062,22 @@ document.querySelectorAll("[data-legal-doc]").forEach((button) => {
   button.addEventListener("click", () => renderLegalDocument(button.dataset.legalDoc));
 });
 
+document.addEventListener("click", (event) => {
+  const target = event.target.closest?.("[data-client-jump]");
+  if (!target) return;
+
+  event.preventDefault();
+  jumpToClientSection(target.dataset.clientJump);
+});
+
 toggleProjectCreateBtn?.addEventListener("click", () => {
   const shouldShow = projectCreateCard?.classList.contains("hidden");
   setProjectCreateVisible(Boolean(shouldShow), true);
+});
+
+emptyCreateProjectBtn?.addEventListener("click", () => {
+  setProjectCreateVisible(true, true);
+  newProjectTitle?.focus();
 });
 
 copyLinkBtn?.addEventListener("click", copyShareLink);

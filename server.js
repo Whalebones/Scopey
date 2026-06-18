@@ -71,7 +71,28 @@ const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const FRONTEND_ASSETS = new Set([
   "app.js",
   "styles.css",
+  "android-icon-192x192.png",
+  "apple-icon-57x57.png",
+  "apple-icon-60x60.png",
+  "apple-icon-72x72.png",
+  "apple-icon-76x76.png",
+  "apple-icon-114x114.png",
+  "apple-icon-120x120.png",
+  "apple-icon-144x144.png",
+  "apple-icon-152x152.png",
+  "apple-icon-180x180.png",
+  "browserconfig.xml",
   "favicon.svg",
+  "favicon.ico",
+  "favicon-16x16.png",
+  "favicon-32x32.png",
+  "favicon-96x96.png",
+  "favicon-256x256.png",
+  "manifest.json",
+  "ms-icon-70x70.png",
+  "ms-icon-144x144.png",
+  "ms-icon-150x150.png",
+  "ms-icon-310x310.png",
   "scopey-icon.svg",
   "scopey-icon-on-dark.svg",
   "scopey-icon-on-red.svg",
@@ -2415,7 +2436,7 @@ app.get(["/", "/index.html"], (_req, res) => {
 
 app.get("/favicon.ico", (_req, res) => {
   res.set("Cache-Control", "no-store");
-  res.sendFile(path.join(APP_DIR, "favicon.svg"));
+  res.sendFile(path.join(APP_DIR, "favicon.ico"));
 });
 
 app.get("/:asset", (req, res, next) => {
