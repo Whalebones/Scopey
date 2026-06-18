@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://scopey.co.uk/sitemap.xml
