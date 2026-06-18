@@ -14,12 +14,12 @@
   <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png" />
   <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-  <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="msapplication-config" content="/browserconfig.xml" />
   <meta name="msapplication-TileColor" content="#ff432e" />
@@ -52,7 +52,20 @@
         </a>
         <div>
           <strong id="brand-fallback" class="brand-name" style="display:none;">Scopey</strong>
-          <p class="brand-tagline">Clear scope. Paid changes.</p>
+          <p class="brand-tagline">
+            Clear scope.
+            <span class="tagline-underlined">
+              Paid changes.
+              <svg class="scopey-underline-sm" viewBox="0 0 100 8" height="6"
+                   preserveAspectRatio="none" aria-hidden="true">
+                <path
+                  d="M1,4 C20,2 45,6 65,3 C80,1 90,5 99,3"
+                  fill="none" stroke="var(--brand)" stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+          </p>
         </div>
       </div>
 
@@ -67,6 +80,7 @@
   </header>
 
   <main id="main-content" class="container">
+    <div class="scopey-scroll-progress hidden" aria-hidden="true"></div>
     <div id="banner" class="banner info hidden" role="status" aria-live="polite"></div>
 
     <!-- LANDING VIEW -->
@@ -77,7 +91,17 @@
 
           <h1>
             <span id="hero-top-text">Less scope creep.</span>
-            <span id="hero-bottom-text" class="secondary-line">More paid approvals.</span>
+            <span id="hero-bottom-text" class="secondary-line hero-underline-target is-active">
+              <span class="hero-line-copy">More paid approvals.</span>
+              <svg class="scopey-underline" viewBox="0 0 420 12" height="12"
+                   preserveAspectRatio="none" aria-hidden="true">
+                <path
+                  d="M2,7 C40,3 90,9 150,6 C210,3 270,10 330,6 C370,3 400,8 418,6"
+                  fill="none" stroke="var(--brand)" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round"
+                />
+              </svg>
+            </span>
           </h1>
 
           <p class="lead">
@@ -516,33 +540,52 @@
           </section>
 
           <section id="owner-empty-state" class="card empty-state-panel">
-            <div class="card-title">Project workspace</div>
-            <h2 class="empty-state-heading">Create your first project</h2>
+            <svg
+              class="scopey-empty-illustration"
+              width="120" height="96" viewBox="0 0 120 96"
+              fill="none" aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg">
+              <line x1="8" y1="78" x2="112" y2="78"
+                stroke="var(--il-stroke)" stroke-width="1.5" stroke-linecap="round"/>
+              <rect x="30" y="18" width="60" height="52" rx="2"
+                stroke="var(--il-stroke)" stroke-width="1.5" fill="none"/>
+              <rect x="36" y="24" width="48" height="40" rx="1"
+                stroke="var(--il-stroke)" stroke-width="1.5"
+                stroke-dasharray="3 3" fill="none"/>
+              <path d="M60,36 C66,36 70,40 70,46 C70,52 66,56 60,56 C54,56 50,52 50,46"
+                stroke="var(--brand)" stroke-width="1.5"
+                stroke-linecap="round" fill="none"/>
+              <path d="M60,40 C64,40 66,43 66,46 C66,49 64,52 60,52"
+                stroke="var(--brand)" stroke-width="1.5"
+                stroke-linecap="round" fill="none" opacity="0.5"/>
+              <circle cx="60" cy="46" r="2" fill="var(--brand)"/>
+              <line x1="88" y1="72" x2="104" y2="56"
+                stroke="var(--il-stroke)" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M88,72 L84,76 L90,74 Z"
+                stroke="var(--il-stroke)" stroke-width="1.5"
+                stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <line x1="100" y1="60" x2="103" y2="57"
+                stroke="var(--il-stroke)" stroke-width="1.5"
+                stroke-linecap="round" opacity="0.5"/>
+              <rect x="10" y="58" width="16" height="20" rx="1"
+                stroke="var(--il-stroke)" stroke-width="1.5" fill="none"/>
+              <line x1="13" y1="63" x2="23" y2="63"
+                stroke="var(--il-stroke)" stroke-width="1.5"
+                stroke-linecap="round" opacity="0.4"/>
+              <line x1="13" y1="67" x2="23" y2="67"
+                stroke="var(--il-stroke)" stroke-width="1.5"
+                stroke-linecap="round" opacity="0.4"/>
+              <line x1="13" y1="71" x2="19" y2="71"
+                stroke="var(--il-stroke)" stroke-width="1.5"
+                stroke-linecap="round" opacity="0.4"/>
+            </svg>
+            <h2 class="empty-state-heading">Your first project lives here</h2>
             <p class="card-copy">
-              Add one client project, then Scopey will guide you through agreement, scope, handoff and client review.
+              Add a client, agree the scope, and Scopey keeps everything in one place.
             </p>
-            <div class="first-run-steps" aria-label="First project setup path">
-              <div>
-                <span>1</span>
-                <strong>Business profile</strong>
-                <p>Add the name and contact details clients should trust.</p>
-              </div>
-              <div>
-                <span>2</span>
-                <strong>Client workspace</strong>
-                <p>Create one project with the client's name and email.</p>
-              </div>
-              <div>
-                <span>3</span>
-                <strong>Agreement and scope</strong>
-                <p>Define what is included before work changes.</p>
-              </div>
-              <div>
-                <span>4</span>
-                <strong>Send review link</strong>
-                <p>Preview the client page, then email or copy the link.</p>
-              </div>
-            </div>
+            <button id="empty-create-project-btn" class="empty-state-cta" type="button">
+              Create a project &rarr;
+            </button>
           </section>
 
           <section id="project-workspace" class="hidden workspace-stack">
@@ -830,37 +873,37 @@
 
                       <div>
                         <label class="field-label" for="agreement-summary">Project summary</label>
-                        <textarea id="agreement-summary" rows="4" placeholder="What is being commissioned and what outcome is expected."></textarea>
+                        <textarea id="agreement-summary" class="agreement-textarea" rows="4" placeholder="What is being commissioned and what outcome is expected."></textarea>
                       </div>
 
                       <div>
                         <label class="field-label" for="agreement-scope">Included scope</label>
-                        <textarea id="agreement-scope" rows="7" placeholder="List the work included in the original price."></textarea>
+                        <textarea id="agreement-scope" class="agreement-textarea" rows="7" placeholder="List the work included in the original price."></textarea>
                       </div>
 
                       <div>
                         <label class="field-label" for="agreement-exclusions">Exclusions</label>
-                        <textarea id="agreement-exclusions" rows="5" placeholder="What is not included unless separately approved."></textarea>
+                        <textarea id="agreement-exclusions" class="agreement-textarea" rows="5" placeholder="What is not included unless separately approved."></textarea>
                       </div>
 
                       <div>
                         <label class="field-label" for="agreement-timeline">Timeline</label>
-                        <textarea id="agreement-timeline" rows="4" placeholder="Expected dates, milestones, or delivery notes."></textarea>
+                        <textarea id="agreement-timeline" class="agreement-textarea" rows="4" placeholder="Expected dates, milestones, or delivery notes."></textarea>
                       </div>
 
                       <div>
                         <label class="field-label" for="agreement-payment-terms">Payment terms</label>
-                        <textarea id="agreement-payment-terms" rows="5" placeholder="Deposit, milestone, final payment, or invoice terms."></textarea>
+                        <textarea id="agreement-payment-terms" class="agreement-textarea" rows="5" placeholder="Deposit, milestone, final payment, or invoice terms."></textarea>
                       </div>
 
                       <div>
                         <label class="field-label" for="agreement-revision-terms">Revision and change policy</label>
-                        <textarea id="agreement-revision-terms" rows="5" placeholder="How revisions work and when extra changes become chargeable."></textarea>
+                        <textarea id="agreement-revision-terms" class="agreement-textarea" rows="5" placeholder="How revisions work and when extra changes become chargeable."></textarea>
                       </div>
 
                       <div>
                         <label class="field-label" for="agreement-cancellation-terms">Cancellation terms</label>
-                        <textarea id="agreement-cancellation-terms" rows="4" placeholder="What happens if either side cancels the commission."></textarea>
+                        <textarea id="agreement-cancellation-terms" class="agreement-textarea" rows="4" placeholder="What happens if either side cancels the commission."></textarea>
                       </div>
                     </div>
 
@@ -1872,6 +1915,19 @@
           View refunds
         </button>
       </div>
+
+      <section class="account-share-badge">
+        <div>
+          <div class="card-title">Share Scopey</div>
+          <p class="card-copy card-copy-small">
+            Let clients know your commissions are professionally managed &mdash; and help other artists find Scopey.
+          </p>
+        </div>
+        <div id="scopey-badge-preview" class="scopey-badge-preview" aria-label="Badge preview"></div>
+        <button id="copy-scopey-badge-btn" class="btn btn-secondary btn-small" type="button">
+          Copy embed code
+        </button>
+      </section>
     </div>
   </div>
 
