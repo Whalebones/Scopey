@@ -2059,32 +2059,124 @@ function makeAccessCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildClientEmail({ project, profile, link, section, accessCode = null }) {
   const sectionLabel = section === "all" ? "project workspace" : section;
   const brandName = profile.brand_name || "Your freelancer";
+  const clientName = project.client_name || "there";
+  const projectTitle = project.title || "your project";
+  const status = project.status || "draft";
+  const safeClientName = escapeHtml(clientName);
+  const safeBrandName = escapeHtml(brandName);
+  const safeProjectTitle = escapeHtml(projectTitle);
+  const safeSectionLabel = escapeHtml(sectionLabel);
+  const safeStatus = escapeHtml(status);
+  const safeLink = escapeHtml(link);
+  const safeAccessCode = accessCode ? escapeHtml(accessCode) : "";
+
   return {
-    subject: `"${project.title}" is ready to review`,
+    subject: `"${projectTitle}" is ready to review`,
     text: [
-      `Hi ${project.client_name || "there"},`,
+      `Hi ${clientName},`,
       "",
-      `${brandName} has shared "${project.title}" with you in Scopey.`,
+      `${brandName} has shared "${projectTitle}" with you in Scopey so the project details are easy to review in one place.`,
       "",
-      `Your ${sectionLabel} is ready to review.`,
+      `Your ${sectionLabel} is ready to review. Open the link below and use the access code if Scopey asks for it.`,
       "",
-      `Open it here: ${link}`,
+      `Review project: ${link}`,
       accessCode ? `Access code: ${accessCode}` : "",
       "",
-      "Scopey keeps the original scope, changes, payments, updates and approvals in one shared project record.",
+      "Scopey keeps the agreed scope, updates, payments, changes and approvals together so both sides can see what has been agreed.",
       "",
-      `Current project status: ${project.status || "draft"}.`,
+      `Current project status: ${status}.`,
       "",
       "Thanks,",
       brandName
-    ].join("\n")
+    ].join("\n"),
+    html: `
+      <!doctype html>
+      <html>
+        <body style="margin:0;padding:0;background:#f8fafc;font-family:Inter,Arial,sans-serif;color:#111827;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:28px 12px;">
+            <tr>
+              <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;">
+                  <tr>
+                    <td style="padding:28px 30px 20px;">
+                      <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 26px;">
+                        <tr>
+                          <td style="vertical-align:middle;padding:0 10px 0 0;">
+                            <img src="https://scopey.co.uk/favicon-256x256.png" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;" />
+                          </td>
+                          <td style="vertical-align:middle;color:#111827;font-size:30px;line-height:1;font-weight:800;letter-spacing:-1px;">
+                            scopey
+                          </td>
+                        </tr>
+                      </table>
+                      <p style="margin:0 0 16px;font-size:16px;line-height:1.65;">Hi ${safeClientName},</p>
+                      <p style="margin:0 0 16px;font-size:16px;line-height:1.65;">
+                        ${safeBrandName} has shared <strong>${safeProjectTitle}</strong> with you in Scopey so the project details are easy to review in one place.
+                      </p>
+                      <p style="margin:0 0 24px;font-size:16px;line-height:1.65;">
+                        Your ${safeSectionLabel} is ready to review. Open the secure link below and use the access code if Scopey asks for it.
+                      </p>
+
+                      <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 22px;">
+                        <tr>
+                          <td>
+                            <a href="${safeLink}" style="display:inline-block;background:#FF4D2E;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;line-height:1;padding:15px 20px;border-radius:999px;">
+                              Review project
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      ${
+                        safeAccessCode
+                          ? `<div style="margin:0 0 22px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:14px;background:#f9fafb;">
+                              <p style="margin:0 0 6px;color:#6b7280;font-size:13px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;">Access code</p>
+                              <p style="margin:0;font-size:22px;line-height:1.2;font-weight:800;letter-spacing:.08em;color:#111827;">${safeAccessCode}</p>
+                            </div>`
+                          : ""
+                      }
+
+                      <p style="margin:0 0 16px;color:#4b5563;font-size:15px;line-height:1.65;">
+                        Scopey keeps the agreed scope, updates, payments, changes and approvals together so both sides can see what has been agreed.
+                      </p>
+                      <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.65;">
+                        Current project status: <strong>${safeStatus}</strong>.
+                      </p>
+                      <p style="margin:0;font-size:15px;line-height:1.65;">
+                        Thanks,<br />
+                        ${safeBrandName}
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:18px 30px;background:#f9fafb;border-top:1px solid #e5e7eb;color:#6b7280;font-size:13px;line-height:1.55;">
+                      This email was sent through Scopey. If the button does not work, copy and paste this link into your browser:<br />
+                      <a href="${safeLink}" style="color:#FF4D2E;word-break:break-all;">${safeLink}</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `
   };
 }
 
-async function sendEmail({ to, subject, text }) {
+async function sendEmail({ to, subject, text, html = null }) {
   if (hasPlaceholderEnvValue(process.env.RESEND_API_KEY)) {
     return { sent: false, provider: "not_configured" };
   }
@@ -2099,7 +2191,8 @@ async function sendEmail({ to, subject, text }) {
       from: EMAIL_FROM,
       to,
       subject,
-      text
+      text,
+      ...(html ? { html } : {})
     })
   });
 
@@ -3547,7 +3640,8 @@ app.post("/project/:projectId/send-email", async (req, res) => {
     const delivery = await sendEmail({
       to: project.client_email,
       subject: email.subject,
-      text: email.text
+      text: email.text,
+      html: email.html
     });
     const mailto = `mailto:${encodeURIComponent(project.client_email)}?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.text)}`;
 
