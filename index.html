@@ -89,11 +89,59 @@
   <meta name="msapplication-TileColor" content="#ff432e" />
   <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
   <meta name="theme-color" content="#ff432e" />
-  <link rel="stylesheet" href="styles.css?v=20260618-landing-demo-origin-v1" />
+  <link rel="stylesheet" href="styles.css?v=20260619-feature-icons-v1" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
+  <svg class="feature-icon-sprite" aria-hidden="true" focusable="false">
+    <style>
+      .ring{fill:none;stroke:#FF4D2E;stroke-width:1.5;opacity:.3;}
+      .glyph{fill:none;stroke:#FF4D2E;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;}
+    </style>
+    <symbol id="feature-icon-scope" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="26" class="ring"/>
+      <path d="M24 14 L24 42" class="glyph"/>
+      <path d="M24 14 L36 19 L24 24" class="glyph"/>
+      <circle cx="24" cy="42" r="3" fill="#FF4D2E" stroke="none"/>
+    </symbol>
+    <symbol id="feature-icon-changes" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="26" class="ring"/>
+      <path d="M16 22 L34 22" class="glyph"/>
+      <path d="M28 16 L34 22 L28 28" class="glyph"/>
+      <path d="M40 34 L22 34" class="glyph"/>
+      <path d="M28 40 L22 34 L28 28" class="glyph"/>
+    </symbol>
+    <symbol id="feature-icon-fees" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="26" class="ring"/>
+      <circle cx="21" cy="21" r="4.5" class="glyph"/>
+      <circle cx="35" cy="35" r="4.5" class="glyph"/>
+      <path d="M18 38 L38 18" class="glyph"/>
+    </symbol>
+    <symbol id="feature-icon-portal" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="26" class="ring"/>
+      <path d="M30 18 L16 18 L16 38 L36 38 L36 24" class="glyph"/>
+      <path d="M24 30 L40 14" class="glyph"/>
+      <path d="M33 14 L40 14 L40 21" class="glyph"/>
+    </symbol>
+    <symbol id="feature-icon-payments" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="26" class="ring"/>
+      <ellipse cx="28" cy="35" rx="13" ry="5" class="glyph"/>
+      <ellipse cx="28" cy="28" rx="13" ry="5" class="glyph"/>
+      <ellipse cx="28" cy="21" rx="13" ry="5" class="glyph"/>
+    </symbol>
+    <symbol id="feature-icon-progress" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="26" class="ring"/>
+      <path d="M28 14 L40 19 L40 28 C40 34 35 39 28 42 C21 39 16 34 16 28 L16 19 Z" class="glyph"/>
+      <path d="M19 31 L35 21" class="glyph"/>
+      <path d="M21 35 L37 25" class="glyph"/>
+    </symbol>
+    <symbol id="feature-icon-rights" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="26" class="ring"/>
+      <circle cx="28" cy="21" r="9" class="glyph"/>
+      <path d="M22 28 L18 42 L28 37 L38 42 L34 28" class="glyph"/>
+    </symbol>
+  </svg>
 
   <header class="topbar">
     <div class="nav container">
@@ -185,16 +233,25 @@
 
           <div class="hero-proof-strip" aria-label="What Scopey keeps clear">
             <div>
+              <svg class="feature-icon" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+                <use href="#feature-icon-scope"></use>
+              </svg>
               <span>Original scope</span>
               <strong>Agreed before work starts</strong>
               <p>Keep the deliverables, exclusions, payment terms and revision rules visible from day one.</p>
             </div>
             <div>
+              <svg class="feature-icon" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+                <use href="#feature-icon-changes"></use>
+              </svg>
               <span>Client changes</span>
               <strong>Accepted, revised or declined</strong>
               <p>Turn vague requests into clear decisions, prices and approval records before they become extra work.</p>
             </div>
             <div>
+              <svg class="feature-icon" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+                <use href="#feature-icon-fees"></use>
+              </svg>
               <span>0% commission fees</span>
               <strong>Your work stays yours</strong>
               <p>Scopey takes 0% of your commission payments. Stripe or PayPal fees may still apply.</p>
@@ -218,21 +275,33 @@
 
       <section class="premium-strip" aria-label="Scopey operating layer">
         <div>
+          <svg class="feature-icon" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+            <use href="#feature-icon-portal"></use>
+          </svg>
           <span>Client portal</span>
           <strong>Focused review links</strong>
           <p>Send clients straight to the agreement, payment request, suggestion area, progress update or final approval view.</p>
         </div>
         <div>
+          <svg class="feature-icon" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+            <use href="#feature-icon-payments"></use>
+          </svg>
           <span>Payment control</span>
           <strong>Deposits and milestones</strong>
           <p>Set up Stripe or PayPal, request project payments and keep receipts tied to the commission record.</p>
         </div>
         <div>
+          <svg class="feature-icon" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+            <use href="#feature-icon-progress"></use>
+          </svg>
           <span>Progress protection</span>
           <strong>Watermarked updates</strong>
           <p>Share progress images with a freelancer watermark, then send clean deliverables only when the work is ready.</p>
         </div>
         <div>
+          <svg class="feature-icon" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+            <use href="#feature-icon-rights"></use>
+          </svg>
           <span>Rights records</span>
           <strong>Usage stays clear</strong>
           <p>Use Scopey Rights to track artwork, licences, usage terms and client records beside the project.</p>

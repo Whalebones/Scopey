@@ -1177,6 +1177,36 @@ body.theme-high-contrast textarea{
   box-shadow:var(--shadow-soft);
 }
 
+.feature-icon-sprite{
+  position:absolute;
+  width:0;
+  height:0;
+  overflow:hidden;
+}
+
+.feature-icon{
+  display:block;
+  width:54px;
+  height:54px;
+  margin:0 0 14px;
+  color:#FF4D2E;
+}
+
+.feature-icon .ring{
+  fill:none;
+  stroke:#FF4D2E;
+  stroke-width:1.5;
+  opacity:.3;
+}
+
+.feature-icon .glyph{
+  fill:none;
+  stroke:#FF4D2E;
+  stroke-width:3;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
 .hero-proof-strip span{
   display:block;
   color:var(--accent-600);
