@@ -26,7 +26,8 @@ Required values:
 
 Optional email delivery:
 - `RESEND_API_KEY`
-- `EMAIL_FROM`
+- `RESEND_FROM_EMAIL` (for example `Scopey <info@scopey.co.uk>`)
+- `EMAIL_FROM` (legacy alias, optional)
 
 Automatic client emails are available on Free and paid plans. If `RESEND_API_KEY` is not set, the Email client button will prepare a secure review link and copy it where browser permissions allow, but no email is sent until Resend is configured.
 

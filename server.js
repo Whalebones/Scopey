@@ -245,7 +245,8 @@ const RIGHTS_LICENSE_SELECT =
   "id,artwork_id,client_name,usage_type,territory,exclusive,fee,currency,start_date,end_date,notes,acknowledged_conflict,conflict_snapshot,created_at,updated_at";
 const CONTENT_REPORT_SELECT =
   "id,project_id,source_type,source_id,reporter_role,reporter_email,reason,details,status,reviewer_note,reviewed_by,created_at,reviewed_at,updated_at";
-const EMAIL_FROM = process.env.EMAIL_FROM || "Scopey <hello@scopey.local>";
+const EMAIL_FROM =
+  process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Scopey <info@scopey.co.uk>";
 const SUPPORTED_CURRENCIES = new Set([
   "GBP",
   "USD",
